@@ -220,4 +220,8 @@ pyproject.toml
 
 # local folders/files
 data/
-.qodo/
+.qodo
+
+# local secrets
+secrets/
+secret/
