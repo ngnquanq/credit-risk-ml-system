@@ -3,6 +3,7 @@ import pandas as pd
 from sklearn.metrics import roc_auc_score
 from scipy.stats import linregress
 import matplotlib.pyplot as plt
+from sklearn.metrics import precision_recall_fscore_support
 
 def calculate_gini_stability_metric(df: pd.DataFrame, week_col: str, target_col: str, prediction_col: str) -> dict:
     """
@@ -77,80 +78,200 @@ def calculate_gini_stability_metric(df: pd.DataFrame, week_col: str, target_col:
         'gini_over_time_df': gini_over_time_df
     }
 
-# --- Example Usage ---
-if __name__ == "__main__":
-    # Create a dummy DataFrame for demonstration
-    # In a real scenario, this would be your actual dataset with millions of records
-    # and the relevant columns.
-    np.random.seed(42)
-    num_records = 10000
-    weeks = np.sort(np.random.randint(1, 20, num_records)) # Weeks from 1 to 19
+def calculate_ece(y_true, y_prob, n_bins=10):
+    """
+    Calculate the Expected Calibration Error (ECE) for predicted probabilities.
 
-    # Simulate true labels (0 or 1)
-    true_labels = np.random.randint(0, 2, num_records)
+    The purpose of this is to compare different model with each other.
 
-    # Simulate predictions with some weekly trend and variability
-    # Let's make it slightly declining over time for demonstration of falling_rate
-    # And add some noise
-    base_preds = 0.5 + 0.1 * np.random.randn(num_records)
-    # Add a slight decline based on week number
-    predictions = base_preds - (weeks / np.max(weeks)) * 0.2 + 0.05 * np.random.randn(num_records)
-    predictions = np.clip(predictions, 0.01, 0.99) # Ensure probabilities are within (0,1)
+    Args:
+        y_true (array-like): True binary labels.
+        y_prob (array-like): Predicted probabilities.
+        n_bins (int): Number of bins to use for calibration.
 
-    dummy_df = pd.DataFrame({
-        'WEEK_NUM': weeks,
-        'TARGET': true_labels,
-        'PREDICTION': predictions
-    })
+    Returns:
+        float: The ECE value.
+    """
+    # Bin the predicted probabilities
+    bins = np.linspace(0, 1, n_bins + 1)
+    bin_indices = np.digitize(y_prob, bins) - 1
 
-    print("Dummy DataFrame Head:")
-    print(dummy_df.head())
-    print("\nDummy DataFrame Info:")
-    dummy_df.info()
+    ece = 0.0
+    for i in range(n_bins):
+        bin_mask = bin_indices == i
+        if np.sum(bin_mask) > 0:
+            bin_accuracy = np.mean(y_true[bin_mask])
+            bin_confidence = np.mean(y_prob[bin_mask])
+            ece += np.abs(bin_accuracy - bin_confidence) * np.sum(bin_mask)
 
-    try:
-        results = calculate_gini_stability_metric(
-            df=dummy_df,
-            week_col='WEEK_NUM',
-            target_col='TARGET',
-            prediction_col='PREDICTION'
-        )
+    return ece / len(y_true)
 
-        print("\n--- Gini Stability Metric Results ---")
-        print(f"Weekly Gini Scores:\n{results['weekly_gini_scores']}")
-        print(f"\nMean Gini: {results['mean_gini']:.4f}")
-        print(f"Linear Regression Slope (a): {results['a']:.4f}")
-        print(f"Linear Regression Intercept (b): {results['b']:.4f}")
-        print(f"Falling Rate Penalty (min(0, a)): {results['falling_rate_penalty']:.4f}")
-        print(f"Standard Deviation of Residuals (variability penalty): {results['std_residuals']:.4f}")
-        print(f"\nFinal Stability Metric: {results['stability_metric']:.4f}")
+def calculate_psi(expected, actual, n_bins=10):
+    """
+    Calculate the Population Stability Index (PSI) between expected and actual distributions.
 
-        print("\n--- Gini Over Time (Actual vs. Regression Predicted) ---")
-        print(results['gini_over_time_df'])
+    Args:
+        expected (array-like): Expected distribution (e.g., training set).
+        actual (array-like): Actual distribution (e.g., validation set).
+        n_bins (int): Number of bins to use for PSI calculation.
 
-        # You could also plot this for visual inspection:
-        plt.figure(figsize=(10, 6))
-        plt.plot(results['gini_over_time_df'].index, results['gini_over_time_df']['actual_gini'], marker='o', linestyle='-', label='Actual Weekly Gini')
-        plt.plot(results['gini_over_time_df'].index, results['gini_over_time_df']['predicted_gini_regression'], linestyle='--', color='red', label='Regression Line (f(x) = ax + b)')
-        plt.title('Weekly Gini Scores and Regression Fit')
-        plt.xlabel('WEEK_NUM')
-        plt.ylabel('Gini Score')
-        plt.grid(True)
-        plt.legend()
-        plt.show()
+    Returns:
+        float: The PSI value.
+    """
+    # Create histograms for expected and actual distributions
+    expected_hist, _ = np.histogram(expected, bins=n_bins, density=True)
+    actual_hist, _ = np.histogram(actual, bins=n_bins, density=True)
 
+    # Avoid division by zero
+    expected_hist = np.where(expected_hist == 0, 1e-10, expected_hist)
+    actual_hist = np.where(actual_hist == 0, 1e-10, actual_hist)
 
-    except ValueError as e:
-        print(f"Error calculating stability metric: {e}")
+    # Calculate PSI
+    psi = np.sum((expected_hist - actual_hist) * np.log(expected_hist / actual_hist))
+    
+    return psi
 
-    # Example with insufficient data for regression
-    print("\n--- Testing with insufficient data ---")
-    small_df = pd.DataFrame({
-        'WEEK_NUM': [1, 1, 2, 2],
-        'TARGET': [0, 1, 0, 1],
-        'PREDICTION': [0.1, 0.9, 0.2, 0.8]
-    })
-    try:
-        calculate_gini_stability_metric(small_df, 'WEEK_NUM', 'TARGET', 'PREDICTION')
-    except ValueError as e:
-        print(f"Caught expected error: {e}")
+def calculate_gini_coef(y_true, y_prob):
+    """
+    Calculate the Gini coefficient for model evaluation.
+
+    Args:
+        y_true (array-like): True binary labels.
+        y_prob (array-like): Predicted probabilities.
+
+    Returns:
+        float: The Gini coefficient.
+    """
+    # Calculate the Gini coefficient
+    gini = 2 * roc_auc_score(y_true, y_prob) - 1
+    return gini
+
+def calculate_brier(y_true, y_prob):
+    """
+    Calculate the Prier metric for model evaluation.
+
+    Args:
+        y_true (array-like): True binary labels.
+        y_prob (array-like): Predicted probabilities.
+
+    Returns:
+        float: The Prier metric value.
+    """
+    # Calculate the Prier metric
+    prier = np.mean(np.sqrt((y_true - y_prob)**2))
+    return prier
+
+def model_evaluation_proba(y_true, y_prob, n_bins=10):
+    """
+    Evaluate model performance using Gini coefficient and ECE.
+
+    Args:
+        y_true (array-like): True binary labels.
+        y_prob (array-like): Predicted probabilities.
+        n_bins (int): Number of bins for ECE calculation.
+
+    Returns:
+        dict: A dictionary containing Gini coefficient and ECE.
+    """
+    # Calculate Gini coefficient
+    gini = 2 * roc_auc_score(y_true, y_prob) - 1
+    # Calculate ECE
+    ece = calculate_ece(y_true, y_prob, n_bins)
+    # calculate AUC, Recall, Precision, F1
+    auc = roc_auc_score(y_true, y_prob)
+    # precision, recall, f1, _ = precision_recall_fscore_support(y_true, y_pred, average='binary')
+    # Calculate PSI
+    # psi = calculate_psi(expected_distribution, actual_distribution)
+
+    return {
+        'gini': gini,
+        'ece': ece,
+        'auc': auc,
+    }
+
+def calculate_precision_at_k(y_true, y_prob, k=10):
+    """
+    Calculate precision at k for predicted probabilities.
+
+    Args:
+        y_true (array-like): True binary labels.
+        y_prob (array-like): Predicted probabilities.
+        k (int): The number of top predictions to consider.
+
+    Returns:
+        float: Precision at k.
+    """
+    # Get the indices of the top k predictions
+    top_k_indices = np.argsort(y_prob)[-k:]
+    # Calculate precision at k
+    true_positives = np.sum(y_true[top_k_indices])
+    precision_at_k = true_positives / k if k > 0 else 0.0
+    return precision_at_k
+
+def model_evaluation_pred(y_true, y_pred):
+    """
+    Evaluate model performance using Gini coefficient and ECE.
+
+    Args:
+        y_true (array-like): True binary labels.
+        y_pred (array-like): Predicted binary labels.
+
+    Returns:
+        dict: A dictionary containing Gini coefficient and ECE.
+    """
+    precision, recall, fbeta_score, support = precision_recall_fscore_support(y_true, y_pred, average='binary')
+    accuracy = np.mean(y_true == y_pred)
+    return {
+        'precision': precision,
+        'recall': recall,
+        'fbeta_score': fbeta_score,
+        'support': support,
+        'accuracy': accuracy
+    }
+def calculate_psi(expected, actual, n_bins=10):
+    """
+    Calculate the Population Stability Index (PSI) between expected and actual distributions.
+
+    Args:
+        expected (array-like): Expected distribution (e.g., training set).
+        actual (array-like): Actual distribution (e.g., validation set).
+        n_bins (int): Number of bins to use for PSI calculation.
+
+    Returns:
+        float: The PSI value.
+    """
+    # Create histograms for expected and actual distributions
+    expected_hist, _ = np.histogram(expected, bins=n_bins, density=True)
+    actual_hist, _ = np.histogram(actual, bins=n_bins, density=True)
+
+    # Avoid division by zero
+    expected_hist = np.where(expected_hist == 0, 1e-10, expected_hist)
+    actual_hist = np.where(actual_hist == 0, 1e-10, actual_hist)
+
+    # Calculate PSI
+    psi = np.sum((expected_hist - actual_hist) * np.log(expected_hist / actual_hist))
+    
+    return psi
+
+def unify_model_view(model_evaluation_proba, model_evaluation_pred):
+    """
+    Unify model evaluation results from probability and prediction evaluations.
+
+    Args:
+        model_evaluation_proba (dict): Evaluation results from probability predictions.
+        model_evaluation_pred (dict): Evaluation results from binary predictions.
+
+    Returns:
+        dict: A unified dictionary containing all evaluation metrics.
+    """
+    unified_results = {
+        'gini': model_evaluation_proba['gini'],
+        'ece': model_evaluation_proba['ece'],
+        'auc': model_evaluation_proba['auc'],
+        'precision': model_evaluation_pred['precision'],
+        'recall': model_evaluation_pred['recall'],
+        'fbeta_score': model_evaluation_pred['fbeta_score'],
+        'support': model_evaluation_pred['support'],
+        'accuracy': model_evaluation_pred['accuracy']
+    }
+    return unified_results
