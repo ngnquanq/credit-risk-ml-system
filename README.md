@@ -1,4 +1,15 @@
+# Business Objective 
+## Situation 
 
-1. Add IAP
-gcloud services enable iap.googleapis.com
-gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member=user:YOUR_EMAIL@example.com --role=roles/iap.tunnelResourceAccessor
+## Task 
+
+## Action 
+
+## Result
+
+# Repository Structure
+
+# HIgh-level System Architecture 
+
+# Guide to Install and Run Code
+

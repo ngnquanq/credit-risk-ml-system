@@ -77,7 +77,6 @@ def calculate_gini_stability_metric(df: pd.DataFrame, week_col: str, target_col:
         'stability_metric': stability_metric,
         'gini_over_time_df': gini_over_time_df
     }
-
 def calculate_ece(y_true, y_prob, n_bins=10):
     """
     Calculate the Expected Calibration Error (ECE) for predicted probabilities.
@@ -105,7 +104,6 @@ def calculate_ece(y_true, y_prob, n_bins=10):
             ece += np.abs(bin_accuracy - bin_confidence) * np.sum(bin_mask)
 
     return ece / len(y_true)
-
 def calculate_psi(expected, actual, n_bins=10):
     """
     Calculate the Population Stability Index (PSI) between expected and actual distributions.
@@ -130,7 +128,6 @@ def calculate_psi(expected, actual, n_bins=10):
     psi = np.sum((expected_hist - actual_hist) * np.log(expected_hist / actual_hist))
     
     return psi
-
 def calculate_gini_coef(y_true, y_prob):
     """
     Calculate the Gini coefficient for model evaluation.
@@ -145,7 +142,6 @@ def calculate_gini_coef(y_true, y_prob):
     # Calculate the Gini coefficient
     gini = 2 * roc_auc_score(y_true, y_prob) - 1
     return gini
-
 def calculate_brier(y_true, y_prob):
     """
     Calculate the Prier metric for model evaluation.
@@ -160,7 +156,6 @@ def calculate_brier(y_true, y_prob):
     # Calculate the Prier metric
     prier = np.mean(np.sqrt((y_true - y_prob)**2))
     return prier
-
 def model_evaluation_proba(y_true, y_prob, n_bins=10):
     """
     Evaluate model performance using Gini coefficient and ECE.
@@ -188,7 +183,6 @@ def model_evaluation_proba(y_true, y_prob, n_bins=10):
         'ece': ece,
         'auc': auc,
     }
-
 def calculate_precision_at_k(y_true, y_prob, k=10):
     """
     Calculate precision at k for predicted probabilities.
@@ -207,7 +201,6 @@ def calculate_precision_at_k(y_true, y_prob, k=10):
     true_positives = np.sum(y_true[top_k_indices])
     precision_at_k = true_positives / k if k > 0 else 0.0
     return precision_at_k
-
 def model_evaluation_pred(y_true, y_pred):
     """
     Evaluate model performance using Gini coefficient and ECE.
@@ -252,7 +245,6 @@ def calculate_psi(expected, actual, n_bins=10):
     psi = np.sum((expected_hist - actual_hist) * np.log(expected_hist / actual_hist))
     
     return psi
-
 def unify_model_view(model_evaluation_proba, model_evaluation_pred):
     """
     Unify model evaluation results from probability and prediction evaluations.
