@@ -1,0 +1,1 @@
+{{ select_with_assume_not_null('application_train', cols_to_force=['SK_ID_CURR']) }}
