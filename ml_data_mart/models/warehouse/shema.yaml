@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: ml_data_mart
+    schema: ml_data_mart          # the schema/database where the table lives
+    tables:
+      - name: application_train
+        description: "Raw application data"
+        columns:
+          - name: SK_ID_CURR
+            description: "Primary key"
+            tests:
+              - not_null
+              - unique
