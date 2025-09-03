@@ -1,0 +1,61 @@
+services:
+  # Primary operational database - optimized for transactional workloads
+  ops-postgres:
+    image: postgres:15-alpine
+    container_name: ops_postgres
+    command: [
+      'postgres',
+      '-c', 'wal_level=replica',           # For replication/CDC
+      '-c', 'max_connections=200',         # Handle concurrent transactions
+      '-c', 'shared_buffers=256MB',        # Memory optimization
+      '-c', 'effective_cache_size=1GB',    # Query optimization
+      '-c', 'work_mem=8MB',               # Sort/hash operations
+      '-c', 'maintenance_work_mem=128MB',  # Maintenance operations
+      '-c', 'checkpoint_timeout=15min',    # Performance tuning
+      '-c', 'random_page_cost=1.1'        # SSD optimization
+    ]
+    ports:
+      - "5434:5432"  # Avoid conflict with main data DB
+    environment:
+      POSTGRES_DB: operations
+      POSTGRES_USER: ops_admin
+      POSTGRES_PASSWORD: ${OPS_DB_PASSWORD:-ops_secure_password}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    volumes:
+      - ops_postgres_data:/var/lib/postgresql/data
+      - ./init-ops-db.sql:/docker-entrypoint-initdb.d/init-ops-db.sql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ops_admin -d operations']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - hc-network
+
+  # Connection pooler for high-concurrency scenarios
+  pgbouncer:
+    image: pgbouncer/pgbouncer:latest
+    container_name: ops_pgbouncer
+    environment:
+      DATABASES_HOST: ops-postgres
+      DATABASES_PORT: 5432
+      DATABASES_USER: ops_admin
+      DATABASES_PASSWORD: ${OPS_DB_PASSWORD:-ops_secure_password}
+      DATABASES_DBNAME: operations
+      POOL_MODE: transaction
+      SERVER_RESET_QUERY: DISCARD ALL
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 25
+    ports:
+      - "6432:5432"
+    depends_on:
+      - ops-postgres
+    networks:
+      - hc-network
+
+volumes:
+  ops_postgres_data:
+
+networks:
+  hc-network:
+    external: true
