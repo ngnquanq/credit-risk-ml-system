@@ -18,7 +18,7 @@ services:
           '--fail',
           '-X',
           'GET',
-          'http://localhost:8083/connectors',
+          'http://localhost:${DEBEZIUM_PORT:-8083}/connectors',
         ]
       start_period: 10s
       interval: 10s
@@ -27,18 +27,30 @@ services:
     ports:
       - "${DEBEZIUM_PORT:-8083}:8083"
     environment:
+      # The below things is Kafka Related
       BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
       GROUP_ID: ${DEBEZIUM_GROUP_ID:-1}
       CONFIG_STORAGE_TOPIC: ${DEBEZIUM_CONFIG_TOPIC:-connect_configs}
       OFFSET_STORAGE_TOPIC: ${DEBEZIUM_OFFSET_TOPIC:-connect_offsets}
-      # Set to Avro for higher performance
-      # KEY_CONVERTER: io.confluent.connect.avro.AvroConverter
-      # VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
       KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
       CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
       CONNECT_TOPIC_CREATION_ENABLE: true
+      # The below things is Postgres Related
+      POSTGRES_HOSTNAME: ${OPS_DB_HOST:-ops-postgres}
+      POSTGRES_PORT: ${OPS_DB_PORT:-5432}  
+      POSTGRES_USER: ${OPS_DB_USER:-ops_admin}
+      POSTGRES_PASSWORD: ${OPS_DB_PASSWORD}
+      POSTGRES_DBNAME: ${OPS_DB_NAME:-operations}
+      
+      # CDC Topic Configuration
+      CDC_TOPIC_PREFIX: ${CDC_TOPIC_PREFIX:-hc.applications}
+      CDC_PUBLICATION_NAME: ${CDC_PUBLICATION_NAME:-debezium_pub}
+      CDC_SLOT_NAME: ${CDC_SLOT_NAME:-debezium_slot}
+      CDC_CONNECTOR_NAME: ${CDC_CONNECTOR_NAME:-postgres-application-connector}
+      CDC_PLUGIN_NAME: ${CDC_PLUGIN_NAME:-pgoutput}
+      CDC_SNAPSHOT_MODE: ${CDC_SNAPSHOT_MODE:-initial}
     networks:
       - hc-network
 

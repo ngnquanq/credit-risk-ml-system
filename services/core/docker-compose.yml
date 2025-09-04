@@ -1,12 +1,12 @@
 services:
-  # Primary operational database - optimized for transactional workloads
+  # Primary operational database - optimized for transactional workloads (i.e data from the application - yall see later)
   ops-postgres:
     image: postgres:${POSTGRES_VERSION:-15-alpine}
     container_name: ops_postgres
     command: [
       'postgres',
-      '-c', 'wal_level=${POSTGRES_WAL_LEVEL:-replica}',
-      '-c', 'max_connections=${POSTGRES_MAX_CONNECTIONS:-200}',
+      '-c', 'wal_level=${POSTGRES_WAL_LEVEL:-replica}',                       # Enable for WAL
+      '-c', 'max_connections=${POSTGRES_MAX_CONNECTIONS:-200}',               # For concurrent connections
       '-c', 'shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}',
       '-c', 'effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}',
       '-c', 'work_mem=${POSTGRES_WORK_MEM:-8MB}',
@@ -25,7 +25,7 @@ services:
       - ops_postgres_data:/var/lib/postgresql/data
       - ./init-ops-db.sql:/docker-entrypoint-initdb.d/init-ops-db.sql
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ops_admin -d operations']
+      test: ['CMD-SHELL', 'pg_isready -U ${OPS_DB_USER:-ops_admin} -d ${OPS_DB_NAME:-operations}']
       interval: 30s
       timeout: 10s
       retries: 3

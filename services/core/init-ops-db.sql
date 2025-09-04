@@ -12,6 +12,27 @@ CREATE SCHEMA IF NOT EXISTS model_operations;    -- Model deployment and monitor
 -- ================================================================================
 -- APPLICATION OPERATIONS SCHEMA
 -- ================================================================================
+ -- Ensure replication permissions
+ALTER USER ops_admin WITH REPLICATION;
+
+-- Create test applications table
+CREATE TABLE IF NOT EXISTS applications (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    application_data JSONB NOT NULL,
+    status VARCHAR(50) DEFAULT 'submitted',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+  -- Create CDC publication
+CREATE PUBLICATION debezium_pub FOR TABLE applications;
+
+-- Insert sample data
+INSERT INTO applications (user_id, application_data, status) VALUES
+(12345, '{"income": 50000, "purpose": "home_loan", "amount": 200000}', 'submitted'),
+(12346, '{"income": 75000, "purpose": "car_loan", "amount": 30000}', 'submitted')
+ON CONFLICT DO NOTHING;
 
 -- Core loan applications table for operational state
 CREATE TABLE IF NOT EXISTS application_ops.loan_applications (
