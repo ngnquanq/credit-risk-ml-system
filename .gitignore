@@ -219,9 +219,11 @@ playground/
 pyproject.toml
 
 # local folders/files
-data/
 .qodo
-
+*.csv
 # local secrets
 secrets/
 secret/
+
+# claude file
+CLAUDE.md

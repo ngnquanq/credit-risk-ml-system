@@ -31,6 +31,13 @@ clean-targets:         # directories to be removed by `dbt clean`
 # files using the `{{ config(...) }}` macro.
 models:
   ml_data_mart:
-    # Config indicated by + and applies to all files under models/example/
-    example:
+    # Config indicated by + and applies to all files under models/staging/
+    staging:
+      +enabled: true
       +materialized: view
+    warehouse: 
+      +enabled: true
+      +materialized: table
+    marts:
+      +enabled: true
+      +materialized: table
