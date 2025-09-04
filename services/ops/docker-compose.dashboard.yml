@@ -1,4 +1,4 @@
-x-superset-image: &superset-image apachesuperset.docker.scarf.sh/apache/superset:${TAG:-latest-dev}
+x-superset-image: &superset-image apachesuperset.docker.scarf.sh/apache/superset:${SUPERSET_TAG:-latest-dev}
 x-superset-volumes:
   &superset-volumes # /app/pythonpath_docker will be appended to the PYTHONPATH in the final container
   - ./docker:/app/docker
@@ -7,10 +7,11 @@ x-superset-volumes:
 networks:
   hc-network:
     external: true
+    name: ${NETWORK_NAME:-hc-network}
 
 services:
   redis:
-    image: redis:7
+    image: redis:${REDIS_VERSION:-7}
     container_name: superset_cache
     restart: unless-stopped
     volumes:
@@ -24,7 +25,7 @@ services:
         required: true
       - path: docker/.env-local # optional override
         required: false
-    image: postgres:15
+    image: postgres:${POSTGRES_VERSION:-15}
     container_name: superset_db
     restart: unless-stopped
     volumes:
@@ -45,7 +46,7 @@ services:
     user: "root"
     restart: unless-stopped
     ports:
-      - 8089:8088
+      - ${SUPERSET_PORT:-8089}:8088
     depends_on:
       superset-init:
         condition: service_completed_successfully

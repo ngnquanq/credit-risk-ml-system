@@ -52,7 +52,47 @@ The solution must directly support the business objective by:
 
 # Repository Structure
 
-# HIgh-level System Architecture 
+# High-level System Architecture 
+
+# Application Port Allocation
+
+## Port Ranges and Purpose
+
+### Infrastructure Services (9000-9099)
+- 9000: MinIO Object Storage API
+- 9001: MinIO Management Console
+- 9010: PostgreSQL Main Database
+- 9020: Redis Cache (if added later)
+- 9030: Elasticsearch (if added later)
+
+### Risk Assessment Services (8000-8099)
+- 8000: Personal Loan Risk Service
+- 8001: Mortgage Risk Service  
+- 8002: Credit Card Risk Service
+- 8010: Risk Model Training Service (if added later)
+- 8020: Risk Model Validation Service (if added later)
+
+### API and Web Services (7000-7099)
+- 7000: Main API Gateway
+- 7010: Authentication Service (if added later)
+- 7020: Notification Service (if added later)
+
+### Development and Monitoring (6000-6999)
+- 6000: Application Monitoring Dashboard
+- 6010: Log Aggregation Service
+- 6020: Health Check Service
+
+## Service Communication Patterns
+
+Risk assessment services communicate internally using service names:
+- risk-service-personal communicates with postgres-main:5432
+- risk-service-personal communicates with minio-storage:9000
+- api-gateway routes requests to risk-service-personal:8080
+
+External access uses mapped ports:
+- Client applications connect to api-gateway via localhost:7000
+- Administrators access MinIO console via localhost:9001
+- Database administrators connect to PostgreSQL via localhost:9010
 
 # Guide to Install and Run Code
 
