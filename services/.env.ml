@@ -1,0 +1,54 @@
+# ML Platform Environment Variables
+# =================================
+
+# MLflow Configuration
+MLFLOW_DB_NAME=mlflow_db
+MLFLOW_DB_USER=mlflow_user
+MLFLOW_DB_PASSWORD=${DEFAULT_PASSWORD:-mlflow_password}
+MLFLOW_TRACKING_URI=http://mlflow-server:5000
+MLFLOW_BACKEND_STORE_URI=postgresql://${MLFLOW_DB_USER}:${MLFLOW_DB_PASSWORD}@mlflow-db:5432/${MLFLOW_DB_NAME}
+MLFLOW_ARTIFACT_URI=s3://mlflow-artifacts/
+MLFLOW_S3_ENDPOINT_URL=http://mlflow-minio:9000
+
+# MLflow MinIO Configuration
+MLFLOW_MINIO_USER=minio_user
+MLFLOW_MINIO_PASSWORD=${DEFAULT_PASSWORD:-minio_password}
+
+# Feast Feature Store Configuration
+FEAST_CONFIG_BASE64=
+FEAST_TELEMETRY=false
+FEAST_USAGE_STATS=false
+FEAST_S3_BUCKET=feast-registry
+FEAST_BATCH_SIZE=10000
+FEAST_BATCH_CRON=0 */2 * * *
+
+# Redis Online Store
+REDIS_HOST=feast-redis
+REDIS_PORT=6379
+REDIS_DB=0
+REDIS_MAX_MEMORY=1gb
+REDIS_MAX_MEMORY_POLICY=allkeys-lru
+
+# Feature Store Database Connections
+CLICKHOUSE_HOST=clickhouse_dwh
+CLICKHOUSE_PORT=8123
+CLICKHOUSE_DATABASE=ml_data_mart
+CLICKHOUSE_USER=default
+CLICKHOUSE_PASSWORD=
+
+# BentoML Model Serving Configuration
+MODEL_NAME=credit_risk_model
+MODEL_VERSION=latest
+PREDICTION_THRESHOLD=0.5
+BENTOML_PORT=3000
+BENTOML_HOST=0.0.0.0
+BENTOML_WORKERS=4
+BENTOML_TIMEOUT=30
+BENTOML_LOG_LEVEL=info
+ENABLE_FEATURE_LOGGING=true
+ENABLE_PREDICTION_CACHING=true
+
+# Model Serving Connections
+FEAST_FEATURE_SERVER_URL=http://feast-server:6566
+AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-minioadmin}
+AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}

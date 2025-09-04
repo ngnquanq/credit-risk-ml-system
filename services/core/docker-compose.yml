@@ -1,0 +1,62 @@
+services:
+  # Primary operational database - optimized for transactional workloads (i.e data from the application - yall see later)
+  ops-postgres:
+    image: postgres:${POSTGRES_VERSION:-15-alpine}
+    container_name: ops_postgres
+    command: [
+      'postgres',
+      '-c', 'wal_level=${POSTGRES_WAL_LEVEL:-replica}',                       # Enable for WAL
+      '-c', 'max_connections=${POSTGRES_MAX_CONNECTIONS:-200}',               # For concurrent connections
+      '-c', 'shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}',
+      '-c', 'effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}',
+      '-c', 'work_mem=${POSTGRES_WORK_MEM:-8MB}',
+      '-c', 'maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM:-128MB}',
+      '-c', 'checkpoint_timeout=15min',
+      '-c', 'random_page_cost=1.1'
+    ]
+    ports:
+      - "${OPS_POSTGRES_PORT:-5434}:5432"
+    environment:
+      POSTGRES_DB: ${OPS_DB_NAME:-operations}
+      POSTGRES_USER: ${OPS_DB_USER:-ops_admin}
+      POSTGRES_PASSWORD: ${OPS_DB_PASSWORD:-ops_secure_password}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    volumes:
+      - ops_postgres_data:/var/lib/postgresql/data
+      - ./init-ops-db.sql:/docker-entrypoint-initdb.d/init-ops-db.sql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${OPS_DB_USER:-ops_admin} -d ${OPS_DB_NAME:-operations}']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - hc-network
+
+  # Connection pooler for high-concurrency scenarios
+  pgbouncer:
+    image: pgbouncer/pgbouncer:latest
+    container_name: ops_pgbouncer
+    environment:
+      DATABASES_HOST: ${OPS_DB_HOST:-ops-postgres}
+      DATABASES_PORT: ${OPS_DB_PORT:-5432}
+      DATABASES_USER: ${OPS_DB_USER:-ops_admin}
+      DATABASES_PASSWORD: ${OPS_DB_PASSWORD:-ops_secure_password}
+      DATABASES_DBNAME: ${OPS_DB_NAME:-operations}
+      POOL_MODE: ${PGBOUNCER_POOL_MODE:-transaction}
+      SERVER_RESET_QUERY: DISCARD ALL
+      MAX_CLIENT_CONN: ${PGBOUNCER_MAX_CLIENT_CONN:-1000}
+      DEFAULT_POOL_SIZE: ${PGBOUNCER_DEFAULT_POOL_SIZE:-25}
+    ports:
+      - "${PGBOUNCER_PORT:-6432}:5432"
+    depends_on:
+      - ops-postgres
+    networks:
+      - hc-network
+
+volumes:
+  ops_postgres_data:
+
+networks:
+  hc-network:
+    external: true
+    name: ${NETWORK_NAME:-hc-network}
