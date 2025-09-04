@@ -89,6 +89,9 @@ class DocumentUpload(BaseModel):
 class LoanApplicationCreate(BaseModel):
     """Customer loan application - fields customers can actually provide."""
     
+    # User identification
+    user_id: int = Field(..., description="Unique customer identifier")
+    
     # Basic Personal Information
     gender: GenderType = Field(..., description="Gender of the applicant")
     age: int = Field(..., description="Age in years", gt=18, lt=100)

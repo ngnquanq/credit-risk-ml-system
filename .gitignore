@@ -227,3 +227,4 @@ secret/
 
 # claude file
 CLAUDE.md
+.claude/

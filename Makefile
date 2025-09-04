@@ -12,6 +12,7 @@ DATA_STORAGE_COMPOSE := ./services/data/docker-compose.storage.yml
 DATA_WAREHOUSE_COMPOSE := ./services/data/docker-compose.warehouse.yml
 DATA_STREAMING_COMPOSE := ./services/data/docker-compose.streaming.yml
 DATA_CDC_COMPOSE := ./services/data/docker-compose.cdc.yml
+DATA_BATCH_COMPOSE := ./services/data/docker-compose.batch.yml
 
 # ML platform service files
 ML_FEATURE_STORE_COMPOSE := ./services/ml/docker-compose.feature-store.yml
@@ -46,6 +47,7 @@ help: ## Show this help message
 	@echo "  up-warehouse    - Start data warehouse (ClickHouse)"
 	@echo "  up-streaming    - Start streaming (Kafka)"
 	@echo "  up-cdc          - Start CDC services (requires streaming)"
+	@echo "  up-batch        - Start Spark batch processing cluster"
 	@echo "  setup-cdc       - Start streaming + CDC + create connectors"
 	@echo "  deploy-complete - Full deployment with automated setup"
 	@echo "  up-feature-store - Start feature store"
@@ -108,6 +110,14 @@ up-cdc: create-network ## Start CDC services (requires streaming to be running)
 	@echo "Waiting for Debezium to be ready..."
 	@until curl -f http://localhost:8083/connectors > /dev/null 2>&1; do sleep 2; echo -n "."; done
 	@echo " Debezium ready!"
+
+up-batch: create-network ## Start Spark batch processing cluster
+	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.batch.yml up -d
+	@echo "Waiting for Spark Master to be ready..."
+	@until curl -f http://localhost:8084 > /dev/null 2>&1; do sleep 2; echo -n "."; done
+	@echo " Spark cluster ready!"
+	@echo "Spark Master UI: http://localhost:8084"
+	@echo "Jupyter Notebook: http://localhost:8888 (token: spark_notebook_token)"
 
 setup-cdc: up-streaming up-cdc
 	@echo "Creating Debezium connectors..."

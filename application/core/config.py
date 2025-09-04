@@ -1,10 +1,12 @@
-from pydantic import Field
+from pydantic import Field, ConfigDict
 from pydantic_settings import BaseSettings
 from typing import Optional
 
 
 class Settings(BaseSettings):
     """Application settings with environment variable support."""
+    
+    model_config = ConfigDict(extra="ignore", env_file=".env", env_prefix="APP_", case_sensitive=False)
     
     # Application
     app_name: str = Field(default="Home Credit Loan API", description="Application name")
@@ -18,7 +20,7 @@ class Settings(BaseSettings):
     
     # Database Configuration
     database_url: str = Field(
-        default="postgresql+asyncpg://ops_admin:ops_password@ops-postgres:5432/operations",
+        default="postgresql+asyncpg://ops_admin:ops_password@localhost:5434/operations",
         description="Database connection URL"
     )
     database_pool_size: int = Field(default=10, description="Database connection pool size")
@@ -38,10 +40,6 @@ class Settings(BaseSettings):
     max_application_amount: float = Field(default=1000000.0, description="Maximum loan amount")
     min_application_amount: float = Field(default=1000.0, description="Minimum loan amount")
     
-    class Config:
-        env_file = ".env"
-        env_prefix = "APP_"
-        case_sensitive = False
 
 
 # Global settings instance
