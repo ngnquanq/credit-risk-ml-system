@@ -96,3 +96,4 @@ External access uses mapped ports:
 
 # Guide to Install and Run Code
 
+## Use nbstripout --install

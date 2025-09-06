@@ -1,8 +1,3 @@
-#!/usr/bin/env python3
-"""
-Simple script to run the FastAPI application.
-"""
-
 import uvicorn
 from application.core.config import settings
 

@@ -9,6 +9,10 @@ __pycache__/
 # C extensions
 *.so
 
+# Model weight 
+*.ckpt
+*.pkl
+
 # Distribution / packaging
 .Python
 build/
@@ -228,3 +232,4 @@ secret/
 # claude file
 CLAUDE.md
 .claude/
+.claudeignore
