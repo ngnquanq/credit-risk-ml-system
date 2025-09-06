@@ -58,6 +58,8 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# Catboost info
+/catboost_info/
 # Translations
 *.mo
 *.pot
