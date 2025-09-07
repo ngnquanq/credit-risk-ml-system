@@ -5,7 +5,7 @@ Only includes fields that customers can realistically provide.
 
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 from enum import Enum
 
 
@@ -87,51 +87,48 @@ class DocumentUpload(BaseModel):
 
 
 class LoanApplicationCreate(BaseModel):
-    """Customer loan application - fields customers can actually provide."""
+    """Customer loan application matching flattened database schema."""
     
-    # User identification
-    user_id: int = Field(..., description="Unique customer identifier")
+    # Customer Identity
+    sk_id_curr: str = Field(..., description="Customer ID")
     
-    # Basic Personal Information
-    gender: GenderType = Field(..., description="Gender of the applicant")
-    age: int = Field(..., description="Age in years", gt=18, lt=100)
-    children_count: int = Field(0, description="Number of children", ge=0)
-    family_status: FamilyStatus = Field(..., description="Family status")
-    education_type: EducationType = Field(..., description="Education level")
+    # Basic Demographics 
+    code_gender: GenderType = Field(..., description="Gender of the applicant")
+    birth_date: date = Field(..., description="Date of birth")
+    cnt_children: int = Field(0, description="Number of children", ge=0)
     
-    # Income & Employment  
-    income_type: IncomeType = Field(..., description="Type of income")
-    annual_income: float = Field(..., description="Annual income", gt=0)
+    # Financial Information
+    amt_income_total: float = Field(..., description="Total annual income", gt=0)
+    amt_credit: float = Field(..., description="Requested credit amount", gt=0)
+    amt_annuity: Optional[float] = Field(None, description="Loan annuity", gt=0)
+    amt_goods_price: Optional[float] = Field(0, description="Price of goods", ge=0)
+    
+    # Employment & Personal Details
+    name_contract_type: ContractType = Field("Cash loans", description="Type of loan contract")
+    name_income_type: IncomeType = Field(..., description="Type of income source")
+    name_education_type: EducationType = Field(..., description="Education level")
+    name_family_status: FamilyStatus = Field(..., description="Family status")
+    name_housing_type: HousingType = Field(..., description="Housing situation")
+    
+    # Employment Details
+    employment_start_date: Optional[date] = Field(None, description="Employment start date")
     occupation_type: Optional[str] = Field(None, description="Occupation/job type")
-    organization_type: Optional[str] = Field(None, description="Organization where employed")
-    employment_years: Optional[int] = Field(None, description="Years at current job", ge=0)
+    organization_type: Optional[str] = Field(None, description="Organization type")
     
-    # Loan Details
-    contract_type: ContractType = Field(..., description="Type of loan contract")
-    credit_amount: float = Field(..., description="Requested credit amount", gt=0)
-    goods_price: Optional[float] = Field(None, description="Price of goods (if applicable)", gt=0)
-    loan_purpose: Optional[str] = Field(None, description="Purpose of the loan")
+    # Contact Information Flags
+    flag_mobil: int = Field(0, description="Has mobile phone", ge=0, le=1)
+    flag_emp_phone: int = Field(0, description="Has work phone", ge=0, le=1)
+    flag_work_phone: int = Field(0, description="Has work phone", ge=0, le=1)
+    flag_phone: int = Field(0, description="Has home phone", ge=0, le=1)
+    flag_email: int = Field(0, description="Has email address", ge=0, le=1)
     
-    # Assets & Housing
-    owns_car: bool = Field(False, description="Owns a car")
-    car_age: Optional[int] = Field(None, description="Age of car in years", ge=0)
-    owns_realty: bool = Field(False, description="Owns house or flat")
-    housing_type: HousingType = Field(..., description="Housing situation")
+    # Asset Ownership
+    flag_own_car: int = Field(0, description="Owns a car", ge=0, le=1)
+    flag_own_realty: int = Field(0, description="Owns house or flat", ge=0, le=1)
+    own_car_age: Optional[int] = Field(None, description="Age of car in years", ge=0)
     
-    # Contact Information
-    has_mobile_phone: bool = Field(True, description="Has mobile phone")
-    has_work_phone: bool = Field(False, description="Has work phone")
-    has_phone: bool = Field(False, description="Has home phone")
-    has_email: bool = Field(False, description="Has email address")
-    
-    # Family
-    family_members_count: Optional[int] = Field(None, description="Total family members", ge=1)
-    
-    # Document Uploads
-    documents: List[DocumentUpload] = Field(
-        default_factory=list,
-        description="Documents uploaded by customer"
-    )
+    # Document IDs (from MinIO uploads)
+    document_ids: Optional[dict] = Field(None, description="Document IDs from uploaded files")
 
     model_config = {
         "json_schema_extra": {
@@ -178,10 +175,30 @@ class LoanApplicationCreate(BaseModel):
 
 class LoanApplicationResponse(BaseModel):
     """Response schema for loan applications."""
-    id: int
-    user_id: int
-    application_data: dict
-    status: str
+    sk_id_curr: str
+    code_gender: str
+    birth_date: date
+    cnt_children: int
+    amt_income_total: float
+    amt_credit: float
+    amt_annuity: Optional[float]
+    amt_goods_price: Optional[float]
+    name_contract_type: str
+    name_income_type: str
+    name_education_type: str
+    name_family_status: str
+    name_housing_type: str
+    employment_start_date: Optional[date]
+    occupation_type: Optional[str]
+    organization_type: Optional[str]
+    flag_mobil: int
+    flag_emp_phone: int
+    flag_work_phone: int
+    flag_phone: int
+    flag_email: int
+    flag_own_car: int
+    flag_own_realty: int
+    own_car_age: Optional[int]
     created_at: datetime
     updated_at: datetime
 

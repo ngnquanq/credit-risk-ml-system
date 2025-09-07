@@ -1,6 +1,6 @@
 """Database and API models."""
 
-from .database import LoanApplication
+from .database import LoanApplication, ApplicationStatusLog
 from .schemas import (
     LoanApplicationCreate, 
     LoanApplicationResponse,
@@ -12,6 +12,7 @@ from .schemas import (
 
 __all__ = [
     "LoanApplication",
+    "ApplicationStatusLog",
     "LoanApplicationCreate", 
     "LoanApplicationResponse",
     "DocumentUpload",
