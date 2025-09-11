@@ -3,7 +3,16 @@ Database configuration and session management.
 Uses async SQLAlchemy for high-performance database operations.
 """
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+try:
+    # SQLAlchemy 2.x
+    from sqlalchemy.ext.asyncio import async_sessionmaker  # type: ignore
+except Exception:  # pragma: no cover
+    # SQLAlchemy 1.4 fallback
+    from sqlalchemy.orm import sessionmaker as _sessionmaker  # type: ignore
+
+    def async_sessionmaker(*args, **kwargs):  # type: ignore
+        return _sessionmaker(*args, **kwargs)
 from typing import AsyncGenerator
 from loguru import logger
 from .config import settings
