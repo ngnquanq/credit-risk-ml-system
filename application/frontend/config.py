@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # API base URL for the backend service
-API_BASE_URL: str = os.getenv("API_BASE_URL", "http://localhost:8001")
+API_BASE_URL: str = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 # Application display name
 APP_NAME: str = os.getenv("APP_NAME", "Home Credit Loan Application")
