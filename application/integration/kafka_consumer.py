@@ -29,7 +29,7 @@ from typing import Optional, Any, Dict
 from loguru import logger
 from confluent_kafka import Consumer, Producer, KafkaException
 
-from application.core.config import settings
+from core.config import settings
 from .bureau_client import fetch_bureau_by_loan_id
 from decimal import Decimal
 from datetime import datetime, date

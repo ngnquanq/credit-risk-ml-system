@@ -18,7 +18,11 @@ Small, modular BentoML service for real-time scoring.
 ## Build & Serve
 ```
 cd application/scoring
-bentoml serve . --port 3000 --reload
+export MLFLOW_TRACKING_URI=http://localhost:5000
+export MLFLOW_S3_ENDPOINT_URL=http://localhost:9006
+export AWS_ACCESS_KEY_ID=minio_user
+export AWS_SECRET_ACCESS_KEY=changeme123
+bentoml serve --working-dir ./application/scoring/ service:svc -p 3000
 
 # (Optional) Build a Bento and container image
 bentoml build

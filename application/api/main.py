@@ -16,16 +16,16 @@ from minio.error import S3Error
 import uuid
 import json
 
-from application.core import settings, get_db, init_db, close_db
-from application.models import (
+from core import settings, get_db, init_db, close_db
+from models import (
     LoanApplication,
     ApplicationStatusLog,
     LoanApplicationCreate,
     LoanApplicationResponse,
     HealthResponse
 )
-from application.integration.kafka_consumer import worker as kafka_worker
-from application.integration.bureau_client import close_bureau_client
+from integration.kafka_consumer import worker as kafka_worker
+from integration.bureau_client import close_bureau_client
 
 from pydantic import Field
 

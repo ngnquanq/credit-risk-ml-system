@@ -1,4 +1,5 @@
-from pydantic import Field, ConfigDict
+import os
+from pydantic import Field, ConfigDict, computed_field
 from pydantic_settings import BaseSettings
 from typing import Optional
 
@@ -18,11 +19,24 @@ class Settings(BaseSettings):
     api_port: int = Field(default=8000, description="API port")
     api_prefix: str = Field(default="/api/v1", description="API prefix")
     
-    # Database Configuration
-    database_url: str = Field(
-        default="postgresql+asyncpg://ops_admin:ops_password@localhost:5434/operations",
-        description="Database connection URL"
-    )
+    # Database Configuration - Using same variables as .env.core
+    ops_db_host: str = Field(default="ops-postgres", description="PostgreSQL host", alias="OPS_DB_HOST")
+    ops_db_port: int = Field(default=5432, description="PostgreSQL port", alias="OPS_DB_PORT") 
+    ops_db_user: str = Field(default="ops_admin", description="PostgreSQL user", alias="OPS_DB_USER")
+    ops_db_password: str = Field(default="ops_secure_password", description="PostgreSQL password", alias="OPS_DB_PASSWORD")
+    ops_db_name: str = Field(default="operations", description="PostgreSQL database name", alias="OPS_DB_NAME")
+    
+    @computed_field
+    @property
+    def database_url(self) -> str:
+        """Construct database URL from individual components, reading directly from environment."""
+        host = os.getenv("OPS_DB_HOST", "ops-postgres")
+        port = os.getenv("OPS_DB_PORT", "5432")
+        user = os.getenv("OPS_DB_USER", "ops_admin")
+        password = os.getenv("OPS_DB_PASSWORD", "ops_secure_password")
+        database = os.getenv("OPS_DB_NAME", "operations")
+        
+        return f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
     database_pool_size: int = Field(default=10, description="Database connection pool size")
     database_max_overflow: int = Field(default=20, description="Database max overflow connections")
 
@@ -58,6 +72,10 @@ class Settings(BaseSettings):
         default="localhost:9092",
         description="Kafka bootstrap servers"
     )
+    enable_kafka_consumer: bool = Field(default=True, description="Enable Kafka consumer for bureau requests")
+    kafka_consumer_group: str = Field(default="bureau-api-service", description="Kafka consumer group ID")
+    kafka_request_topic: str = Field(default="bureau-requests", description="Kafka topic for bureau requests")
+    kafka_response_topic: str = Field(default="bureau-responses", description="Kafka topic for bureau responses")
     
     # Logging
     log_level: str = Field(default="INFO", description="Log level")
@@ -74,7 +92,7 @@ class Settings(BaseSettings):
     min_application_amount: float = Field(default=1000.0, description="Minimum loan amount")
 
     # MinIO / S3-compatible object storage
-    minio_endpoint: str = Field(default="localhost:9000", description="MinIO endpoint host:port")
+    minio_endpoint: str = Field(default="minio-server:9000", description="MinIO endpoint host:port", alias="MINIO_ENDPOINT")
     minio_access_key: str = Field(default="minioadmin", description="MinIO access key")
     minio_secret_key: str = Field(default="minioadmin", description="MinIO secret key")
     minio_secure: bool = Field(default=False, description="Use HTTPS for MinIO")

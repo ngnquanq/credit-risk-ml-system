@@ -90,4 +90,6 @@ class ApplicationStatusLog(Base):
     # Metadata
     created_at = Column(DateTime, server_default=func.current_timestamp(), nullable=False)
     created_by = Column(String(100), nullable=False)
-    event_metadata = Column(JSONB)  # Using JSONB to match database schema
+    # Map attribute 'event_metadata' to DB column named 'metadata' to avoid
+    # clashing with SQLAlchemy's Base.metadata and match migration DDL.
+    event_metadata = Column('metadata', JSONB)

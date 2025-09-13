@@ -1,0 +1,23 @@
+# Core API Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# Pydantic for data validation and settings
+pydantic==2.8.2
+pydantic-settings==2.4.0
+
+# Database
+SQLAlchemy==2.0.43
+asyncpg==0.30.0
+
+# Logging
+loguru==0.7.2
+
+# Object Storage (MinIO)
+minio==7.2.0
+
+# Kafka Integration
+confluent-kafka==2.5.3
+
+# Additional dependencies
+python-multipart==0.0.6

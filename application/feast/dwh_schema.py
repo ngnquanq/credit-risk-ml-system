@@ -96,21 +96,6 @@ def infer_dwh_fields() -> List[Field]:  # pragma: no cover - runs in apply scrip
     except Exception:
         # Graceful fallback if CH not reachable
         pass
-
-    # Append extra counters/aggregates produced by the service
-    extras = [
-        Field(name="record_counts_mart_credit_card_balance", dtype=Int64),
-        Field(name="record_counts_mart_pos_cash_balance", dtype=Int64),
-        Field(name="record_counts_mart_previous_application", dtype=Int64),
-        Field(name="agg_prev_loans", dtype=Int64),
-        Field(name="delinq_12m", dtype=Int64),
-        Field(name="avg_util", dtype=Float32),
-    ]
-    # De-duplicate by name while preserving order
-    seen = set(f.name for f in fields)
-    for f in extras:
-        if f.name not in seen:
-            fields.append(f)
-            seen.add(f.name)
+    
     return fields
 

@@ -1,2 +1,1 @@
-"""Integration modules for external services (Kafka, Bureau DB)."""
-
+# Integration module for external services

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy import text
 from loguru import logger
 
-from application.core.config import settings
+from core.config import settings
 
 
 # Dedicated async engine for the external bureau database
@@ -105,4 +105,3 @@ async def close_bureau_client() -> None:
         await _engine.dispose()
     except Exception as e:
         logger.error(f"Error disposing bureau DB engine: {e}")
-

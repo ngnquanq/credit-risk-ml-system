@@ -4,3 +4,4 @@ clickhouse-connect==0.7.17
 pydantic==2.8.2
 pydantic-settings==2.4.0
 SQLAlchemy==2.0.43
+asyncpg==0.30.0
