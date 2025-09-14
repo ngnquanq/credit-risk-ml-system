@@ -96,4 +96,32 @@ External access uses mapped ports:
 
 # Guide to Install and Run Code
 
-## Use nbstripout --install
+## Create network
+We need to create network so that our services can communicate to each other
+```shell
+docker network create hc-network
+```
+This network will be share among services, this step is **crucial** because it allow the DNS of our services to be resolve and can be reach out durring message transfer
+
+## Run the important parts
+For this, we need to spin up a few things. We will kinda assume that the company will already have this for up, including things like: 
+- API services
+- Data platform
+- etc...
+
+### Spin up API services and operational database
+First, we need to bring up the API services and the operational database. 
+```shell
+docker compose --env-file ./services/core/.env.core -f ./services/core/docker-compose.operationaldb.yml \
+    -f ./services/core/docker-compose.api.yml \
+    up -d
+```
+Just to be clear:
+- API Services in this case including:
+    - 1 Nginx to route customer requests.
+    - 2 streamlit front-end for customer to navigate
+    - 2 API services for sending and handling requests. 
+- Operational database in this case including:
+    - 1 file storage database (MinIO) for storing customer's documentation
+    - 1 OLTP database (postgres) for storing day over day operational actions in the company. 
+
