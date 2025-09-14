@@ -2,11 +2,14 @@ services:
   debezium:
     image: debezium/connect:${DEBEZIUM_VERSION:-1.9}
     container_name: cdc-debezium
+    env_file:
+      - ../core/.env.core
+      - ./.env.data
     depends_on:
       broker:
         condition: service_healthy
       schema-registry:
-        condition: service_healthy
+        condition: service_started
       zookeeper:
         condition: service_healthy
     healthcheck:
@@ -34,6 +37,11 @@ services:
       OFFSET_STORAGE_TOPIC: ${DEBEZIUM_OFFSET_TOPIC:-connect_offsets}
       KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      # Emit numeric decimals (avoid base64) and keep schemas enabled
+      KEY_CONVERTER_DECIMAL_FORMAT: NUMERIC
+      VALUE_CONVERTER_DECIMAL_FORMAT: NUMERIC
+      KEY_CONVERTER_SCHEMAS_ENABLE: 'true'
+      VALUE_CONVERTER_SCHEMAS_ENABLE: 'true'
       CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
       CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
       CONNECT_TOPIC_CREATION_ENABLE: true
@@ -58,6 +66,8 @@ services:
   debezium-ui:
     image: debezium/debezium-ui:${DEBEZIUM_UI_VERSION:-latest}
     container_name: debezium-ui
+    env_file:
+      - ./.env.data
     hostname: debezium-ui
     depends_on:
       debezium:
@@ -68,6 +78,23 @@ services:
       KAFKA_CONNECT_URIS: http://debezium:${DEBEZIUM_PORT:-8083}
     networks:
       - hc-network
+
+  connector-init:
+    image: curlimages/curl:latest
+    container_name: cdc-connector-init
+    env_file:
+      - ../core/.env.core
+      - ./.env.data
+    depends_on:
+      debezium:
+        condition: service_healthy
+    volumes:
+      - ./scripts/cdc/create-connectors.sh:/create-connectors.sh:ro
+    command: sh /create-connectors.sh
+    networks:
+      - hc-network
+    restart: "no" 
+
 networks:
   hc-network:
     external: true

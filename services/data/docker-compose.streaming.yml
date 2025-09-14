@@ -3,10 +3,12 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:${KAFKA_VERSION:-7.4.0}
     container_name: kafka_zookeeper
+    env_file:
+      - ./.env.data
     environment:
       ZOOKEEPER_CLIENT_PORT: ${ZOOKEEPER_CLIENT_PORT:-2181}
       ZOOKEEPER_TICK_TIME: ${ZOOKEEPER_TICK_TIME:-2000}
-      ZOOKEEPER_SYNC_LIMIT: 2
+      ZOOKEEPER_SYNC_LIMIT: ${ZOOKEEPER_SYNC_LIMIT:-2}
     ports:
       - "${ZOOKEEPER_CLIENT_PORT:-2181}:2181"
     healthcheck:
@@ -21,6 +23,8 @@ services:
   broker:
     image: confluentinc/cp-kafka:${KAFKA_VERSION:-7.4.0}
     container_name: kafka_broker
+    env_file:
+      - ./.env.data
     depends_on:
       zookeeper:
         condition: service_healthy
@@ -47,23 +51,31 @@ services:
 
   # Schema Registry - Manages Avro schemas for structured streaming
   schema-registry:
-    image: confluentinc/cp-schema-registry:${KAFKA_VERSION:-7.4.0}
+    image: confluentinc/cp-schema-registry:7.4.0
     container_name: kafka_schema_registry
     depends_on:
       broker:
         condition: service_healthy
     ports:
-      - "${SCHEMA_REGISTRY_PORT:-8081}:8081"
+      - "8081:8081"
+    healthcheck:
+          test: ["CMD", "curl", "-f", "http://localhost:${SCHEMA_REGISTRY_PORT:-8081}/subjects"]
+          interval: 30s
+          timeout: 10s
+          retries: 5
+          start_period: 15s
     environment:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: broker:${KAFKA_INTERNAL_PORT:-29092}
-      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:${SCHEMA_REGISTRY_PORT:-8081}
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: broker:29092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
       SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${SCHEMA_REGISTRY_PORT:-8081}/subjects"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      SCHEMA_REGISTRY_DEBUG: 'true'
+      PORT: ""
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:${SCHEMA_REGISTRY_PORT:-8081}/subjects"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
     networks:
       - hc-network
 
@@ -71,6 +83,8 @@ services:
   kafka-ui:
     image: provectuslabs/kafka-ui:${KAFKA_UI_VERSION:-latest}
     container_name: kafka_ui
+    env_file:
+      - ./.env.data
     depends_on:
       broker:
         condition: service_healthy

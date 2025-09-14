@@ -1,0 +1,153 @@
+services:
+  # Nginx Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: hc_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api-service-1
+      - api-service-2
+      - frontend-1
+      - frontend-2
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - hc-network
+
+  # Streamlit Frontend Instance 1
+  frontend-1:
+    build:
+      context: ../../application
+      dockerfile: frontend/Dockerfile
+    container_name: hc_frontend_1
+    environment:
+      API_BASE_URL: http://hc_api_service_1:8000
+      STREAMLIT_SERVER_PORT: 8501
+      STREAMLIT_SERVER_ADDRESS: 0.0.0.0
+    depends_on:
+      api-service-1:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - hc-network
+
+  # Streamlit Frontend Instance 2
+  frontend-2:
+    build:
+      context: ../../application
+      dockerfile: frontend/Dockerfile
+    container_name: hc_frontend_2
+    environment:
+      API_BASE_URL: http://hc_api_service_1:8000
+      STREAMLIT_SERVER_PORT: 8501
+      STREAMLIT_SERVER_ADDRESS: 0.0.0.0
+    depends_on:
+      api-service-2:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - hc-network
+
+  # API Service Instance 1
+  api-service-1:
+    build:
+      context: ../../application
+      dockerfile: Dockerfile
+    container_name: hc_api_service_1
+    env_file:
+      - ./.env.core
+    environment:
+      # Database connection directly to PostgreSQL (asyncpg compatibility)
+      OPS_DB_HOST: ops-postgres
+      OPS_DB_PORT: 5432
+      OPS_DB_USER: ${OPS_DB_USER:-ops_admin}
+      OPS_DB_PASSWORD: ${OPS_DB_PASSWORD:-ops_password}
+      OPS_DB_NAME: ${OPS_DB_NAME:-operations}
+      
+      # API configuration
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      DEBUG: ${API_DEBUG:-false}
+      LOG_LEVEL: ${API_LOG_LEVEL:-INFO}
+      
+      # MinIO configuration
+      MINIO_ENDPOINT: minio-server:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-loan-documents}
+    depends_on:
+      ops-postgres:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - hc-network
+
+  # API Service Instance 2
+  api-service-2:
+    build:
+      context: ../../application
+      dockerfile: Dockerfile
+    container_name: hc_api_service_2
+    env_file:
+      - ./.env.core
+    environment:
+      # Database connection directly to PostgreSQL (asyncpg compatibility)
+      OPS_DB_HOST: ops-postgres
+      OPS_DB_PORT: 5432
+      OPS_DB_USER: ${OPS_DB_USER:-ops_admin}
+      OPS_DB_PASSWORD: ${OPS_DB_PASSWORD:-ops_password}
+      OPS_DB_NAME: ${OPS_DB_NAME:-operations}
+      
+      # API configuration
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      DEBUG: ${API_DEBUG:-false}
+      LOG_LEVEL: ${API_LOG_LEVEL:-INFO}
+      
+      # MinIO configuration
+      MINIO_ENDPOINT: minio-server:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-loan-documents}
+    depends_on:
+      ops-postgres:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - hc-network
+
+networks:
+  hc-network:
+    external: true
+    name: ${NETWORK_NAME:-hc-network}

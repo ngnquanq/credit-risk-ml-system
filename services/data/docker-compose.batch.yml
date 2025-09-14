@@ -25,6 +25,8 @@ services:
       - spark_master_data:/opt/bitnami/spark/logs
       - ./spark/apps:/opt/spark-apps                # Spark applications
       - ./spark/data:/opt/spark-data                # Data files
+      - ./spark/jars:/opt/spark/jars                # JDBC drivers and additional JARs
+      - ./spark/conf:/opt/spark/conf                # Spark configuration
     networks:
       - hc-network
     healthcheck:
@@ -62,6 +64,8 @@ services:
       - spark_worker_1_data:/opt/bitnami/spark/logs
       - ./spark/apps:/opt/spark-apps
       - ./spark/data:/opt/spark-data
+      - ./spark/jars:/opt/spark/jars                # JDBC drivers and additional JARs
+      - ./spark/conf:/opt/spark/conf                # Spark configuration
     networks:
       - hc-network
 
@@ -94,6 +98,8 @@ services:
       - spark_worker_2_data:/opt/bitnami/spark/logs
       - ./spark/apps:/opt/spark-apps
       - ./spark/data:/opt/spark-data
+      - ./spark/jars:/opt/spark/jars                # JDBC drivers and additional JARs
+      - ./spark/conf:/opt/spark/conf                # Spark configuration
     networks:
       - hc-network
 
@@ -163,6 +169,8 @@ services:
       - ./spark/apps:/home/jovyan/work/apps
       - ./spark/data:/home/jovyan/work/data
       - ./spark/notebooks:/home/jovyan/work/notebooks
+      - ./spark/jars:/home/jovyan/work/jars          # Access to JDBC drivers
+      - ../../application:/home/jovyan/work/application  # Access to training scripts
     networks:
       - hc-network
     command: >

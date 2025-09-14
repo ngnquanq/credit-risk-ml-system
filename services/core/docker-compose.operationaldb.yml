@@ -3,27 +3,32 @@ services:
   ops-postgres:
     image: postgres:${POSTGRES_VERSION:-15-alpine}
     container_name: ops_postgres
+    env_file:
+      - ./.env.core
     command: [
       'postgres',
-      '-c', 'wal_level=${POSTGRES_WAL_LEVEL:-replica}',                       # Enable for WAL
+      '-c', 'wal_level=${POSTGRES_WAL_LEVEL:-logical}',                       # Enable logical WAL for CDC
       '-c', 'max_connections=${POSTGRES_MAX_CONNECTIONS:-200}',               # For concurrent connections
       '-c', 'shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}',
       '-c', 'effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}',
       '-c', 'work_mem=${POSTGRES_WORK_MEM:-8MB}',
       '-c', 'maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM:-128MB}',
       '-c', 'checkpoint_timeout=15min',
-      '-c', 'random_page_cost=1.1'
+      '-c', 'random_page_cost=1.1',
+      '-c', 'max_wal_senders=10',
+      '-c', 'max_replication_slots=10'
     ]
     ports:
       - "${OPS_POSTGRES_PORT:-5434}:5432"
     environment:
       POSTGRES_DB: ${OPS_DB_NAME:-operations}
       POSTGRES_USER: ${OPS_DB_USER:-ops_admin}
-      POSTGRES_PASSWORD: ${OPS_DB_PASSWORD:-ops_secure_password}
+      POSTGRES_PASSWORD: ${OPS_DB_PASSWORD:-ops_password}
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
     volumes:
       - ops_postgres_data:/var/lib/postgresql/data
-      - ./init-ops-db.sql:/docker-entrypoint-initdb.d/init-ops-db.sql
+      - ./init-ops-database.sql:/docker-entrypoint-initdb.d/init-ops-database.sql
+      - ./schemas:/schemas:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${OPS_DB_USER:-ops_admin} -d ${OPS_DB_NAME:-operations}']
       interval: 30s
@@ -33,14 +38,16 @@ services:
       - hc-network
 
   # Connection pooler for high-concurrency scenarios
-  pgbouncer:
+  ops-pgbouncer:
     image: pgbouncer/pgbouncer:latest
     container_name: ops_pgbouncer
+    env_file:
+      - ./.env.core
     environment:
       DATABASES_HOST: ${OPS_DB_HOST:-ops-postgres}
       DATABASES_PORT: ${OPS_DB_PORT:-5432}
       DATABASES_USER: ${OPS_DB_USER:-ops_admin}
-      DATABASES_PASSWORD: ${OPS_DB_PASSWORD:-ops_secure_password}
+      DATABASES_PASSWORD: ${OPS_DB_PASSWORD:-ops_password}
       DATABASES_DBNAME: ${OPS_DB_NAME:-operations}
       POOL_MODE: ${PGBOUNCER_POOL_MODE:-transaction}
       SERVER_RESET_QUERY: DISCARD ALL

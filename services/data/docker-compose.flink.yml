@@ -1,0 +1,75 @@
+services:
+  flink-jobmanager:
+    build:
+      context: ../../application/flink
+      dockerfile: Dockerfile
+    container_name: flink_jobmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
+      # Ensure PyFlink job sees the same runtime env as TaskManagers
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
+      - CDC_SOURCE_TOPIC=${CDC_TOPIC:-hc.applications.public.loan_applications}
+      - SINK_TOPIC_FEATURES=${FEAST_TOPIC_APP_FEATURES:-hc.application_features}
+    command: jobmanager
+    ports:
+      - "8085:8081"  # Flink Web UI
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - hc-network
+
+  flink-taskmanager:
+    build:
+      context: ../../application/flink
+      dockerfile: Dockerfile
+    container_name: flink_taskmanager
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
+      - TASK_MANAGER_NUMBER_OF_TASK_SLOTS=2
+      # Ensure PyFlink task processes see correct Kafka/topic vars
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
+      - CDC_SOURCE_TOPIC=${CDC_TOPIC:-hc.applications.public.loan_applications}
+      - SINK_TOPIC_FEATURES=${FEAST_TOPIC_APP_FEATURES:-hc.application_features}
+    command: taskmanager
+    networks:
+      - hc-network
+
+  flink-job:
+    build:
+      context: ../../application/flink
+      dockerfile: Dockerfile
+    container_name: flink_job_submitter
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
+      - CDC_SOURCE_TOPIC=${CDC_TOPIC_PREFIX:-hc.applications}.public.loan_applications
+      - SINK_TOPIC_PII=${SINK_TOPIC_PII:-hc.application_pii}
+      - SINK_TOPIC_FEATURES=${FEAST_TOPIC_APP_FEATURES:-hc.application_features}
+    networks:
+      - hc-network
+
+  # features-python-worker:
+  #   build:
+  #     context: ./scripts/python-features-worker/
+  #     dockerfile: Dockerfile
+  #   container_name: features_python_worker
+  #   environment:
+  #     - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
+  #     - CDC_TOPIC=${CDC_TOPIC:-hc.applications.public.loan_applications}
+  #     - FEATURES_TOPIC=${FEAST_TOPIC_APP_FEATURES:-hc.application_features}
+  #   restart: unless-stopped
+  #   networks:
+  #     - hc-network
+
+networks:
+  hc-network:
+    external: true
+    name: ${NETWORK_NAME:-hc-network}

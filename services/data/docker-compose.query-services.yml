@@ -1,0 +1,49 @@
+services:
+  external-bureau-sink:
+    build:
+      context: ../..
+      dockerfile: application/services/Dockerfile
+    container_name: external_bureau_sink
+    command: ["python", "application/services/external_bureau_service.py"]
+    env_file:
+      - ./.env.data
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
+      - CDC_SOURCE_TOPIC=${CDC_TOPIC_PREFIX:-hc.applications}.public.loan_applications
+      - SINK_TOPIC_EXT=${FEAST_TOPIC_EXTERNAL:-hc.application_ext}
+      - CONSUMER_GROUP_ID=external-bureau-sink
+      # ClickHouse (bureau) connection
+      - APP_CLICKHOUSE_HOST=${CLICKHOUSE_HOST:-clickhouse_dwh}
+      - APP_CLICKHOUSE_PORT=${CLICKHOUSE_HTTP_PORT:-8123}
+      - APP_CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
+      - APP_CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-}
+      - APP_CLICKHOUSE_DB_EXTERNAL=${CLICKHOUSE_DB_EXTERNAL:-application_external}
+    networks:
+      - hc-network
+
+  dwh-features-reader:
+    build:
+      context: ../..
+      dockerfile: application/services/Dockerfile
+    container_name: dwh_features_reader
+    command: ["python", "application/services/dwh_features_service.py"]
+    env_file:
+      - ./.env.data
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
+      - CDC_SOURCE_TOPIC=${CDC_TOPIC_PREFIX:-hc.applications}.public.loan_applications
+      - SINK_TOPIC_DWH=${FEAST_TOPIC_DWH:-hc.application_dwh}
+      - CONSUMER_GROUP_ID=dwh-features-reader
+      # ClickHouse (internal DWH mart)
+      - APP_CLICKHOUSE_HOST=${CLICKHOUSE_HOST:-clickhouse_dwh}
+      - APP_CLICKHOUSE_PORT=${CLICKHOUSE_HTTP_PORT:-8123}
+      - APP_CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
+      - APP_CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-}
+      - APP_CLICKHOUSE_DB_DWH=${CLICKHOUSE_DB_DWH:-application_mart}
+    networks:
+      - hc-network
+
+networks:
+  hc-network:
+    external: true
+    name: ${NETWORK_NAME:-hc-network}
