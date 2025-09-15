@@ -47,6 +47,10 @@ help: ## Show this help message
 	@echo "  up-warehouse    - Start data warehouse (ClickHouse)"
 	@echo "  up-streaming    - Start streaming (Kafka)"
 	@echo "  up-cdc          - Start CDC services (requires streaming)"
+	@echo "  up-flink        - Start Flink cluster"
+	@echo "  up-query        - Start ext + dwh query services"
+	@echo "  up-redis        - Start Redis for Feast online store"
+	@echo "  run-flink-job   - Build and submit PyFlink job"
 	@echo "  up-batch        - Start Spark batch processing cluster"
 	@echo "  setup-cdc       - Start streaming + CDC + create connectors"
 	@echo "  deploy-complete - Full deployment with automated setup"
@@ -58,6 +62,8 @@ help: ## Show this help message
 	@echo "Utility Commands:"
 	@echo "  create-network  - Create platform network"
 	@echo "  check-ports     - Check container port mappings"
+	@echo "  core-apply-migrations - Apply core DB migrations (idempotent)"
+	@echo "  core-reset-db   - Drop and recreate core DB (destructive)"
 
 # Network management
 create-network: ## Create the platform network
@@ -82,6 +88,19 @@ up-core: create-network ## Start core infrastructure services
 	@echo "Waiting for PostgreSQL to be ready..."
 	@until docker exec ops_postgres pg_isready -U ops_admin -d operations > /dev/null 2>&1; do sleep 2; echo -n "."; done
 	@echo " PostgreSQL ready!"
+
+core-apply-migrations: ## Apply core DB migrations into running ops-postgres
+	@echo "Applying core migrations to ops_postgres..."
+	@until docker exec ops_postgres pg_isready -U ops_admin -d operations > /dev/null 2>&1; do sleep 2; echo -n "."; done
+	@docker exec -i ops_postgres psql -U ops_admin -d operations -f /migrations/001_create_loan_applications.sql || true
+	@docker exec -i ops_postgres psql -U ops_admin -d operations -f /migrations/002_create_application_status_log.sql || true
+	@echo "✅ Core migrations applied"
+
+core-reset-db: ## Destructive: reset core DB volume and re-init with migrations
+	@echo "This will remove ops-postgres volume and reinitialize the database."
+	@cd services && docker compose --env-file .env --env-file .env.core -f core/docker-compose.yml down -v
+	@$(MAKE) up-core
+	@$(MAKE) core-apply-migrations
 
 up-data: create-network ## Start all data platform services
 	docker compose -f $(DATA_STORAGE_COMPOSE) -f $(DATA_WAREHOUSE_COMPOSE) -f $(DATA_STREAMING_COMPOSE) -f $(DATA_CDC_COMPOSE) up -d
@@ -111,13 +130,27 @@ up-cdc: create-network ## Start CDC services (requires streaming to be running)
 	@until curl -f http://localhost:8083/connectors > /dev/null 2>&1; do sleep 2; echo -n "."; done
 	@echo " Debezium ready!"
 
-up-batch: create-network ## Start Spark batch processing cluster
-	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.batch.yml up -d
-	@echo "Waiting for Spark Master to be ready..."
-	@until curl -f http://localhost:8084 > /dev/null 2>&1; do sleep 2; echo -n "."; done
-	@echo " Spark cluster ready!"
-	@echo "Spark Master UI: http://localhost:8084"
-	@echo "Jupyter Notebook: http://localhost:8888 (token: spark_notebook_token)"
+up-flink: create-network ## Start Flink cluster (JobManager + TaskManager)
+	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.flink.yml up -d
+	@echo "Flink UI: http://localhost:8085"
+
+up-query: create-network ## Start external and DWH query services
+	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.query-services.yml up -d
+
+up-redis: create-network ## Start Redis (Feast online store)
+	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.redis.yml up -d
+
+run-flink-job: ## Build and run the self-contained PyFlink job submitter
+	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.flink.yml build flink-job
+	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.flink.yml up -d flink-job
+
+# up-batch: create-network ## Start Spark batch processing cluster
+# 	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.batch.yml up -d
+# 	@echo "Waiting for Spark Master to be ready..."
+# 	@until curl -f http://localhost:8084 > /dev/null 2>&1; do sleep 2; echo -n "."; done
+# 	@echo " Spark cluster ready!"
+# 	@echo "Spark Master UI: http://localhost:8084"
+# 	@echo "Jupyter Notebook: http://localhost:8888 (token: spark_notebook_token)"
 
 setup-cdc: up-streaming up-cdc
 	@echo "Creating Debezium connectors..."
@@ -181,6 +214,10 @@ check-ports: ## Check port mappings for all running containers
 		docker port "$${name}"; \
 	done
 	@echo "--- End of port check ---"
+
+create-kafka-topics: ## Create default Kafka topics using Python SDK
+	@echo "Creating Kafka topics (hc.application_pii, hc.application_features)"
+	@python application/kafka/create_topics.py
 
 # Environment-specific deployments
 deploy-dev: up-core up-data up-ml ## Deploy development environment

@@ -4,6 +4,7 @@ x-superset-volumes:
   - ./docker:/app/docker
   - superset_home:/app/superset_home
 
+
 networks:
   hc-network:
     external: true
@@ -21,10 +22,7 @@ services:
 
   db:
     env_file:
-      - path: docker/.env # default
-        required: true
-      - path: docker/.env-local # optional override
-        required: false
+      - ../.env.ops
     image: postgres:${POSTGRES_VERSION:-15}
     container_name: superset_db
     restart: unless-stopped
@@ -36,10 +34,7 @@ services:
 
   superset:
     env_file:
-      - path: docker/.env # default
-        required: true
-      - path: docker/.env-local # optional override
-        required: false
+      - ../.env.ops
     image: *superset-image
     container_name: superset_app
     command: ["/app/docker/docker-bootstrap.sh", "app-gunicorn"]
@@ -61,10 +56,7 @@ services:
     container_name: superset_init
     command: ["/app/docker/docker-init.sh"]
     env_file:
-      - path: docker/.env # default
-        required: true
-      - path: docker/.env-local # optional override
-        required: false
+      - ../.env.ops
     depends_on:
       db:
         condition: service_started
@@ -85,10 +77,7 @@ services:
     container_name: superset_worker
     command: ["/app/docker/docker-bootstrap.sh", "worker"]
     env_file:
-      - path: docker/.env # default
-        required: true
-      - path: docker/.env-local # optional override
-        required: false
+      - ../.env.ops
     restart: unless-stopped
     depends_on:
       superset-init:
@@ -111,10 +100,7 @@ services:
     container_name: superset_worker_beat
     command: ["/app/docker/docker-bootstrap.sh", "beat"]
     env_file:
-      - path: docker/.env # default
-        required: true
-      - path: docker/.env-local # optional override
-        required: false
+      - ../.env.ops
     restart: unless-stopped
     depends_on:
       superset-init:

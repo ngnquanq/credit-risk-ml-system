@@ -1,82 +1,18 @@
 services:
-  # Redis Online Store for Feast
-  feast-redis:
-    image: redis:${REDIS_VERSION:-7-alpine}
-    container_name: feast_online_store
-    ports:
-      - "${FEAST_REDIS_PORT:-6379}:6379"
-    command: redis-server --appendonly yes --maxmemory ${REDIS_MAX_MEMORY:-1gb} --maxmemory-policy ${REDIS_MAX_MEMORY_POLICY:-allkeys-lru}
-    volumes:
-      - feast_redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-    networks:
-      - hc-network
-
-  # Feast Feature Server
-  feast-server:
-    image: feastdev/feature-server:latest
-    container_name: feast_feature_server
-    ports:
-      - "${FEAST_SERVER_PORT:-6566}:6566"  # Feast feature server port
-    environment:
-      # Feature store configuration
-      - FEAST_FEATURE_STORE_YAML_BASE64=${FEAST_CONFIG_BASE64}
-      
-      # Online store (Redis)
-      - REDIS_HOST=${REDIS_HOST:-feast-redis}
-      - REDIS_PORT=${REDIS_PORT:-6379}
-      - REDIS_DB=${REDIS_DB:-0}
-      
-      # Offline store (ClickHouse)
-      - CLICKHOUSE_HOST=${CLICKHOUSE_HOST:-clickhouse_dwh}
-      - CLICKHOUSE_PORT=${CLICKHOUSE_PORT:-8123}
-      - CLICKHOUSE_DATABASE=${CLICKHOUSE_DATABASE:-ml_data_mart}
-      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-}
-      
-      # Registry store (MinIO)
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minioadmin}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin}
-      - S3_ENDPOINT_URL=http://minio-server:${MINIO_API_PORT:-9000}
-      - FEAST_S3_BUCKET=${FEAST_S3_BUCKET:-feast-registry}
-      
-      # Performance tuning
-      - FEAST_TELEMETRY=${FEAST_TELEMETRY:-false}
-      - FEAST_USAGE_STATS=${FEAST_USAGE_STATS:-false}
-      
-    volumes:
-      - ./feast_config:/feature_store
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6566/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    restart: unless-stopped
-    networks:
-      - hc-network
-    depends_on:
-      - feast-redis
-      - clickhouse-server
 
   # BentoML Model Serving (with Feast integration)
   credit-risk-service:
-    image: bentoml/credit-risk-model:latest  # Will be built from your bentofile.yaml
+    image: bentoml/credit-risk-model:v2  # Will be built from your bentofile.yaml
     container_name: bento_credit_risk
     ports:
       - "${BENTO_SERVING_PORT:-3000}:3000"  # BentoML serving port
     environment:
-      # Feast connection for real-time features
-      - FEAST_FEATURE_SERVER_URL=${FEAST_FEATURE_SERVER_URL:-http://feast-server:6566}
+      # Feast SDK: point to your Feast repo (mounted below)
+      - SCORING_FEAST_REPO_PATH=/work/feast
       
       # MLflow connection for model loading
-      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://mlflow-server:5000}
-      - MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL:-http://mlflow-minio:9000}
+      - MLFLOW_TRACKING_URI=http://mlflow-server:5000
+      - MLFLOW_S3_ENDPOINT_URL=http://mlflow-minio:9006
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio_user}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minio_password}
       
@@ -104,6 +40,7 @@ services:
     volumes:
       - bento_models:/home/bentoml/models
       - ./bento_config:/home/bentoml/config
+      - ../../application/feast:/work/feast:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
       interval: 15s
@@ -113,9 +50,7 @@ services:
     restart: unless-stopped
     networks:
       - hc-network
-    depends_on:
-      - feast-server
-      - ops-postgres
+    depends_on: []
     deploy:
       resources:
         limits:
@@ -125,62 +60,8 @@ services:
           memory: ${DEFAULT_MEMORY_RESERVATION:-1G}
           cpus: '${DEFAULT_CPU_RESERVATION:-0.5}'
 
-  # Batch Feature Pipeline (runs periodically)
-  feast-batch-job:
-    image: feastdev/feast:latest
-    container_name: feast_batch_pipeline
-    environment:
-      # Same Feast configuration as feature server
-      - FEAST_FEATURE_STORE_YAML_BASE64=${FEAST_CONFIG_BASE64}
-      - REDIS_HOST=feast-redis
-      - REDIS_PORT=6379
-      - CLICKHOUSE_HOST=clickhouse_dwh
-      - CLICKHOUSE_PORT=8123
-      - CLICKHOUSE_DATABASE=ml_data_mart
-      - AWS_ACCESS_KEY_ID=minioadmin
-      - AWS_SECRET_ACCESS_KEY=minioadmin
-      - S3_ENDPOINT_URL=http://minio-server:9000
-      
-      # Batch job configuration
-      - CRON_SCHEDULE=0 */2 * * *  # Every 2 hours
-      - FEAST_BATCH_SIZE=10000
-      
-    volumes:
-      - ./feast_config:/feature_store
-      - ./batch_scripts:/scripts
-    # This runs as a cron job, not continuously
-    restart: "no"
-    networks:
-      - hc-network
-    depends_on:
-      - feast-redis
-      - clickhouse-server
-    profiles:
-      - batch  # Only start with --profile batch
-
-  # API Gateway for load balancing and routing
-  api-gateway:
-    image: nginx:alpine
-    container_name: credit_risk_gateway
-    ports:
-      - "${API_GATEWAY_PORT:-7000}:80"  # External API access
-    volumes:
-      - ./nginx_realtime.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - credit-risk-service
-      - feast-server
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
-    networks:
-      - hc-network
-
 volumes:
   bento_models:
-  feast_redis_data:
 
 networks:
   hc-network:

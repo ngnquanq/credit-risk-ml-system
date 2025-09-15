@@ -1,0 +1,67 @@
+services:
+  # One-shot: apply Feast repo definitions (entities + StreamFeatureViews)
+  feast-apply:
+    build:
+      context: ../../application/feast
+      dockerfile: Dockerfile
+    container_name: feast_apply
+    working_dir: /work
+    # Generate feature_store.yaml, then apply
+    command: ["/bin/sh","-lc","python generate_config.py && feast apply"]
+    environment:
+      # Online store (Redis) and brokers (Kafka) using service DNS inside the network
+      FEAST_REDIS_URL: redis:6379
+      FEAST_KAFKA_BROKERS: ${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
+      FEAST_PROJECT: ${FEAST_PROJECT:-hc}
+      FEAST_REGISTRY_PATH: /work/registry.db
+      # DWH schema inference (ClickHouse)
+      APP_CLICKHOUSE_HOST: ch-server
+      APP_CLICKHOUSE_PORT: 8123
+      APP_CLICKHOUSE_DB_DWH: application_mart
+      # All streams emit ts as event time
+      FEAST_TS_FIELD_APP: ${FEAST_TS_FIELD_APP:-ts}
+      FEAST_TS_FIELD_EXT: ${FEAST_TS_FIELD_EXT:-ts}
+      FEAST_TS_FIELD_DWH: ${FEAST_TS_FIELD_DWH:-ts}
+    volumes:
+      - ../../application/feast:/work:rw
+    networks:
+      - hc-network
+    restart: "no"
+  redis:
+    image: redis:7-alpine
+    container_name: feast_redis
+    ports:
+      - "6380:6379"
+    networks:
+      - hc-network
+
+  # Long-running stream materializer: Kafka -> Redis (Feast online store)
+  feast-stream:
+    build:
+      context: ../../application/feast
+      dockerfile: Dockerfile
+    container_name: feast_stream
+    working_dir: /work
+    command: ["/bin/sh","-lc","python repository.py stream"]
+    environment:
+      FEAST_REDIS_URL: redis:6379
+      FEAST_KAFKA_BROKERS: ${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
+      FEAST_PROJECT: ${FEAST_PROJECT:-hc}
+      FEAST_REGISTRY_PATH: /work/registry.db
+      FEAST_TS_FIELD_APP: ${FEAST_TS_FIELD_APP:-ts}
+      FEAST_TS_FIELD_EXT: ${FEAST_TS_FIELD_EXT:-ts}
+      FEAST_TS_FIELD_DWH: ${FEAST_TS_FIELD_DWH:-ts}
+      APP_CLICKHOUSE_HOST: ch-server
+      APP_CLICKHOUSE_PORT: 8123
+      APP_CLICKHOUSE_DB_DWH: application_mart
+    volumes:
+      - ../../application/feast:/work:rw
+    depends_on:
+      - redis
+    networks:
+      - hc-network
+
+networks:
+  hc-network:
+    external: true
+    name: ${NETWORK_NAME:-hc-network}

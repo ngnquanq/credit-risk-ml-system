@@ -19,3 +19,4 @@ python:
     - mlflow>=2.11
     - feast[redis,kafka]>=0.40
     - kafka-python>=2.0.2
+    - boto3>=1.28

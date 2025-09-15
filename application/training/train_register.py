@@ -8,7 +8,7 @@ Usage (with MLflow stack up):
   export MLFLOW_TRACKING_URI=http://localhost:5000
   export MLFLOW_S3_ENDPOINT_URL=http://localhost:9006
   export AWS_ACCESS_KEY_ID=minio_user
-  export AWS_SECRET_ACCESS_KEY=changeme123
+  export AWS_SECRET_ACCESS_KEY=minio_password
 
   python application/training/train_register.py \
     --data data/complete_feature_dataset.csv \

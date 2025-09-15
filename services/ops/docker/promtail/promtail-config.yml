@@ -1,0 +1,81 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Docker container logs
+  - job_name: docker
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: docker
+          __path__: /var/lib/docker/containers/*/*.log
+
+    # Parse Docker JSON logs and extract labels
+    pipeline_stages:
+      # Parse Docker's JSON log format
+      - json:
+          expressions:
+            output: log
+            stream: stream
+            attrs: attrs
+            time: time
+
+      # Extract container name and image from Docker attributes
+      - json:
+          source: attrs
+          expressions:
+            container_name: container_name
+            image_name: image_name
+
+      # Add labels for better filtering
+      - labels:
+          stream:
+          container_name:
+          image_name:
+
+      # Parse application JSON logs if they exist
+      - match:
+          selector: '{job="docker"}'
+          stages:
+            - json:
+                source: output
+                expressions:
+                  level: level
+                  service: service
+                  sk_id_curr: sk_id_curr
+                  event: event
+                  model_name: model_name
+                  model_version: model_version
+                  probability: probability
+                  decision: decision
+                  timestamp: timestamp
+
+            # Add extracted fields as labels (for fast filtering)
+            - labels:
+                level:
+                service: 
+                event:
+                sk_id_curr:
+
+            # Set timestamp if available
+            - timestamp:
+                source: timestamp
+                format: RFC3339Nano
+
+      # Filter out noisy logs
+      - match:
+          selector: '{container_name=~".*postgres.*|.*redis.*|.*zookeeper.*"}'
+          action: drop
+
+      # Keep only our application containers
+      - match:
+          selector: '{container_name=~".*bento.*|.*scoring.*|.*feast.*|.*kafka.*|.*flink.*|.*superset.*"}'
+          action: keep

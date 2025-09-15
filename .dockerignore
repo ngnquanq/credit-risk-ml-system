@@ -1,0 +1,37 @@
+# VCS and metadata
+.git
+.gitignore
+.claude
+.qodo
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# Python envs
+.venv
+venv
+env
+*.egg-info/
+
+# ClickHouse local storage
+.volumes/ch_data/
+.volumes/ch_logs/
+
+# Large, unused for service images
+assets/
+catboost_info/
+data/
+ml_data_mart/
+models/
+notebook/
+tests/
+secrets/
+scripts/
+services/ml/
+services/docker/
+services/data/.volumes/
+
+# Node/JS caches if any
+node_modules/

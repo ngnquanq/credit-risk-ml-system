@@ -15,7 +15,6 @@ from pyflink.table import EnvironmentSettings, TableEnvironment
 from cdc_udfs import (
     decode_decimal_base64,
     safe_parse_decimal,
-    date_from_days_since_epoch,
     calculate_days_birth,
     calculate_days_employed,
     document_flag,
@@ -50,12 +49,15 @@ def main():
     # Register custom UDFs for CDC transformations
     t_env.create_temporary_function("decode_decimal_base64", decode_decimal_base64)
     t_env.create_temporary_function("safe_parse_decimal", safe_parse_decimal)
-    t_env.create_temporary_function("date_from_days_since_epoch", date_from_days_since_epoch)
     t_env.create_temporary_function("calculate_days_birth", calculate_days_birth)
     t_env.create_temporary_function("calculate_days_employed", calculate_days_employed)
     t_env.create_temporary_function("document_flag", document_flag)
 
-    # Source: Debezium CDC JSON - use string types for flexible parsing of decimals and dates
+    # Clean re-definitions to ensure latest schema is applied when job restarts
+    t_env.execute_sql("DROP TABLE IF EXISTS application_features")
+    t_env.execute_sql("DROP TABLE IF EXISTS loan_applications_cdc")
+
+    # Source: Debezium CDC JSON
     # This approach handles both direct values and encoded formats from Debezium
     t_env.execute_sql(
         f"""
@@ -64,7 +66,8 @@ def main():
             code_gender STRING,
             birth_date STRING,  -- Handle both ISO strings and integer days
             cnt_children INT,
-            amt_income_total STRING,  -- Handle both direct numbers and base64 encoded decimals
+            -- Read amounts as STRING to be robust to Debezium JSON encodings; parse via UDF
+            amt_income_total STRING,
             amt_credit STRING,
             amt_annuity STRING,
             amt_goods_price STRING,
@@ -119,7 +122,7 @@ def main():
         """
     )
 
-    # Sink topic: Feature stream (transformed fields and document flags)
+    # Sink topic: use upsert-kafka so sink supports UPDATE/DELETE change-log from Debezium source
     t_env.execute_sql(
         f"""
         CREATE TABLE application_features (
@@ -167,14 +170,15 @@ def main():
             flag_document_19 INT,
             flag_document_20 INT,
             flag_document_21 INT,
-            ts DOUBLE  -- Use epoch seconds for Feast compatibility
+            ts DOUBLE,
+            PRIMARY KEY (sk_id_curr) NOT ENFORCED
         ) WITH (
-            'connector' = 'kafka',
+            'connector' = 'upsert-kafka',
             'topic' = '{sink_topic_features}',
             'properties.bootstrap.servers' = '{bootstrap}',
-            'format' = 'json',
-            'key.format' = 'json',
-            'key.fields' = 'sk_id_curr'
+            'key.format' = 'raw',
+            'key.raw.charset' = 'UTF-8',
+            'value.format' = 'json'
         )
         """
     )
@@ -187,11 +191,11 @@ def main():
             -- Ensure string IDs for Feast entity keys (mirrors Python demo logic)
             COALESCE(CAST(sk_id_curr AS STRING), '') as sk_id_curr,
             cnt_children,
-            -- Handle decimal fields with sophisticated parsing (base64 or direct)
-            safe_parse_decimal(amt_income_total) as amt_income_total,
-            safe_parse_decimal(amt_credit) as amt_credit,
-            safe_parse_decimal(amt_annuity) as amt_annuity,
-            safe_parse_decimal(amt_goods_price) as amt_goods_price,
+            -- Robustly parse DECIMALs: try numeric/string first, then base64 decode (scale 2)
+            COALESCE(safe_parse_decimal(amt_income_total), decode_decimal_base64(amt_income_total, 2)) as amt_income_total,
+            COALESCE(safe_parse_decimal(amt_credit),       decode_decimal_base64(amt_credit, 2))       as amt_credit,
+            COALESCE(safe_parse_decimal(amt_annuity),      decode_decimal_base64(amt_annuity, 2))      as amt_annuity,
+            COALESCE(safe_parse_decimal(amt_goods_price),  decode_decimal_base64(amt_goods_price, 2))  as amt_goods_price,
             name_contract_type,
             name_income_type,
             name_education_type,
@@ -232,7 +236,7 @@ def main():
             document_flag(document_id_20) as flag_document_20,
             document_flag(document_id_21) as flag_document_21,
             -- Use epoch seconds for Feast numeric timestamp compatibility
-            UNIX_TIMESTAMP(CURRENT_TIMESTAMP) as ts
+            CAST(UNIX_TIMESTAMP() AS DOUBLE) as ts
         FROM loan_applications_cdc
         """
     )

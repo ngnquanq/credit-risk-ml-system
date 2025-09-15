@@ -235,3 +235,15 @@ secret/
 CLAUDE.md
 .claude/
 .claudeignore
+
+# my file
+.developmentNote.md
+
+# Docker volume data
+services/data/.volumes/
+*/.volumes/
+
+# .github for  now
+.github/
+
+services/data/scripts/dwh/.volumes/

@@ -18,7 +18,6 @@ import pandas as pd
 
 from config import settings
 from schemas import ScoreRequest, ScoreResponse, ScoreByIdRequest
-from model_registry import load_model
 from pipeline import as_vector, postprocess
 from logger import configure_logger
 from feature_registry import get_model_expected_columns, get_feast_to_model_mapping, FEATURE_REGISTRY
@@ -34,17 +33,11 @@ except Exception:  # pragma: no cover
 configure_logger(settings.log_level, settings.log_format)
 
 
-# Load model and metadata once per worker
-model, MODEL_NAME, MODEL_VERSION = load_model(
-    source=settings.model_source,
-    path=settings.model_path,
-    mlflow_uri=(settings.mlflow_model_uri or "models:/credit_risk_model/Production"),
-)
-# Apply explicit overrides if provided via settings (from mlflow.env)
-if settings.model_name:
-    MODEL_NAME = settings.model_name
-if settings.model_version:
-    MODEL_VERSION = settings.model_version
+# Defer model loading to runtime to avoid failures during `bentoml build`
+# These globals are populated in the @svc.on_startup hook below.
+model = None  # type: ignore[var-annotated]
+MODEL_NAME: str = "unknown"
+MODEL_VERSION: Optional[str] = None
 
 
 def _map_feast_features(feast_result: Dict[str, Any], feature_refs: List[str]) -> Dict[str, Any]:
@@ -79,6 +72,8 @@ def _predict_proba_local(X):
 
     Supports sklearn estimators and MLflow pyfunc models (via params method).
     """
+    if model is None:
+        ensure_model_loaded()
     # Native sklearn path
     if hasattr(model, "predict_proba"):
         try:
@@ -119,6 +114,40 @@ def _as_dataframe_row(features: Dict[str, Any]) -> pd.DataFrame:
     return pd.DataFrame([row], columns=EXPECTED_COLUMNS)
 
 
+# Lazy, thread-safe model initializer to avoid loading at import/build time
+_init_lock = threading.Lock()
+_initialized = False
+_kafka_started = False
+
+def ensure_model_loaded() -> None:
+    global model, MODEL_NAME, MODEL_VERSION, _initialized, _kafka_started
+    if _initialized and model is not None:
+        return
+    with _init_lock:
+        if _initialized and model is not None:
+            return
+        from model_registry import load_model  # runtime import
+        with bentoml.importing():
+            loaded_model, name, version = load_model(
+                source=settings.model_source,
+                path=settings.model_path,
+                mlflow_uri=(settings.mlflow_model_uri or "models:/credit_risk_model/Production"),
+            )
+        if settings.model_name:
+            name = settings.model_name
+        if settings.model_version:
+            version = settings.model_version
+        model = loaded_model
+        MODEL_NAME = name
+        MODEL_VERSION = version
+        _initialized = True
+
+        # Optionally start Kafka consumer once
+        if settings.enable_kafka and not _kafka_started:  # pragma: no cover
+            threading.Thread(target=_run_kafka_consumer, daemon=True).start()
+            _kafka_started = True
+
+
 def _extract_sk_id_curr_from_cdc(message: Dict[str, Any]) -> Optional[str]:
     """Extract sk_id_curr from Debezium-like envelopes.
 
@@ -156,6 +185,7 @@ def health(_: Dict[str, Any] | None = None) -> Dict[str, Any]:
 
 @app.post("/v1/score")
 def score(req: ScoreRequest) -> Dict[str, Any]:
+    ensure_model_loaded()
     X_df = _as_dataframe_row(req.features)
     raw = _predict_proba_local(X_df)
     prob = float(raw[0]) if hasattr(raw, "__len__") else float(raw)
@@ -176,6 +206,7 @@ def score(req: ScoreRequest) -> Dict[str, Any]:
 
 @app.post("/v1/score-by-id")
 def score_by_id(req: ScoreByIdRequest) -> Dict[str, Any]:
+    ensure_model_loaded()
     if not settings.feast_enabled:
         raise bentoml.exceptions.BentoMLException(
             "Feast is disabled. Set SCORING_FEAST_ENABLED=true to enable."
@@ -329,11 +360,6 @@ def _run_kafka_consumer():  # pragma: no cover
                 logger.error(f"Error processing Kafka message: {e}")
     except Exception as e:
         logger.error(f"Kafka consumer failed to start: {e}")
-
-
-# Optionally start Kafka consumer in background
-if settings.enable_kafka:  # pragma: no cover
-    threading.Thread(target=_run_kafka_consumer, daemon=True).start()
 
 
 # Mount FastAPI app into Bento service

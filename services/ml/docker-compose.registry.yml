@@ -7,10 +7,19 @@ services:
       POSTGRES_DB: ${MLFLOW_DB_NAME:-mlflow_db}
       POSTGRES_USER: ${MLFLOW_DB_USER:-mlflow_user}
       POSTGRES_PASSWORD: ${MLFLOW_DB_PASSWORD:-mlflow_password}
+    container_name: mlflow-db
     volumes:
       - mlflow_db_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${MLFLOW_POSTGRES_PORT:-5450}:5432"
+    networks:
+      - hc-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${MLFLOW_DB_USER:-mlflow_user} -d ${MLFLOW_DB_NAME:-mlflow_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 
   mlflow-minio:
     image: minio/minio
@@ -18,30 +27,59 @@ services:
       MINIO_ROOT_USER: ${MLFLOW_MINIO_USER:-minio_user}
       MINIO_ROOT_PASSWORD: ${MLFLOW_MINIO_PASSWORD:-minio_password}
     command: server /data --console-address ":9001"
+    container_name: mlflow-minio
     volumes:
       - mlflow_artifacts:/data
     ports:
-      - "${MLFLOW_MINIO_API_PORT:-9002}:9000"  # MLflow MinIO API
-      - "${MLFLOW_MINIO_CONSOLE_PORT:-9003}:9001"  # MLflow MinIO Console
+      - "${MLFLOW_MINIO_API_PORT:-9006}:9006"  # MLflow MinIO API
+      - "${MLFLOW_MINIO_CONSOLE_PORT:-9007}:9007"  # MLflow MinIO Console
+    networks:
+      - hc-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9006/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mlflow-minio-init:
+    image: minio/mc
+    container_name: mlflow_minio_init
+    depends_on:
+      - mlflow-minio
+    environment:
+      MC_HOST_local: http://${MLFLOW_MINIO_USER:-minio_user}:${MLFLOW_MINIO_PASSWORD:-minio_password}@mlflow-minio:9000
+    # mc image has entrypoint 'mc'; pass subcommand + args directly
+    command: ["mb", "--ignore-existing", "local/mlflow-artifacts"]
+    restart: "no"
     networks:
       - hc-network
 
   mlflow-server:
-    image: mlflow/mlflow:${MLFLOW_VERSION:-v3.1.1}
-    environment:
-      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow-server:5000}
-      MLFLOW_BACKEND_STORE_URI: ${MLFLOW_BACKEND_STORE_URI}
-      MLFLOW_ARTIFACT_URI: ${MLFLOW_ARTIFACT_URI:-s3://mlflow-artifacts/}
-      AWS_ACCESS_KEY_ID: ${MLFLOW_MINIO_USER:-minio_user}
-      AWS_SECRET_ACCESS_KEY: ${MLFLOW_MINIO_PASSWORD:-minio_password}
-      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL:-http://mlflow-minio:9000}
-    ports:
-      - "${MLFLOW_PORT:-5000}:5000"
-    depends_on:
-      - mlflow-db
-      - mlflow-minio
-    networks:
-      - hc-network
+      image: ghcr.io/mlflow/mlflow:${MLFLOW_VERSION:-v3.1.1}
+      container_name: mlflow-server
+      environment:
+        MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow-server:5000}
+        MLFLOW_BACKEND_STORE_URI: ${MLFLOW_BACKEND_STORE_URI}
+        MLFLOW_ARTIFACT_URI: ${MLFLOW_ARTIFACT_URI:-s3://mlflow-artifacts/}
+        AWS_ACCESS_KEY_ID: ${MLFLOW_MINIO_USER:-minio_user}
+        AWS_SECRET_ACCESS_KEY: ${MLFLOW_MINIO_PASSWORD:-minio_password}
+        MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL:-http://mlflow-minio:9006}
+      command: >
+        /bin/sh -lc "pip install --no-cache-dir psycopg2-binary==2.9.9 &&
+        mlflow server
+        --host 0.0.0.0
+        --port 5000
+        --backend-store-uri ${MLFLOW_BACKEND_STORE_URI}
+        --default-artifact-root ${MLFLOW_ARTIFACT_URI}"
+      ports:
+        - "${MLFLOW_PORT:-5000}:5000"
+      depends_on:
+        mlflow-db:
+          condition: service_healthy
+        mlflow-minio:
+          condition: service_healthy
+      networks:
+        - hc-network
 
 volumes:
   mlflow_db_data:

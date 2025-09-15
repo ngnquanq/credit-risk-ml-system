@@ -56,16 +56,10 @@ def safe_parse_decimal(value_str: str) -> Optional[float]:
         return None
 
 
-@udf(result_type=DataTypes.DATE())
-def date_from_days_since_epoch(days: int) -> Optional[date]:
-    """
-    Convert days since epoch (1970-01-01) to a date.
-    
-    Args:
-        days: Number of days since 1970-01-01
-    
-    Returns:
-        Date object or None if conversion fails
+def _date_from_days_since_epoch(days: int) -> Optional[date]:
+    """Helper (non-UDF) to convert days since epoch to date.
+    Kept as a plain function so other UDFs can call it without embedding
+    a UDF object (which is not picklable by cloudpickle).
     """
     if days is None:
         return None
@@ -100,7 +94,7 @@ def calculate_days_birth(birth_date_str: str, created_at_str: str) -> Optional[i
         # Handle birth_date - could be ISO string or integer days
         if birth_date_str.isdigit() or (birth_date_str.startswith('-') and birth_date_str[1:].isdigit()):
             # Integer days since epoch
-            birth_date = date_from_days_since_epoch(int(birth_date_str))
+            birth_date = _date_from_days_since_epoch(int(birth_date_str))
         else:
             # ISO string format
             birth_date = dtparser.parse(birth_date_str).date()
@@ -136,7 +130,7 @@ def calculate_days_employed(employment_start_str: str, created_at_str: str) -> O
         # Handle employment_start_date - could be ISO string or integer days
         if employment_start_str.isdigit() or (employment_start_str.startswith('-') and employment_start_str[1:].isdigit()):
             # Integer days since epoch
-            employment_start = date_from_days_since_epoch(int(employment_start_str))
+            employment_start = _date_from_days_since_epoch(int(employment_start_str))
         else:
             # ISO string format
             employment_start = dtparser.parse(employment_start_str).date()

@@ -4,8 +4,9 @@ FROM flink:1.17.1-scala_2.12-java11
 USER root
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 python3-pip curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip3 install --no-cache-dir pyflink==1.17.1
+    && ln -sf /usr/bin/python3 /usr/bin/python \
+    && pip3 install --no-cache-dir apache-flink==1.17.1 python-dateutil==2.9.0.post0 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Add Kafka SQL connector and format connectors for Flink Table API
 ENV FLINK_HOME=/opt/flink
