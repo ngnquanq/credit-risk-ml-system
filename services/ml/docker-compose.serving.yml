@@ -9,6 +9,11 @@ services:
     environment:
       # Feast SDK: point to your Feast repo (mounted below)
       - SCORING_FEAST_REPO_PATH=/work/feast
+      - SCORING_ENABLE_FEAST=true
+      - SCORING_ENABLE_KAFKA=true
+      - SCORING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
+      - SCORING_LOAN_APPLICATION_TOPIC=hc.applications.public.loan_applications
+      # Redis host is referenced inside feature_store.yaml as redis://feast_redis:6379/0
       
       # MLflow connection for model loading
       - MLFLOW_TRACKING_URI=http://mlflow-server:5000
@@ -20,7 +25,7 @@ services:
       - OPS_DB_HOST=ops-postgres
       - OPS_DB_PORT=5432
       - OPS_DB_USER=ops_admin
-      - OPS_DB_PASSWORD=${OPS_DB_PASSWORD:-ops_secure_password}
+      - OPS_DB_PASSWORD=${OPS_DB_PASSWORD:-ops_password}
       - OPS_DB_NAME=operations
       
       # BentoML configuration
@@ -40,7 +45,7 @@ services:
     volumes:
       - bento_models:/home/bentoml/models
       - ./bento_config:/home/bentoml/config
-      - ../../application/feast:/work/feast:ro
+      - ../../application/feast:/work/feast:rw
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
       interval: 15s

@@ -1,4 +1,4 @@
-x-superset-image: &superset-image apachesuperset.docker.scarf.sh/apache/superset:${SUPERSET_TAG:-latest-dev}
+x-superset-image: &superset-image apachesuperset.docker.scarf.sh/apache/superset:latest
 x-superset-volumes:
   &superset-volumes # /app/pythonpath_docker will be appended to the PYTHONPATH in the final container
   - ./docker:/app/docker
@@ -22,7 +22,7 @@ services:
 
   db:
     env_file:
-      - ../.env.ops
+      - ./.env.ops
     image: postgres:${POSTGRES_VERSION:-15}
     container_name: superset_db
     restart: unless-stopped
@@ -34,7 +34,7 @@ services:
 
   superset:
     env_file:
-      - ../.env.ops
+      - ./.env.ops
     image: *superset-image
     container_name: superset_app
     command: ["/app/docker/docker-bootstrap.sh", "app-gunicorn"]
@@ -48,6 +48,8 @@ services:
     volumes: *superset-volumes
     environment:
       SUPERSET_LOG_LEVEL: "${SUPERSET_LOG_LEVEL:-info}"
+      # Install extra DB drivers at container start (official Superset supports this)
+      PIP_ADDITIONAL_REQUIREMENTS: "clickhouse-connect==0.8.18"
     networks:
       - hc-network
 
@@ -56,7 +58,7 @@ services:
     container_name: superset_init
     command: ["/app/docker/docker-init.sh"]
     env_file:
-      - ../.env.ops
+      - ./.env.ops
     depends_on:
       db:
         condition: service_started
@@ -69,6 +71,7 @@ services:
     environment:
       SUPERSET_LOAD_EXAMPLES: "${SUPERSET_LOAD_EXAMPLES:-yes}"
       SUPERSET_LOG_LEVEL: "${SUPERSET_LOG_LEVEL:-info}"
+      PIP_ADDITIONAL_REQUIREMENTS: "clickhouse-connect==0.8.18"
     networks:
       - hc-network
 
@@ -77,7 +80,7 @@ services:
     container_name: superset_worker
     command: ["/app/docker/docker-bootstrap.sh", "worker"]
     env_file:
-      - ../.env.ops
+      - ./.env.ops
     restart: unless-stopped
     depends_on:
       superset-init:
@@ -92,6 +95,7 @@ services:
         ]
     environment:
       SUPERSET_LOG_LEVEL: "${SUPERSET_LOG_LEVEL:-info}"
+      PIP_ADDITIONAL_REQUIREMENTS: "clickhouse-connect==0.8.18"
     networks:
       - hc-network
 
@@ -100,7 +104,7 @@ services:
     container_name: superset_worker_beat
     command: ["/app/docker/docker-bootstrap.sh", "beat"]
     env_file:
-      - ../.env.ops
+      - ./.env.ops
     restart: unless-stopped
     depends_on:
       superset-init:
@@ -111,6 +115,7 @@ services:
       disable: true
     environment:
       SUPERSET_LOG_LEVEL: "${SUPERSET_LOG_LEVEL:-info}"
+      PIP_ADDITIONAL_REQUIREMENTS: "clickhouse-connect==0.8.18"
     networks:
       - hc-network
 

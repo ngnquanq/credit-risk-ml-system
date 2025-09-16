@@ -11,7 +11,7 @@ import os
 import sys
 import threading
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 try:
     from kafka import KafkaConsumer
@@ -23,11 +23,16 @@ except ImportError:
     sys.exit(1)
 
 # Use same environment variables as generate_config.py for consistency
-KAFKA_BROKERS = os.getenv("FEAST_KAFKA_BROKERS", "localhost:9092")
+KAFKA_BROKERS = os.getenv("FEAST_KAFKA_BROKERS", "broker:29092")
 TOPICS = {
     "application": "hc.application_features",  # From Flink
     "external": "hc.application_ext",         # From external service  
     "dwh": "hc.application_dwh"               # From DWH service
+}
+TS_FIELDS = {
+    "application": os.getenv("FEAST_TS_FIELD_APP", "ts"),
+    "external": os.getenv("FEAST_TS_FIELD_EXT", "ts"),
+    "dwh": os.getenv("FEAST_TS_FIELD_DWH", "ts"),
 }
 
 class FeastStreamProcessor:
@@ -47,7 +52,7 @@ class FeastStreamProcessor:
                 logger.info(f"Available feature views: {feature_views}")
             except Exception as list_error:
                 logger.warning(f"Could not list feature views during init: {list_error}")
-                
+
         except Exception as e:
             logger.error(f"✗ Failed to initialize Feast: {e}")
             raise
@@ -81,6 +86,29 @@ class FeastStreamProcessor:
             logger.warning(f"Failed to parse message: {e}")
             return None, {}
 
+    def _expected_fields_for_source(self, source: str) -> List[str]:
+        """Return expected feature field names for a given source using FV schemas."""
+        try:
+            # Import local FV definitions to discover schema
+            from feature_views import (
+                fv_application_features,
+                fv_external,
+                fv_dwh,
+            )
+            mapping = {
+                "application": fv_application_features,
+                "external": fv_external,
+                "dwh": fv_dwh,
+            }
+            fv = mapping.get(source)
+            if not fv:
+                return []
+            # schema is a list of feast.Field; first element is entity key sk_id_curr which we exclude
+            names = [f.name for f in getattr(fv, "schema", []) if getattr(f, "name", None)]
+            return [n for n in names if n != "sk_id_curr"]
+        except Exception:
+            return []
+
     def write_features_to_online_store(self, sk_id_curr: str, source: str, features: Dict[str, Any]):
         """Write features to Feast online store using proper SDK method."""
         try:
@@ -88,17 +116,28 @@ class FeastStreamProcessor:
                 return
                 
             # Prepare DataFrame for Feast (entity + features + timestamp)
+            expected = self._expected_fields_for_source(source)
+            # Keep only expected columns and fill missing ones with None, to match FV schema
+            payload: Dict[str, Any] = {}
+            for name in expected:
+                payload[name] = features.get(name, None)
+
             data = {
                 "sk_id_curr": sk_id_curr,
-                **features,
-                "event_timestamp": pd.Timestamp.now(tz="UTC")
+                **payload,
+                "event_timestamp": pd.Timestamp.now(tz="UTC"),
             }
+            # Ensure the stream timestamp column exists for Feast 0.34 projections
+            ts_col = TS_FIELDS.get(source) or "ts"
+            if ts_col not in data:
+                msg_ts = features.get(ts_col)
+                data[ts_col] = pd.Timestamp.now(tz="UTC") if msg_ts is None else msg_ts
             df = pd.DataFrame([data])
             
             # Get feature view name based on source
             feature_view_map = {
                 "application": "application_features",
-                "external": "external_features", 
+                "external": "external_features",
                 "dwh": "dwh_features"
             }
             

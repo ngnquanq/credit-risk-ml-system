@@ -22,7 +22,6 @@ env
 # Large, unused for service images
 assets/
 catboost_info/
-data/
 ml_data_mart/
 models/
 notebook/

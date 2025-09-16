@@ -47,6 +47,21 @@ class ScoringSettings(BaseSettings):
         default=os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "feast")),
         description="Path to Feast repo for FeatureStore (absolute path to avoid working directory issues)"
     )
+    # Optional inline Feast config (use when you don't ship the repo)
+    feast_inline_config_enabled: bool = Field(
+        default=True,
+        description="Allow generating minimal feature_store.yaml from env if repo_path is missing",
+    )
+    feast_project: str = Field(default="hc", description="Feast project name")
+    feast_provider: str = Field(default="local", description="Feast provider")
+    feast_registry_uri: Optional[str] = Field(
+        default=None,
+        description="URI/path to Feast registry (e.g., s3://bucket/feast/registry.db or file path)",
+    )
+    feast_redis_url: Optional[str] = Field(
+        default=None,
+        description="Redis connection string for Feast online store (e.g., redis://feast-redis:6379/0)",
+    )
     # Feast feature refs - AUTO-GENERATED from feature_registry.py (single source of truth)
     feast_feature_refs: Optional[str] = Field(
         default=get_feast_feature_refs(),
@@ -54,12 +69,12 @@ class ScoringSettings(BaseSettings):
     )
 
     # Kafka integration (optional streaming scoring)
-    enable_kafka: bool = Field(default=False, description="Enable Kafka consumer for loan applications")
+    enable_kafka: bool = Field(default=True, description="Enable Kafka consumer for loan applications")
     kafka_bootstrap_servers: str = Field(
-        default="localhost:9092", description="Kafka bootstrap servers"
+        default="broker:29092", description="Kafka bootstrap servers"
     )
     loan_application_topic: str = Field(
-        default="hc.loan_application", description="Kafka topic with loan application events"
+        default="hc.applications.public.loan_applications", description="Kafka topic with loan application events"
     )
     kafka_group_id: str = Field(
         default="bento-scoring", description="Kafka consumer group id for scoring"

@@ -232,19 +232,99 @@ docker compose --env-file ./services/data/.env.data \
 For now, this stream processing flow is quite simple, it just masking the data for PII. But later on when we acquire some of the new features, we can absolutely ref back and change the logic. 
 
 #### Spin up feature store components
+For the feature stores, we will use feast. To bring feast up, run the following things:
 
+- Start Redis (container name `feast_redis`):
+  - `docker compose -f services/ml/docker-compose.feature-store.yml up -d redis`
+- Apply Feast definitions (creates/updates `application/feast/data/registry.db`):
+  - `rm -f application/feast/data/registry.db`
+  - `docker compose -f services/ml/docker-compose.feature-store.yml run --rm feast-apply`
+- Start stream materializer (Kafka → Redis):
+  - `docker compose -f services/ml/docker-compose.feature-store.yml up -d feast-stream`
+- Check stream logs (optional):
+  - `docker logs -f feast_stream`
+
+What feast will do now is basically consume all data produced by all of those kafka topics, unified it and store into redis for later retrieval from the scoring services.
+
+Notes
+- Redis is addressed as `feast_redis:6379` inside the network (configured in `application/feast/feature_store.yaml`).
+- If you change feature views, re-run the “apply” step to update the registry.
 
 #### Spin up model registry components
+We will use mlflow for registering the model as well as postgres to store model metrics, minio for model.pkl so that we can load it later. To run this, simply run:
 
+```shell
+docker compose --env-file ./services/ml/.env.ml \
+    -f ./services/ml/docker-compose.registry.yml \
+    up -d
+```
+After running, we will see that mlflow is up and running
+
+![Bring up mlflow](mlflow_ups.png)
+
+For simplicity of the demo, we will try and train a simple model first, then we will store it into mlflow's minio, and later on load it and use the scoring service with it. 
+
+```shell
+export MLFLOW_TRACKING_URI=http://localhost:5000
+export MLFLOW_S3_ENDPOINT_URL=http://localhost:9006
+export AWS_ACCESS_KEY_ID=minio_user
+export AWS_SECRET_ACCESS_KEY=minio_password
+
+python application/training/train_register.py \
+--data data/complete_feature_dataset.csv \
+--register-name credit_risk_model \
+--experiment credit-risk \
+--stage Production
+```
+
+After you run that script, you should see the following logs: 
+![MLFlow train logs](mlflow_logs.png)
 
 #### Spin up serving components
+For the serving purpose, we will use bentoml since they make it easy for us to create endpoints and popular for serving ml applications. 
+
+First, we will need to build the bentoml image, which is the same for docker images:
+
+- Build and containerize the scoring service:
+  - `cd application/scoring`
+  - `bentoml build`
+  - `bentoml containerize credit_risk_scoring:latest -t bentoml/credit-risk-model:v2`
+  - `cd ../../`
+- Start the scoring service (FastAPI on port 3000 by default):
+  - `docker compose -f services/ml/docker-compose.serving.yml up -d credit-risk-service`
+- Health check:
+  - `curl -s http://localhost:3000/healthz`
+- Score by ID (fetch features from Feast Redis via registry):
+  - `curl -s -X POST http://localhost:3000/v1/score-by-id -H 'Content-Type: application/json' -d '{"sk_id_curr":"2587200"}'`
+- Optional streaming scoring (Kafka → Feast → Model):
+  - Publish a test event: `kcat -b broker:29092 -t hc.loan_application -P <<<'{"sk_id_curr":"2587200"}'`
+  - Tail logs: `docker logs -f bento_credit_risk`
+
+Notes
+- The scoring service reads online features directly from Redis using Feast SDK and the shared registry at `application/feast/data/registry.db` (mounted via compose).
+- If you deploy scoring separately without mounting the repo, set envs `SCORING_FEAST_REGISTRY_URI` and `SCORING_FEAST_REDIS_URL` to auto-generate a minimal Feast config at runtime.
 
 
 #### Spin up training components
 
 
 #### Spin up orchestration components
+Orchestration is crucial in modern data platforms because it automates, schedules, and coordinates complex workflows across multiple services and data pipelines. This ensures reliable data movement, timely processing, dependency management, and error handling, enabling scalable and maintainable operations for analytics and machine learning. Therefore, we will use Airflow for this. 
 
+Airflow is an open-source workflow orchestration tool designed to programmatically author, schedule, and monitor data pipelines. It uses Directed Acyclic Graphs (DAGs) to define workflows, ensuring tasks are executed in the correct order with dependency management. Airflow ensures reliable, repeatable, and maintainable orchestration for our data and ML pipelines.
+
+Run the following code to spin up airflow:
+
+```shell
+docker compose -f ./services/ops/docker-compose.orchestration.yml up -d
+```
+
+![Airflow Components Up](createAirflow.png)
+
+
+For more detail, access the localhost:9055, the username/password is airflow/airflow, just like the following. 
+
+![](/assets/upRunAirflow.gif)
 
 #### Spin up logging components
 

@@ -24,13 +24,13 @@ except Exception:  # pragma: no cover
         fv_dwh_batch,
     )
     from feature_services import realtime_scoring_v1  # type: ignore
-from generate_config import generate as generate_feast_config
+# from generate_config import generate as generate_feast_config  # File removed
 
 
 def apply():
-    # Generate env-driven feature_store.yaml in this repo directory before applying
+    # Use the existing feature_store.yaml configuration
     repo_dir = Path(__file__).parent.resolve()
-    generate_feast_config(path=str(repo_dir / "feature_store.yaml"))
+    # generate_feast_config(path=str(repo_dir / "feature_store.yaml"))  # File removed
     # Ensure dummy Parquet files exist for batch FileSources referenced by older Feast
     def ensure_dummy_parquet(path: str, ts_col: str = "ts") -> None:
         try:
@@ -53,9 +53,6 @@ def apply():
         fv_application_features,
         fv_external,
         fv_dwh,
-        fv_application_features_batch,
-        fv_external_batch,
-        fv_dwh_batch,
         realtime_scoring_v1,
     ])
 

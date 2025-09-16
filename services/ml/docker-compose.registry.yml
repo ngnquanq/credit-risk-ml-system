@@ -26,7 +26,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MLFLOW_MINIO_USER:-minio_user}
       MINIO_ROOT_PASSWORD: ${MLFLOW_MINIO_PASSWORD:-minio_password}
-    command: server /data --console-address ":9001"
+    command: server /data --address ":9006" --console-address ":9007"
     container_name: mlflow-minio
     volumes:
       - mlflow_artifacts:/data

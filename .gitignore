@@ -247,3 +247,7 @@ services/data/.volumes/
 .github/
 
 services/data/scripts/dwh/.volumes/
+
+# video related stuffs
+*.mp4
+*.webm

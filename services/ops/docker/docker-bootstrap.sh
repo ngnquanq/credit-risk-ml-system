@@ -1,6 +1,12 @@
 #!/bin/bash
 set -eo pipefail
 
+# Optionally install extra Python packages at container start
+if [ -n "${PIP_ADDITIONAL_REQUIREMENTS:-}" ]; then
+  echo "Installing additional Python packages: ${PIP_ADDITIONAL_REQUIREMENTS}"
+  pip3 install --no-cache-dir ${PIP_ADDITIONAL_REQUIREMENTS}
+fi
+
 # Superset docker bootstrap script
 case "${1}" in
   app-gunicorn)

@@ -6,7 +6,7 @@ produces a list of Feast Field objects, so we don't have to maintain
 large static lists manually.
 
 Env vars used (with sensible defaults for local dev):
-- APP_CLICKHOUSE_HOST (default: localhost)
+- APP_CLICKHOUSE_HOST (default: ch-server)
 - APP_CLICKHOUSE_PORT (default: 8123)
 - APP_CLICKHOUSE_USER (default: default)
 - APP_CLICKHOUSE_PASSWORD (default: empty)
@@ -23,11 +23,7 @@ from __future__ import annotations
 import os
 from typing import List
 
-try:
-    import clickhouse_connect  # type: ignore
-except Exception:  # pragma: no cover
-    clickhouse_connect = None  # type: ignore
-
+import clickhouse_connect
 from feast import Field
 from feast.types import Float32, Int64, String
 
@@ -53,32 +49,24 @@ def _map_ch_type_to_feast(dtype: str):
 
 
 def _get_client():  # pragma: no cover - exercised at runtime
-    host = os.getenv("APP_CLICKHOUSE_HOST", "localhost")
+    host = os.getenv("APP_CLICKHOUSE_HOST", "ch-server")
     port = int(os.getenv("APP_CLICKHOUSE_PORT", "8123"))
     user = os.getenv("APP_CLICKHOUSE_USER", "default")
     password = os.getenv("APP_CLICKHOUSE_PASSWORD", "")
     return clickhouse_connect.get_client(host=host, port=port, username=user, password=password)
 
 
-def infer_dwh_fields() -> List[Field]:  # pragma: no cover - runs in apply script
+def infer_dwh_fields() -> List[Field]: 
+    '''
+    This will do infer for all the DWH tables
+    '''
     db = os.getenv("APP_CLICKHOUSE_DB_DWH", "application_mart")
     fields: List[Field] = []
 
     # Always include entity key
     fields.append(Field(name="sk_id_curr", dtype=String))
 
-    if not clickhouse_connect:
-        # Fallback minimal set if ClickHouse client not available
-        fields.extend([
-            Field(name="record_counts_mart_credit_card_balance", dtype=Int64),
-            Field(name="record_counts_mart_pos_cash_balance", dtype=Int64),
-            Field(name="record_counts_mart_previous_application", dtype=Int64),
-            Field(name="agg_prev_loans", dtype=Int64),
-            Field(name="delinq_12m", dtype=Int64),
-            Field(name="avg_util", dtype=Float32),
-        ])
-        return fields
-
+    # These are the application mart, very similar to the training data features
     try:
         client = _get_client()
         for table in MART_TABLES:

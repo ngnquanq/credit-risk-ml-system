@@ -10,6 +10,8 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 import json
 import threading
+import os
+import tempfile
 
 import bentoml
 from loguru import logger
@@ -114,6 +116,62 @@ def _as_dataframe_row(features: Dict[str, Any]) -> pd.DataFrame:
     return pd.DataFrame([row], columns=EXPECTED_COLUMNS)
 
 
+@app.on_event("startup")
+def _on_startup() -> None:  # pragma: no cover
+    """Ensure model and optional Kafka consumer start when server starts."""
+    try:
+        logger.info(
+            "Initializing scoring service (kafka_enabled=%s, topic=%s, bootstrap=%s)",
+            settings.enable_kafka,
+            settings.loan_application_topic,
+            settings.kafka_bootstrap_servers,
+        )
+    except Exception:
+        # Avoid formatting issues if settings not ready yet
+        pass
+    # Load model and start Kafka consumer if enabled
+    ensure_model_loaded()
+
+
+def _resolve_feast_repo_path() -> str:
+    """Resolve a usable Feast repo path for FeatureStore.
+
+    Priority:
+    1) If settings.feast_repo_path exists and contains feature_store.yaml, use it.
+    2) If inline config is enabled and registry/redis envs are present, generate a
+       minimal feature_store.yaml in a temp dir and use that.
+    3) Otherwise, raise a clear configuration error.
+    """
+    try:
+        repo = settings.feast_repo_path
+        if repo and os.path.exists(os.path.join(repo, "feature_store.yaml")):
+            return repo
+    except Exception:
+        pass
+
+    if settings.feast_inline_config_enabled and settings.feast_registry_uri and settings.feast_redis_url:
+        tmpdir = tempfile.mkdtemp(prefix="feast-config-")
+        yaml_text = (
+            f"project: {settings.feast_project}\n"
+            f"registry: {settings.feast_registry_uri}\n"
+            f"provider: {settings.feast_provider}\n"
+            f"online_store:\n"
+            f"  type: redis\n"
+            f"  connection_string: {settings.feast_redis_url}\n"
+            f"entity_key_serialization_version: 2\n"
+        )
+        path = os.path.join(tmpdir, "feature_store.yaml")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(yaml_text)
+        logger.info(f"Generated inline Feast config at {path}")
+        return tmpdir
+
+    raise bentoml.exceptions.BentoMLException(
+        "Feast config not found. Provide SCORING_FEAST_REPO_PATH with feature_store.yaml, "
+        "or set SCORING_FEAST_REGISTRY_URI and SCORING_FEAST_REDIS_URL to generate inline config."
+    )
+
+
 # Lazy, thread-safe model initializer to avoid loading at import/build time
 _init_lock = threading.Lock()
 _initialized = False
@@ -173,7 +231,7 @@ def _extract_sk_id_curr_from_cdc(message: Dict[str, Any]) -> Optional[str]:
         return None
 
 
-@app.post("/healthz")
+@app.get("/healthz")
 def health(_: Dict[str, Any] | None = None) -> Dict[str, Any]:
     return {
         "status": "healthy",
@@ -216,7 +274,7 @@ def score_by_id(req: ScoreByIdRequest) -> Dict[str, Any]:
     except Exception as e:  # pragma: no cover
         raise bentoml.exceptions.BentoMLException(f"Feast not available: {e}")
 
-    fs = FeatureStore(repo_path=settings.feast_repo_path)
+    fs = FeatureStore(repo_path=_resolve_feast_repo_path())
     feature_refs = (
         [f.strip() for f in (settings.feast_feature_refs or "").split(",") if f.strip()]
     )
@@ -282,7 +340,7 @@ def _run_kafka_consumer():  # pragma: no cover
             group_id=settings.kafka_group_id,
             enable_auto_commit=True,
             auto_offset_reset="latest",
-            value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+            value_deserializer=lambda v: json.loads(v.decode("utf-8")) if v else {},
             key_deserializer=lambda v: v.decode("utf-8") if v else None,
         )
         producer: Optional[KafkaProducer] = None
@@ -299,17 +357,29 @@ def _run_kafka_consumer():  # pragma: no cover
         for msg in consumer:
             try:
                 payload = msg.value or {}
-                # Support both plain and Debezium envelopes
+                # Support both plain and Debezium envelopes (message value)
                 sk_id = str(payload.get("sk_id_curr") or payload.get("customer_id") or "").strip()
                 if not sk_id:
                     sk_id = (_extract_sk_id_curr_from_cdc(payload) or "").strip()
+                # Fallback: extract from Kafka message key if value lacks ID
+                if not sk_id and msg.key:
+                    try:
+                        key_obj = json.loads(msg.key)
+                        # Debezium key usually has {"schema":..., "payload": {"sk_id_curr": "..."}}
+                        if isinstance(key_obj, dict):
+                            key_payload = key_obj.get("payload") or key_obj
+                            if isinstance(key_payload, dict) and key_payload.get("sk_id_curr"):
+                                sk_id = str(key_payload.get("sk_id_curr"))
+                    except Exception:
+                        # non-JSON key; ignore
+                        pass
                 features: Dict[str, Any] | None = payload.get("features")
 
                 # Fetch features from Feast if configured and sk_id present
                 if not features and settings.feast_enabled and sk_id:
                     try:
                         from feast import FeatureStore
-                        fs = FeatureStore(repo_path=settings.feast_repo_path)
+                        fs = FeatureStore(repo_path=_resolve_feast_repo_path())
                         feature_refs = [
                             f.strip() for f in (settings.feast_feature_refs or "").split(",") if f.strip()
                         ]

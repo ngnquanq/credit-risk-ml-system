@@ -16,7 +16,15 @@ except Exception:  # pragma: no cover
 from typing import AsyncGenerator
 from loguru import logger
 from .config import settings
-from application.models.base import Base
+"""
+NOTE: Import paths here should match how the API container is built.
+The API image copies the contents of the application/ folder directly into
+/app (not as a nested 'application' package). Therefore packages are available
+as 'core', 'models', 'api', etc. Importing via 'application.models' will fail
+inside that container. Use top-level 'models' imports instead.
+"""
+
+from models.base import Base
 
 
 # Create async engine
@@ -62,7 +70,7 @@ async def init_db() -> None:
     try:
         async with engine.begin() as conn:
             # Import all models to register with metadata
-            from application.models import database  # noqa
+            from models import database  # noqa
             
             await conn.run_sync(Base.metadata.create_all)
             logger.info("Database tables initialized successfully")

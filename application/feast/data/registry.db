@@ -1,402 +1,38 @@
 
-Y
+Z
 :
 customerLoan application customer id"
-sk_id_currJhc
-âßÅ∆∏ÔÎí«ÕÜ∆®òí
-8
+sk_id_currJhc
+êö†∆»ÇÉêö†∆»ÇÉ
+9
 
 __dummy"
-__dummy_idJhc
-âßÅ∆»∑Óí«ÕÜ∆êîñ1"$1b3025df-f61a-4f51-9cb3-2729c0a47ed0*«ÕÜ∆àÎÊ2√
-¢
-application_features_batchhccustomer"
-cnt_children"
-amt_income_total"
-
-amt_credit"
-amt_annuity"
-amt_goods_price"
-name_contract_type"
-name_income_type"
-name_education_type"
-name_family_status"
-name_housing_type"
-occupation_type"
-organization_type"
-
-days_birth"
-days_employed"
-
-flag_mobil"
-flag_emp_phone"
-flag_work_phone"
-
-flag_phone"
-
-flag_email"
-flag_own_car"
-flag_own_realty"
-own_car_age"
-flag_document_2"
-flag_document_3"
-flag_document_4"
-flag_document_5"
-flag_document_6"
-flag_document_7"
-flag_document_8"
-flag_document_9"
-flag_document_10"
-flag_document_11"
-flag_document_12"
-flag_document_13"
-flag_document_14"
-flag_document_15"
-flag_document_16"
-flag_document_17"
-flag_document_18"
-flag_document_19"
-flag_document_20"
-flag_document_212Ä£:ztsZ#!/tmp/application_features.parquetä1feast.infra.offline_stores.file_source.FileSource¢application_batch_source@b
-
-sk_id_curr
-Å´Å∆¯∑Í⁄åƒÑ∆µ“Õ2Á
-∆
-external_features_batchhccustomer"
-ext_source_1"
-ext_source_2"
-ext_source_3"
-BUREAU_TOTAL_COUNT"
-BUREAU_CREDIT_TYPES_COUNT"
-BUREAU_ACTIVE_COUNT"
-BUREAU_CLOSED_COUNT"
-BUREAU_BAD_DEBT_COUNT"
-BUREAU_SOLD_COUNT"
-BUREAU_BAD_DEBT_RATIO"
-BUREAU_SOLD_RATIO"
-BUREAU_HIGH_RISK_RATIO"
-BUREAU_OVERDUE_DAYS_TOTAL"
-BUREAU_OVERDUE_DAYS_MEAN"
-BUREAU_OVERDUE_DAYS_MAX"
-BUREAU_OVERDUE_COUNT"
-BUREAU_OVERDUE_RATIO"
-BUREAU_AMT_OVERDUE_TOTAL"
-BUREAU_AMT_OVERDUE_MEAN"
-BUREAU_AMT_OVERDUE_MAX"
-BUREAU_AMT_MAX_OVERDUE_EVER"
-BUREAU_AMT_OVERDUE_COUNT"
-BUREAU_AMT_OVERDUE_RATIO"
-BUREAU_PROLONG_TOTAL"
-BUREAU_PROLONG_MEAN"
-BUREAU_PROLONG_MAX"
-BUREAU_PROLONG_COUNT"
-BUREAU_PROLONG_RATIO"#
-BUREAU_CREDIT_UTILIZATION_RATIO"
-BUREAU_DEBT_TO_CREDIT_RATIO""
-BUREAU_OVERDUE_TO_CREDIT_RATIO"
-BUREAU_ACTIVE_CREDIT_SUM"
-BUREAU_ACTIVE_DEBT_SUM"
-BUREAU_ACTIVE_OVERDUE_SUM"#
-BUREAU_ACTIVE_UTILIZATION_RATIO"
-BUREAU_MAXED_OUT_COUNT"
-BUREAU_MAXED_OUT_RATIO"
-BUREAU_HIGH_UTIL_COUNT"
-BUREAU_HIGH_UTIL_RATIO"
-BUREAU_WITH_BALANCE_COUNT"
-TOTAL_MONTHS_ALL_BUREAUS"
-TOTAL_MONTHS_ON_TIME"
-TOTAL_DPD_ALL_BUREAUS"
-TOTAL_SEVERE_DPD_MONTHS"
-WORST_DPD_RATIO"
-WORST_SEVERE_DPD_RATIO"
-WORST_ON_TIME_RATIO"
-AVG_DPD_RATIO"
-AVG_ON_TIME_RATIO"!
-COUNT_BUREAUS_WITH_SEVERE_DPD"
-COUNT_BUREAUS_WITH_ANY_DPD"
-OVERALL_ON_TIME_RATIO"
-OVERALL_DPD_RATIO"
-OVERALL_SEVERE_DPD_RATIO"!
-CLIENT_HAS_SEVERE_DPD_HISTORY"
-CLIENT_HAS_ANY_DPD_HISTORY2Äı$:ttsZ /tmp/external_features.parquetä1feast.infra.offline_stores.file_source.FileSource¢external_batch_source@b
-
-sk_id_curr
-Å´Å∆ËŒÚ⁄åƒÑ∆êÂ†Œ2⁄"
-π"
-dwh_features_batchhccustomer"
-cc_months_count"
-cc_cards_count"
-cc_utilization_mean"
-cc_utilization_max"
-cc_utilization_std"
-cc_high_util_months"
-cc_over_limit_months"
-cc_high_util_ratio"
-cc_payment_ratio_mean"
-cc_payment_ratio_min"
-cc_min_payment_ratio"
-cc_underpay_months"
-cc_underpay_ratio"
-cc_no_payment_months"
-cc_no_payment_ratio"
-cc_dpd_total"
-cc_dpd_mean"
-
-cc_dpd_max"
-cc_dpd_months"
-cc_dpd_1_30_months"
-cc_dpd_31_60_months"
-cc_dpd_60plus_months"
-cc_dpd_ratio"
-cc_severe_dpd_ratio"
-cc_total_drawings"
-cc_drawings_mean"
-cc_drawings_std"
-cc_atm_total"
-cc_pos_total"
-cc_other_total"
-cc_atm_ratio"
-cc_pos_ratio"
-cc_txn_freq_mean"
-cc_atm_txn_count"
-cc_pos_txn_count"
-cc_earliest_month"
-cc_latest_month"
-cc_inactive_months"
-cc_inactive_ratio"
-cc_limit_mean"
-cc_limit_max"
-cc_balance_mean"
-cc_balance_max"
-cc_max_util_ever"
-pos_count_loans_total"
-pos_count_problem_loans"
-pos_count_loans_demand"
-pos_mean_max_dpd"
-pos_max_max_dpd"
-pos_min_max_dpd"
-pos_mean_mean_dpd"
-pos_mean_dpd_rate"
-pos_max_dpd_rate"
-pos_mean_dpd_7plus_rate"
-pos_max_dpd_7plus_rate"
-pos_mean_dpd_30plus_rate"
-pos_max_dpd_30plus_rate"
-pos_mean_repayment_progress"
-pos_max_repayment_progress"
-pos_min_repayment_progress"
-pos_mean_contract_length"
-pos_max_contract_length"
-pos_min_contract_length"
-pos_mean_completed_rate"
-pos_mean_active_rate"
-pos_mean_demand_rate"
-pos_flag_any_demand"
-pos_flag_any_severe_dpd"
-pos_total_months_observed"
-pos_earliest_month"
-pos_latest_month"
-pos_ratio_problem_loans"
-pos_ratio_loans_demand"
-pos_observation_span_months"
-pos_risk_segment"
-prev_app_count"
-prev_unique_app_count"
-prev_approved_count"
-prev_refused_count"
-prev_canceled_count"
-prev_approval_rate"
-prev_refusal_rate"
-prev_cancel_rate"
-prev_amt_application_total"
-prev_amt_application_mean"
-prev_amt_application_max"
-prev_amt_application_std"
-prev_amt_credit_total"
-prev_amt_credit_mean"
-prev_amt_credit_max"
-prev_amt_credit_std"!
-prev_credit_to_app_ratio_mean" 
-prev_credit_to_app_ratio_min" 
-prev_credit_to_app_ratio_max" 
-prev_credit_to_app_ratio_std"
-prev_over_approved_count"
-prev_under_approved_count"
-prev_over_approval_ratio"
-prev_annuity_mean"
-prev_annuity_max"
-prev_annuity_std" 
-prev_annuity_to_credit_ratio"
-prev_down_payment_total"
-prev_down_payment_mean"
-prev_down_payment_max" 
-prev_with_down_payment_count"
-prev_down_payment_ratio"
-prev_down_payment_rate_mean"
-prev_interest_rate_mean"
-prev_interest_rate_max"
-prev_interest_rate_min"
-prev_interest_rate_std"
-prev_days_decision_mean"
-prev_days_decision_min"
-prev_days_decision_max"
-prev_days_decision_std"
-prev_apps_last_30d"
-prev_apps_last_90d"
-prev_apps_last_1y"
-prev_apps_last_2y"
-prev_recent_approved_1y"
-prev_recent_approved_90d"
-prev_cash_loan_count"
-prev_consumer_loan_count"
-prev_revolving_loan_count"
-prev_cash_loan_ratio"
-prev_portfolio_diversity"
-prev_cash_portfolio_count"
-prev_pos_portfolio_count"
-prev_cards_portfolio_count"
-prev_cash_portfolio_ratio"
-prev_repeater_app_count"
-prev_new_client_app_count"
-prev_repeater_ratio"
-prev_channel_diversity"
-prev_payment_type_diversity"
-prev_bank_payment_count"
-prev_goods_diversity"
-prev_purpose_diversity" 
-prev_multiple_same_day_count"
-prev_insurance_ratio"
-prev_high_yield_count"
-prev_low_action_count"
-prev_middle_yield_count"
-prev_hc_reject_count"
-prev_limit_reject_count"
-prev_sco_reject_count"
-prev_client_reject_count"
-prev_payment_terms_mean"
-prev_payment_terms_max"
-prev_payment_terms_min"
-prev_payment_terms_std"
-prev_goods_price_mean"
-prev_goods_price_max"
-prev_goods_to_credit_ratio"*
-&record_counts_mart_credit_card_balance"'
-#record_counts_mart_pos_cash_balance"+
-'record_counts_mart_previous_application"
-agg_prev_loans"
-
-delinq_12m"
-avg_util2Äı$:jtsZ/tmp/dwh_features.parquetä1feast.infra.offline_stores.file_source.FileSource¢dwh_batch_source@b
-
-sk_id_curr
-Å´Å∆†⁄ˆ⁄åƒÑ∆Ë¸‘Œ:√6
-£6
-realtime_scoring_v1hc¬
+__dummy_idJhc
+êö†∆‡ﬂÖÉêö†∆‡ﬂÖÉ1"$19b0c6da-4f82-473e-b963-90b19dfa3082*êö†∆êãôÑ:ﬂ#
+æ#
+realtime_scoring_v1hcÜ
 application_features
 cnt_children
 amt_income_total
 
 amt_credit
 amt_annuity
-amt_goods_price
-name_contract_type
-name_income_type
-name_education_type
-name_family_status
-name_housing_type
-occupation_type
-organization_type
+amt_goods_price
 
 days_birth
-days_employed
-
-flag_mobil
-flag_emp_phone
-flag_work_phone
-
-flag_phone
-
-flag_email
-flag_own_car
-flag_own_realty
-own_car_age
-flag_document_2
-flag_document_3
-flag_document_4
-flag_document_5
-flag_document_6
-flag_document_7
-flag_document_8
-flag_document_9
-flag_document_10
-flag_document_11
-flag_document_12
-flag_document_13
-flag_document_14
-flag_document_15
-flag_document_16
-flag_document_17
-flag_document_18
-flag_document_19
-flag_document_20
-flag_document_21BFtsZ#!/tmp/application_features.parquet¢application_batch_sourceÊ
+days_employed
+code_gender
+name_education_type
+name_family_status
+name_income_type
+organization_type©
 external_features
 ext_source_1
 ext_source_2
-ext_source_3
-BUREAU_TOTAL_COUNT
-BUREAU_CREDIT_TYPES_COUNT
-BUREAU_ACTIVE_COUNT
-BUREAU_CLOSED_COUNT
-BUREAU_BAD_DEBT_COUNT
-BUREAU_SOLD_COUNT
-BUREAU_BAD_DEBT_RATIO
-BUREAU_SOLD_RATIO
-BUREAU_HIGH_RISK_RATIO
-BUREAU_OVERDUE_DAYS_TOTAL
-BUREAU_OVERDUE_DAYS_MEAN
-BUREAU_OVERDUE_DAYS_MAX
-BUREAU_OVERDUE_COUNT
-BUREAU_OVERDUE_RATIO
-BUREAU_AMT_OVERDUE_TOTAL
-BUREAU_AMT_OVERDUE_MEAN
-BUREAU_AMT_OVERDUE_MAX
-BUREAU_AMT_MAX_OVERDUE_EVER
-BUREAU_AMT_OVERDUE_COUNT
-BUREAU_AMT_OVERDUE_RATIO
-BUREAU_PROLONG_TOTAL
-BUREAU_PROLONG_MEAN
-BUREAU_PROLONG_MAX
-BUREAU_PROLONG_COUNT
-BUREAU_PROLONG_RATIO#
-BUREAU_CREDIT_UTILIZATION_RATIO
-BUREAU_DEBT_TO_CREDIT_RATIO"
-BUREAU_OVERDUE_TO_CREDIT_RATIO
-BUREAU_ACTIVE_CREDIT_SUM
-BUREAU_ACTIVE_DEBT_SUM
-BUREAU_ACTIVE_OVERDUE_SUM#
-BUREAU_ACTIVE_UTILIZATION_RATIO
-BUREAU_MAXED_OUT_COUNT
-BUREAU_MAXED_OUT_RATIO
-BUREAU_HIGH_UTIL_COUNT
-BUREAU_HIGH_UTIL_RATIO
-BUREAU_WITH_BALANCE_COUNT
-TOTAL_MONTHS_ALL_BUREAUS
-TOTAL_MONTHS_ON_TIME
-TOTAL_DPD_ALL_BUREAUS
-TOTAL_SEVERE_DPD_MONTHS
-WORST_DPD_RATIO
-WORST_SEVERE_DPD_RATIO
-WORST_ON_TIME_RATIO
-AVG_DPD_RATIO
-AVG_ON_TIME_RATIO!
-COUNT_BUREAUS_WITH_SEVERE_DPD
-COUNT_BUREAUS_WITH_ANY_DPD
-OVERALL_ON_TIME_RATIO
-OVERALL_DPD_RATIO
-OVERALL_SEVERE_DPD_RATIO!
-CLIENT_HAS_SEVERE_DPD_HISTORY
-CLIENT_HAS_ANY_DPD_HISTORYB@tsZ /tmp/external_features.parquet¢external_batch_sourceŸ!
+ext_source_3
+bureau_debt_to_credit_ratio
+bureau_active_credit_sum
+bureau_amt_max_overdue_everÌ
 dwh_features
 cc_months_count
 cc_cards_count
@@ -553,321 +189,215 @@ cc_dpd_max
 prev_payment_terms_std
 prev_goods_price_mean
 prev_goods_price_max
-prev_goods_to_credit_ratio*
-&record_counts_mart_credit_card_balance'
-#record_counts_mart_pos_cash_balance+
-'record_counts_mart_previous_application
-agg_prev_loans
-
-delinq_12m
-avg_utilB6tsZ/tmp/dwh_features.parquet¢dwh_batch_source
-âßÅ∆ò¡í«ÕÜ∆Îòbütsjï
-localhost:9092hc.application_extÓÎ
-Ë{"type": "object", "properties": {"sk_id_curr": {"type": "string"}, "ts": {"type": "number"}, "ext_source_1": {"type": "number"}, "ext_source_2": {"type": "number"}, "ext_source_3": {"type": "number"}}, "additionalProperties": true}äfeast.data_source.KafkaSource¢external_stream_source™hc“@tsZ /tmp/external_features.parquet¢external_batch_sourcebétsjì
-localhost:9092hc.application_dwhÏÈ
-Ê{"type": "object", "properties": {"sk_id_curr": {"type": "string"}, "ts": {"type": "number"}, "agg_prev_loans": {"type": "integer"}, "delinq_12m": {"type": "integer"}, "avg_util": {"type": "number"}}, "additionalProperties": true}äfeast.data_source.KafkaSource¢dwh_stream_source™hc“6tsZ/tmp/dwh_features.parquet¢dwh_batch_sourceb£tsjê
-localhost:9092hc.application_features‰·
-ﬁ{"type": "object", "properties": {"sk_id_curr": {"type": "string"}, "ts": {"type": "number"}, "cnt_children": {"type": "integer"}, "amt_income_total": {"type": "number"}, "amt_credit": {"type": "number"}, "amt_annuity": {"type": "number"}, "amt_goods_price": {"type": "number"}, "flag_mobil": {"type": "integer"}, "flag_emp_phone": {"type": "integer"}, "flag_work_phone": {"type": "integer"}, "flag_phone": {"type": "integer"}, "flag_email": {"type": "integer"}, "flag_own_car": {"type": "integer"}, "flag_own_realty": {"type": "integer"}, "own_car_age": {"type": "integer"}}, "additionalProperties": true}äfeast.data_source.KafkaSource¢application_stream_source™hc“FtsZ#!/tmp/application_features.parquet¢application_batch_sourcebŒtsj¬
-localhost:9092hc.application_extõò
-ï{"type": "object", "properties": {"sk_id_curr": {"type": "string"}, "ts": {"type": "number"}, "ext_source_1": {"type": "number"}, "ext_source_2": {"type": "number"}, "ext_source_3": {"type": "number"}, "BUREAU_TOTAL_COUNT": {"type": "integer"}, "BUREAU_CREDIT_TYPES_COUNT": {"type": "integer"}, "BUREAU_ACTIVE_COUNT": {"type": "integer"}, "BUREAU_CLOSED_COUNT": {"type": "integer"}, "BUREAU_BAD_DEBT_COUNT": {"type": "integer"}, "BUREAU_SOLD_COUNT": {"type": "integer"}, "BUREAU_BAD_DEBT_RATIO": {"type": "number"}, "BUREAU_SOLD_RATIO": {"type": "number"}, "BUREAU_HIGH_RISK_RATIO": {"type": "number"}, "BUREAU_OVERDUE_DAYS_TOTAL": {"type": "integer"}, "BUREAU_OVERDUE_DAYS_MEAN": {"type": "number"}, "BUREAU_OVERDUE_DAYS_MAX": {"type": "integer"}, "BUREAU_OVERDUE_COUNT": {"type": "integer"}, "BUREAU_OVERDUE_RATIO": {"type": "number"}, "BUREAU_AMT_OVERDUE_TOTAL": {"type": "number"}, "BUREAU_AMT_OVERDUE_MEAN": {"type": "number"}, "BUREAU_AMT_OVERDUE_MAX": {"type": "number"}, "BUREAU_AMT_MAX_OVERDUE_EVER": {"type": "number"}, "BUREAU_AMT_OVERDUE_COUNT": {"type": "integer"}, "BUREAU_AMT_OVERDUE_RATIO": {"type": "number"}, "BUREAU_PROLONG_TOTAL": {"type": "integer"}, "BUREAU_PROLONG_MEAN": {"type": "number"}, "BUREAU_PROLONG_MAX": {"type": "integer"}, "BUREAU_PROLONG_COUNT": {"type": "integer"}, "BUREAU_PROLONG_RATIO": {"type": "number"}, "BUREAU_CREDIT_UTILIZATION_RATIO": {"type": "number"}, "BUREAU_DEBT_TO_CREDIT_RATIO": {"type": "number"}, "BUREAU_OVERDUE_TO_CREDIT_RATIO": {"type": "number"}, "BUREAU_ACTIVE_CREDIT_SUM": {"type": "number"}, "BUREAU_ACTIVE_DEBT_SUM": {"type": "number"}, "BUREAU_ACTIVE_OVERDUE_SUM": {"type": "number"}, "BUREAU_ACTIVE_UTILIZATION_RATIO": {"type": "number"}, "BUREAU_MAXED_OUT_COUNT": {"type": "integer"}, "BUREAU_MAXED_OUT_RATIO": {"type": "number"}, "BUREAU_HIGH_UTIL_COUNT": {"type": "integer"}, "BUREAU_HIGH_UTIL_RATIO": {"type": "number"}, "BUREAU_WITH_BALANCE_COUNT": {"type": "integer"}, "TOTAL_MONTHS_ALL_BUREAUS": {"type": "integer"}, "TOTAL_MONTHS_ON_TIME": {"type": "integer"}, "TOTAL_DPD_ALL_BUREAUS": {"type": "integer"}, "TOTAL_SEVERE_DPD_MONTHS": {"type": "integer"}, "WORST_DPD_RATIO": {"type": "number"}, "WORST_SEVERE_DPD_RATIO": {"type": "number"}, "WORST_ON_TIME_RATIO": {"type": "number"}, "AVG_DPD_RATIO": {"type": "number"}, "AVG_ON_TIME_RATIO": {"type": "number"}, "COUNT_BUREAUS_WITH_SEVERE_DPD": {"type": "integer"}, "COUNT_BUREAUS_WITH_ANY_DPD": {"type": "integer"}, "OVERALL_ON_TIME_RATIO": {"type": "number"}, "OVERALL_DPD_RATIO": {"type": "number"}, "OVERALL_SEVERE_DPD_RATIO": {"type": "number"}, "CLIENT_HAS_SEVERE_DPD_HISTORY": {"type": "integer"}, "CLIENT_HAS_ANY_DPD_HISTORY": {"type": "integer"}}, "additionalProperties": true}äfeast.data_source.KafkaSource¢external_features_source™hc“@tsZ /tmp/external_features.parquet¢external_batch_sourcebœ:tsj“9
-localhost:9092hc.application_dwh´9®9
-•9{"type": "object", "properties": {"sk_id_curr": {"type": "string"}, "ts": {"type": "number"}, "cc_months_count": {"type": "integer"}, "cc_cards_count": {"type": "integer"}, "cc_utilization_mean": {"type": "number"}, "cc_utilization_max": {"type": "number"}, "cc_utilization_std": {"type": "number"}, "cc_high_util_months": {"type": "integer"}, "cc_over_limit_months": {"type": "integer"}, "cc_high_util_ratio": {"type": "number"}, "cc_payment_ratio_mean": {"type": "number"}, "cc_payment_ratio_min": {"type": "number"}, "cc_min_payment_ratio": {"type": "number"}, "cc_underpay_months": {"type": "integer"}, "cc_underpay_ratio": {"type": "number"}, "cc_no_payment_months": {"type": "integer"}, "cc_no_payment_ratio": {"type": "number"}, "cc_dpd_total": {"type": "integer"}, "cc_dpd_mean": {"type": "number"}, "cc_dpd_max": {"type": "integer"}, "cc_dpd_months": {"type": "integer"}, "cc_dpd_1_30_months": {"type": "integer"}, "cc_dpd_31_60_months": {"type": "integer"}, "cc_dpd_60plus_months": {"type": "integer"}, "cc_dpd_ratio": {"type": "number"}, "cc_severe_dpd_ratio": {"type": "number"}, "cc_total_drawings": {"type": "number"}, "cc_drawings_mean": {"type": "number"}, "cc_drawings_std": {"type": "number"}, "cc_atm_total": {"type": "number"}, "cc_pos_total": {"type": "number"}, "cc_other_total": {"type": "number"}, "cc_atm_ratio": {"type": "number"}, "cc_pos_ratio": {"type": "number"}, "cc_txn_freq_mean": {"type": "number"}, "cc_atm_txn_count": {"type": "number"}, "cc_pos_txn_count": {"type": "number"}, "cc_earliest_month": {"type": "integer"}, "cc_latest_month": {"type": "integer"}, "cc_inactive_months": {"type": "integer"}, "cc_inactive_ratio": {"type": "number"}, "cc_limit_mean": {"type": "number"}, "cc_limit_max": {"type": "integer"}, "cc_balance_mean": {"type": "number"}, "cc_balance_max": {"type": "number"}, "cc_max_util_ever": {"type": "number"}, "pos_count_loans_total": {"type": "integer"}, "pos_count_problem_loans": {"type": "integer"}, "pos_count_loans_demand": {"type": "integer"}, "pos_mean_max_dpd": {"type": "number"}, "pos_max_max_dpd": {"type": "integer"}, "pos_min_max_dpd": {"type": "integer"}, "pos_mean_mean_dpd": {"type": "number"}, "pos_mean_dpd_rate": {"type": "number"}, "pos_max_dpd_rate": {"type": "number"}, "pos_mean_dpd_7plus_rate": {"type": "number"}, "pos_max_dpd_7plus_rate": {"type": "number"}, "pos_mean_dpd_30plus_rate": {"type": "number"}, "pos_max_dpd_30plus_rate": {"type": "number"}, "pos_mean_repayment_progress": {"type": "number"}, "pos_max_repayment_progress": {"type": "number"}, "pos_min_repayment_progress": {"type": "number"}, "pos_mean_contract_length": {"type": "number"}, "pos_max_contract_length": {"type": "number"}, "pos_min_contract_length": {"type": "number"}, "pos_mean_completed_rate": {"type": "number"}, "pos_mean_active_rate": {"type": "number"}, "pos_mean_demand_rate": {"type": "number"}, "pos_flag_any_demand": {"type": "integer"}, "pos_flag_any_severe_dpd": {"type": "integer"}, "pos_total_months_observed": {"type": "integer"}, "pos_earliest_month": {"type": "integer"}, "pos_latest_month": {"type": "integer"}, "pos_ratio_problem_loans": {"type": "number"}, "pos_ratio_loans_demand": {"type": "number"}, "pos_observation_span_months": {"type": "integer"}, "pos_risk_segment": {"type": "string"}, "prev_app_count": {"type": "integer"}, "prev_unique_app_count": {"type": "integer"}, "prev_approved_count": {"type": "integer"}, "prev_refused_count": {"type": "integer"}, "prev_canceled_count": {"type": "integer"}, "prev_approval_rate": {"type": "number"}, "prev_refusal_rate": {"type": "number"}, "prev_cancel_rate": {"type": "number"}, "prev_amt_application_total": {"type": "number"}, "prev_amt_application_mean": {"type": "number"}, "prev_amt_application_max": {"type": "number"}, "prev_amt_application_std": {"type": "number"}, "prev_amt_credit_total": {"type": "number"}, "prev_amt_credit_mean": {"type": "number"}, "prev_amt_credit_max": {"type": "number"}, "prev_amt_credit_std": {"type": "number"}, "prev_credit_to_app_ratio_mean": {"type": "number"}, "prev_credit_to_app_ratio_min": {"type": "number"}, "prev_credit_to_app_ratio_max": {"type": "number"}, "prev_credit_to_app_ratio_std": {"type": "number"}, "prev_over_approved_count": {"type": "integer"}, "prev_under_approved_count": {"type": "integer"}, "prev_over_approval_ratio": {"type": "number"}, "prev_annuity_mean": {"type": "number"}, "prev_annuity_max": {"type": "number"}, "prev_annuity_std": {"type": "number"}, "prev_annuity_to_credit_ratio": {"type": "number"}, "prev_down_payment_total": {"type": "number"}, "prev_down_payment_mean": {"type": "number"}, "prev_down_payment_max": {"type": "number"}, "prev_with_down_payment_count": {"type": "integer"}, "prev_down_payment_ratio": {"type": "number"}, "prev_down_payment_rate_mean": {"type": "number"}, "prev_interest_rate_mean": {"type": "number"}, "prev_interest_rate_max": {"type": "number"}, "prev_interest_rate_min": {"type": "number"}, "prev_interest_rate_std": {"type": "number"}, "prev_days_decision_mean": {"type": "number"}, "prev_days_decision_min": {"type": "number"}, "prev_days_decision_max": {"type": "number"}, "prev_days_decision_std": {"type": "number"}, "prev_apps_last_30d": {"type": "integer"}, "prev_apps_last_90d": {"type": "integer"}, "prev_apps_last_1y": {"type": "integer"}, "prev_apps_last_2y": {"type": "integer"}, "prev_recent_approved_1y": {"type": "integer"}, "prev_recent_approved_90d": {"type": "integer"}, "prev_cash_loan_count": {"type": "integer"}, "prev_consumer_loan_count": {"type": "integer"}, "prev_revolving_loan_count": {"type": "integer"}, "prev_cash_loan_ratio": {"type": "number"}, "prev_portfolio_diversity": {"type": "integer"}, "prev_cash_portfolio_count": {"type": "integer"}, "prev_pos_portfolio_count": {"type": "integer"}, "prev_cards_portfolio_count": {"type": "integer"}, "prev_cash_portfolio_ratio": {"type": "number"}, "prev_repeater_app_count": {"type": "integer"}, "prev_new_client_app_count": {"type": "integer"}, "prev_repeater_ratio": {"type": "number"}, "prev_channel_diversity": {"type": "integer"}, "prev_payment_type_diversity": {"type": "integer"}, "prev_bank_payment_count": {"type": "integer"}, "prev_goods_diversity": {"type": "integer"}, "prev_purpose_diversity": {"type": "integer"}, "prev_multiple_same_day_count": {"type": "integer"}, "prev_insurance_ratio": {"type": "number"}, "prev_high_yield_count": {"type": "integer"}, "prev_low_action_count": {"type": "integer"}, "prev_middle_yield_count": {"type": "integer"}, "prev_hc_reject_count": {"type": "integer"}, "prev_limit_reject_count": {"type": "integer"}, "prev_sco_reject_count": {"type": "integer"}, "prev_client_reject_count": {"type": "integer"}, "prev_payment_terms_mean": {"type": "number"}, "prev_payment_terms_max": {"type": "number"}, "prev_payment_terms_min": {"type": "number"}, "prev_payment_terms_std": {"type": "number"}, "prev_goods_price_mean": {"type": "number"}, "prev_goods_price_max": {"type": "number"}, "prev_goods_to_credit_ratio": {"type": "number"}, "record_counts_mart_credit_card_balance": {"type": "integer"}, "record_counts_mart_pos_cash_balance": {"type": "integer"}, "record_counts_mart_previous_application": {"type": "integer"}, "agg_prev_loans": {"type": "integer"}, "delinq_12m": {"type": "integer"}, "avg_util": {"type": "number"}}, "additionalProperties": true}äfeast.data_source.KafkaSource¢dwh_features_source™hc“6tsZ/tmp/dwh_features.parquet¢dwh_batch_sourcebotsZ/tmp/dwh_features.parquetä1feast.infra.offline_stores.file_source.FileSource¢dwh_batch_source™hcbtsZ#!/tmp/application_features.parquetä1feast.infra.offline_stores.file_source.FileSource¢application_batch_source™hcbytsZ /tmp/external_features.parquetä1feast.infra.offline_stores.file_source.FileSource¢external_batch_source™hcb∫tsj•
-localhost:9092hc.application_features˘ˆ
-Û{"type": "object", "properties": {"sk_id_curr": {"type": "string"}, "ts": {"type": "number"}, "cnt_children": {"type": "integer"}, "amt_income_total": {"type": "number"}, "amt_credit": {"type": "number"}, "amt_annuity": {"type": "number"}, "amt_goods_price": {"type": "number"}, "name_contract_type": {"type": "string"}, "name_income_type": {"type": "string"}, "name_education_type": {"type": "string"}, "name_family_status": {"type": "string"}, "name_housing_type": {"type": "string"}, "occupation_type": {"type": "string"}, "organization_type": {"type": "string"}, "days_birth": {"type": "integer"}, "days_employed": {"type": "integer"}, "flag_mobil": {"type": "integer"}, "flag_emp_phone": {"type": "integer"}, "flag_work_phone": {"type": "integer"}, "flag_phone": {"type": "integer"}, "flag_email": {"type": "integer"}, "flag_own_car": {"type": "integer"}, "flag_own_realty": {"type": "integer"}, "own_car_age": {"type": "integer"}, "flag_document_2": {"type": "integer"}, "flag_document_3": {"type": "integer"}, "flag_document_4": {"type": "integer"}, "flag_document_5": {"type": "integer"}, "flag_document_6": {"type": "integer"}, "flag_document_7": {"type": "integer"}, "flag_document_8": {"type": "integer"}, "flag_document_9": {"type": "integer"}, "flag_document_10": {"type": "integer"}, "flag_document_11": {"type": "integer"}, "flag_document_12": {"type": "integer"}, "flag_document_13": {"type": "integer"}, "flag_document_14": {"type": "integer"}, "flag_document_15": {"type": "integer"}, "flag_document_16": {"type": "integer"}, "flag_document_17": {"type": "integer"}, "flag_document_18": {"type": "integer"}, "flag_document_19": {"type": "integer"}, "flag_document_20": {"type": "integer"}, "flag_document_21": {"type": "integer"}}, "additionalProperties": true}äfeast.data_source.KafkaSource¢application_features_source™hc“FtsZ#!/tmp/application_features.parquet¢application_batch_sourcerã
-Î
-application_featureshccustomer"
-flag_document_10"
-flag_document_13"
-
-flag_phone"
-name_contract_type"
-organization_type"
-flag_document_18"
-
-flag_email"
-flag_document_16"
-name_housing_type"
-flag_document_6"
-
-amt_credit"
-name_education_type"
-flag_own_realty"
-flag_document_8"
-occupation_type"
-
-sk_id_curr"
-name_income_type"
-flag_own_car"
-flag_document_14"
-amt_goods_price"
-flag_document_3"
-flag_document_17"
-flag_document_21"
-days_employed"
-flag_document_5"
-flag_document_20"
-amt_income_total"
-flag_document_9"
-flag_document_19"
-name_family_status"
-flag_document_12"
-flag_document_7"
+prev_goods_to_credit_ratio
+êö†∆–ãáÉêö†∆–ãáÉb®8tsj´7
+broker:29092hc.application_dwhÜ7É7
+Ä7{"type": "object", "properties": {"sk_id_curr": {"type": "string"}, "ts": {"type": "number"}, "cc_months_count": {"type": "integer"}, "cc_cards_count": {"type": "integer"}, "cc_utilization_mean": {"type": "number"}, "cc_utilization_max": {"type": "number"}, "cc_utilization_std": {"type": "number"}, "cc_high_util_months": {"type": "integer"}, "cc_over_limit_months": {"type": "integer"}, "cc_high_util_ratio": {"type": "number"}, "cc_payment_ratio_mean": {"type": "number"}, "cc_payment_ratio_min": {"type": "number"}, "cc_min_payment_ratio": {"type": "number"}, "cc_underpay_months": {"type": "integer"}, "cc_underpay_ratio": {"type": "number"}, "cc_no_payment_months": {"type": "integer"}, "cc_no_payment_ratio": {"type": "number"}, "cc_dpd_total": {"type": "integer"}, "cc_dpd_mean": {"type": "number"}, "cc_dpd_max": {"type": "integer"}, "cc_dpd_months": {"type": "integer"}, "cc_dpd_1_30_months": {"type": "integer"}, "cc_dpd_31_60_months": {"type": "integer"}, "cc_dpd_60plus_months": {"type": "integer"}, "cc_dpd_ratio": {"type": "number"}, "cc_severe_dpd_ratio": {"type": "number"}, "cc_total_drawings": {"type": "number"}, "cc_drawings_mean": {"type": "number"}, "cc_drawings_std": {"type": "number"}, "cc_atm_total": {"type": "number"}, "cc_pos_total": {"type": "number"}, "cc_other_total": {"type": "number"}, "cc_atm_ratio": {"type": "number"}, "cc_pos_ratio": {"type": "number"}, "cc_txn_freq_mean": {"type": "number"}, "cc_atm_txn_count": {"type": "number"}, "cc_pos_txn_count": {"type": "number"}, "cc_earliest_month": {"type": "integer"}, "cc_latest_month": {"type": "integer"}, "cc_inactive_months": {"type": "integer"}, "cc_inactive_ratio": {"type": "number"}, "cc_limit_mean": {"type": "number"}, "cc_limit_max": {"type": "integer"}, "cc_balance_mean": {"type": "number"}, "cc_balance_max": {"type": "number"}, "cc_max_util_ever": {"type": "number"}, "pos_count_loans_total": {"type": "integer"}, "pos_count_problem_loans": {"type": "integer"}, "pos_count_loans_demand": {"type": "integer"}, "pos_mean_max_dpd": {"type": "number"}, "pos_max_max_dpd": {"type": "integer"}, "pos_min_max_dpd": {"type": "integer"}, "pos_mean_mean_dpd": {"type": "number"}, "pos_mean_dpd_rate": {"type": "number"}, "pos_max_dpd_rate": {"type": "number"}, "pos_mean_dpd_7plus_rate": {"type": "number"}, "pos_max_dpd_7plus_rate": {"type": "number"}, "pos_mean_dpd_30plus_rate": {"type": "number"}, "pos_max_dpd_30plus_rate": {"type": "number"}, "pos_mean_repayment_progress": {"type": "number"}, "pos_max_repayment_progress": {"type": "number"}, "pos_min_repayment_progress": {"type": "number"}, "pos_mean_contract_length": {"type": "number"}, "pos_max_contract_length": {"type": "number"}, "pos_min_contract_length": {"type": "number"}, "pos_mean_completed_rate": {"type": "number"}, "pos_mean_active_rate": {"type": "number"}, "pos_mean_demand_rate": {"type": "number"}, "pos_flag_any_demand": {"type": "integer"}, "pos_flag_any_severe_dpd": {"type": "integer"}, "pos_total_months_observed": {"type": "integer"}, "pos_earliest_month": {"type": "integer"}, "pos_latest_month": {"type": "integer"}, "pos_ratio_problem_loans": {"type": "number"}, "pos_ratio_loans_demand": {"type": "number"}, "pos_observation_span_months": {"type": "integer"}, "pos_risk_segment": {"type": "string"}, "prev_app_count": {"type": "integer"}, "prev_unique_app_count": {"type": "integer"}, "prev_approved_count": {"type": "integer"}, "prev_refused_count": {"type": "integer"}, "prev_canceled_count": {"type": "integer"}, "prev_approval_rate": {"type": "number"}, "prev_refusal_rate": {"type": "number"}, "prev_cancel_rate": {"type": "number"}, "prev_amt_application_total": {"type": "number"}, "prev_amt_application_mean": {"type": "number"}, "prev_amt_application_max": {"type": "number"}, "prev_amt_application_std": {"type": "number"}, "prev_amt_credit_total": {"type": "number"}, "prev_amt_credit_mean": {"type": "number"}, "prev_amt_credit_max": {"type": "number"}, "prev_amt_credit_std": {"type": "number"}, "prev_credit_to_app_ratio_mean": {"type": "number"}, "prev_credit_to_app_ratio_min": {"type": "number"}, "prev_credit_to_app_ratio_max": {"type": "number"}, "prev_credit_to_app_ratio_std": {"type": "number"}, "prev_over_approved_count": {"type": "integer"}, "prev_under_approved_count": {"type": "integer"}, "prev_over_approval_ratio": {"type": "number"}, "prev_annuity_mean": {"type": "number"}, "prev_annuity_max": {"type": "number"}, "prev_annuity_std": {"type": "number"}, "prev_annuity_to_credit_ratio": {"type": "number"}, "prev_down_payment_total": {"type": "number"}, "prev_down_payment_mean": {"type": "number"}, "prev_down_payment_max": {"type": "number"}, "prev_with_down_payment_count": {"type": "integer"}, "prev_down_payment_ratio": {"type": "number"}, "prev_down_payment_rate_mean": {"type": "number"}, "prev_interest_rate_mean": {"type": "number"}, "prev_interest_rate_max": {"type": "number"}, "prev_interest_rate_min": {"type": "number"}, "prev_interest_rate_std": {"type": "number"}, "prev_days_decision_mean": {"type": "number"}, "prev_days_decision_min": {"type": "number"}, "prev_days_decision_max": {"type": "number"}, "prev_days_decision_std": {"type": "number"}, "prev_apps_last_30d": {"type": "integer"}, "prev_apps_last_90d": {"type": "integer"}, "prev_apps_last_1y": {"type": "integer"}, "prev_apps_last_2y": {"type": "integer"}, "prev_recent_approved_1y": {"type": "integer"}, "prev_recent_approved_90d": {"type": "integer"}, "prev_cash_loan_count": {"type": "integer"}, "prev_consumer_loan_count": {"type": "integer"}, "prev_revolving_loan_count": {"type": "integer"}, "prev_cash_loan_ratio": {"type": "number"}, "prev_portfolio_diversity": {"type": "integer"}, "prev_cash_portfolio_count": {"type": "integer"}, "prev_pos_portfolio_count": {"type": "integer"}, "prev_cards_portfolio_count": {"type": "integer"}, "prev_cash_portfolio_ratio": {"type": "number"}, "prev_repeater_app_count": {"type": "integer"}, "prev_new_client_app_count": {"type": "integer"}, "prev_repeater_ratio": {"type": "number"}, "prev_channel_diversity": {"type": "integer"}, "prev_payment_type_diversity": {"type": "integer"}, "prev_bank_payment_count": {"type": "integer"}, "prev_goods_diversity": {"type": "integer"}, "prev_purpose_diversity": {"type": "integer"}, "prev_multiple_same_day_count": {"type": "integer"}, "prev_insurance_ratio": {"type": "number"}, "prev_high_yield_count": {"type": "integer"}, "prev_low_action_count": {"type": "integer"}, "prev_middle_yield_count": {"type": "integer"}, "prev_hc_reject_count": {"type": "integer"}, "prev_limit_reject_count": {"type": "integer"}, "prev_sco_reject_count": {"type": "integer"}, "prev_client_reject_count": {"type": "integer"}, "prev_payment_terms_mean": {"type": "number"}, "prev_payment_terms_max": {"type": "number"}, "prev_payment_terms_min": {"type": "number"}, "prev_payment_terms_std": {"type": "number"}, "prev_goods_price_mean": {"type": "number"}, "prev_goods_price_max": {"type": "number"}, "prev_goods_to_credit_ratio": {"type": "number"}}, "additionalProperties": true}äfeast.data_source.KafkaSource¢dwh_features_source™hc“6tsZ/tmp/dwh_features.parquet¢dwh_batch_sourcebytsZ /tmp/external_features.parquetä1feast.infra.offline_stores.file_source.FileSource¢external_batch_source™hcbotsZ/tmp/dwh_features.parquetä1feast.infra.offline_stores.file_source.FileSource¢dwh_batch_source™hcbµtsj©
+broker:29092hc.application_extÑÅ
+˛{"type": "object", "properties": {"sk_id_curr": {"type": "string"}, "ts": {"type": "number"}, "ext_source_1": {"type": "number"}, "ext_source_2": {"type": "number"}, "ext_source_3": {"type": "number"}, "bureau_debt_to_credit_ratio": {"type": "number"}, "bureau_active_credit_sum": {"type": "number"}, "bureau_amt_max_overdue_ever": {"type": "number"}}, "additionalProperties": true}äfeast.data_source.KafkaSource¢external_features_source™hc“@tsZ /tmp/external_features.parquet¢external_batch_sourcebåtsj˜
+broker:29092hc.application_featuresÕ 
+«{"type": "object", "properties": {"sk_id_curr": {"type": "string"}, "ts": {"type": "number"}, "cnt_children": {"type": "integer"}, "amt_income_total": {"type": "number"}, "amt_credit": {"type": "number"}, "amt_annuity": {"type": "number"}, "amt_goods_price": {"type": "number"}, "days_birth": {"type": "integer"}, "days_employed": {"type": "integer"}, "code_gender": {"type": "string"}, "name_education_type": {"type": "string"}, "name_family_status": {"type": "string"}, "name_income_type": {"type": "string"}, "organization_type": {"type": "string"}}, "additionalProperties": true}äfeast.data_source.KafkaSource¢application_features_source™hc“FtsZ#!/tmp/application_features.parquet¢application_batch_sourcebtsZ#!/tmp/application_features.parquetä1feast.infra.offline_stores.file_source.FileSource¢application_batch_source™hcrÍ	
+…	
+application_featureshccustomer"
+amt_annuity"
+code_gender"
 cnt_children"
 
-flag_mobil"
-own_car_age"
-flag_document_4"
-flag_work_phone"
-flag_document_15"
-flag_document_2"
-amt_annuity"
+sk_id_curr"
+name_family_status"
+days_employed"
+name_income_type"
 
-days_birth"
-flag_document_11"
-flag_emp_phone*
+amt_credit"
 
-sk_id_currJÄ£RztsZ#!/tmp/application_features.parquetä1feast.infra.offline_stores.file_source.FileSource¢application_batch_sourceZµtsj•
-localhost:9092hc.application_features˘ˆ
-Û{"type": "object", "properties": {"sk_id_curr": {"type": "string"}, "ts": {"type": "number"}, "cnt_children": {"type": "integer"}, "amt_income_total": {"type": "number"}, "amt_credit": {"type": "number"}, "amt_annuity": {"type": "number"}, "amt_goods_price": {"type": "number"}, "name_contract_type": {"type": "string"}, "name_income_type": {"type": "string"}, "name_education_type": {"type": "string"}, "name_family_status": {"type": "string"}, "name_housing_type": {"type": "string"}, "occupation_type": {"type": "string"}, "organization_type": {"type": "string"}, "days_birth": {"type": "integer"}, "days_employed": {"type": "integer"}, "flag_mobil": {"type": "integer"}, "flag_emp_phone": {"type": "integer"}, "flag_work_phone": {"type": "integer"}, "flag_phone": {"type": "integer"}, "flag_email": {"type": "integer"}, "flag_own_car": {"type": "integer"}, "flag_own_realty": {"type": "integer"}, "own_car_age": {"type": "integer"}, "flag_document_2": {"type": "integer"}, "flag_document_3": {"type": "integer"}, "flag_document_4": {"type": "integer"}, "flag_document_5": {"type": "integer"}, "flag_document_6": {"type": "integer"}, "flag_document_7": {"type": "integer"}, "flag_document_8": {"type": "integer"}, "flag_document_9": {"type": "integer"}, "flag_document_10": {"type": "integer"}, "flag_document_11": {"type": "integer"}, "flag_document_12": {"type": "integer"}, "flag_document_13": {"type": "integer"}, "flag_document_14": {"type": "integer"}, "flag_document_15": {"type": "integer"}, "flag_document_16": {"type": "integer"}, "flag_document_17": {"type": "integer"}, "flag_document_18": {"type": "integer"}, "flag_document_19": {"type": "integer"}, "flag_document_20": {"type": "integer"}, "flag_document_21": {"type": "integer"}}, "additionalProperties": true}äfeast.data_source.KafkaSource¢application_features_source“FtsZ#!/tmp/application_features.parquet¢application_batch_source`rspark
-âßÅ∆–Ø‘í«ÕÜ∆àì—r√$
-£$
-external_featureshccustomer"
-WORST_ON_TIME_RATIO"
-BUREAU_ACTIVE_OVERDUE_SUM"
-BUREAU_BAD_DEBT_RATIO"
-CLIENT_HAS_ANY_DPD_HISTORY"
-BUREAU_OVERDUE_DAYS_TOTAL"
-BUREAU_PROLONG_MAX"
-OVERALL_SEVERE_DPD_RATIO"
-BUREAU_AMT_OVERDUE_MAX"#
-BUREAU_CREDIT_UTILIZATION_RATIO"
-BUREAU_DEBT_TO_CREDIT_RATIO"
-BUREAU_PROLONG_COUNT"
-COUNT_BUREAUS_WITH_ANY_DPD"
-BUREAU_AMT_OVERDUE_TOTAL"
-BUREAU_HIGH_RISK_RATIO"
-BUREAU_BAD_DEBT_COUNT"
-TOTAL_SEVERE_DPD_MONTHS"
-BUREAU_SOLD_RATIO"
+days_birth"
+name_education_type"
+amt_income_total"
+amt_goods_price"
+organization_type*
 
-sk_id_curr"
-BUREAU_WITH_BALANCE_COUNT"
-TOTAL_MONTHS_ON_TIME"
-BUREAU_ACTIVE_CREDIT_SUM"
-TOTAL_MONTHS_ALL_BUREAUS"
-AVG_DPD_RATIO"
-OVERALL_DPD_RATIO"
-BUREAU_TOTAL_COUNT"
-AVG_ON_TIME_RATIO"
-BUREAU_MAXED_OUT_RATIO"
-BUREAU_PROLONG_MEAN"
-BUREAU_OVERDUE_COUNT"
-BUREAU_CLOSED_COUNT"
-ext_source_1"
-BUREAU_ACTIVE_DEBT_SUM"
-BUREAU_ACTIVE_COUNT"
-BUREAU_MAXED_OUT_COUNT"
-WORST_SEVERE_DPD_RATIO"
-BUREAU_PROLONG_TOTAL"
-TOTAL_DPD_ALL_BUREAUS"
-BUREAU_AMT_OVERDUE_RATIO"
-ext_source_2"#
-BUREAU_ACTIVE_UTILIZATION_RATIO"!
-COUNT_BUREAUS_WITH_SEVERE_DPD"
-BUREAU_CREDIT_TYPES_COUNT""
-BUREAU_OVERDUE_TO_CREDIT_RATIO"
-BUREAU_AMT_OVERDUE_MEAN"
-WORST_DPD_RATIO"
-BUREAU_HIGH_UTIL_RATIO"
-ext_source_3"
-BUREAU_AMT_MAX_OVERDUE_EVER"
-BUREAU_SOLD_COUNT"
-BUREAU_OVERDUE_DAYS_MEAN"
-BUREAU_HIGH_UTIL_COUNT"
-BUREAU_OVERDUE_DAYS_MAX"!
-CLIENT_HAS_SEVERE_DPD_HISTORY"
-BUREAU_PROLONG_RATIO"
-BUREAU_AMT_OVERDUE_COUNT"
-BUREAU_OVERDUE_RATIO"
-OVERALL_ON_TIME_RATIO*
+sk_id_currJÄ£RztsZ#!/tmp/application_features.parquetä1feast.infra.offline_stores.file_source.FileSource¢application_batch_sourceZátsj˜
+broker:29092hc.application_featuresÕ 
+«{"type": "object", "properties": {"sk_id_curr": {"type": "string"}, "ts": {"type": "number"}, "cnt_children": {"type": "integer"}, "amt_income_total": {"type": "number"}, "amt_credit": {"type": "number"}, "amt_annuity": {"type": "number"}, "amt_goods_price": {"type": "number"}, "days_birth": {"type": "integer"}, "days_employed": {"type": "integer"}, "code_gender": {"type": "string"}, "name_education_type": {"type": "string"}, "name_family_status": {"type": "string"}, "name_income_type": {"type": "string"}, "organization_type": {"type": "string"}}, "additionalProperties": true}äfeast.data_source.KafkaSource¢application_features_source“FtsZ#!/tmp/application_features.parquet¢application_batch_source`rspark
+êö†∆ÿÜÔÅêö†∆ÿÜÔÅr∞
+è
+external_featureshccustomer"
 
-sk_id_currJÄı$RttsZ /tmp/external_features.parquetä1feast.infra.offline_stores.file_source.FileSource¢external_batch_sourceZ…tsj¬
-localhost:9092hc.application_extõò
-ï{"type": "object", "properties": {"sk_id_curr": {"type": "string"}, "ts": {"type": "number"}, "ext_source_1": {"type": "number"}, "ext_source_2": {"type": "number"}, "ext_source_3": {"type": "number"}, "BUREAU_TOTAL_COUNT": {"type": "integer"}, "BUREAU_CREDIT_TYPES_COUNT": {"type": "integer"}, "BUREAU_ACTIVE_COUNT": {"type": "integer"}, "BUREAU_CLOSED_COUNT": {"type": "integer"}, "BUREAU_BAD_DEBT_COUNT": {"type": "integer"}, "BUREAU_SOLD_COUNT": {"type": "integer"}, "BUREAU_BAD_DEBT_RATIO": {"type": "number"}, "BUREAU_SOLD_RATIO": {"type": "number"}, "BUREAU_HIGH_RISK_RATIO": {"type": "number"}, "BUREAU_OVERDUE_DAYS_TOTAL": {"type": "integer"}, "BUREAU_OVERDUE_DAYS_MEAN": {"type": "number"}, "BUREAU_OVERDUE_DAYS_MAX": {"type": "integer"}, "BUREAU_OVERDUE_COUNT": {"type": "integer"}, "BUREAU_OVERDUE_RATIO": {"type": "number"}, "BUREAU_AMT_OVERDUE_TOTAL": {"type": "number"}, "BUREAU_AMT_OVERDUE_MEAN": {"type": "number"}, "BUREAU_AMT_OVERDUE_MAX": {"type": "number"}, "BUREAU_AMT_MAX_OVERDUE_EVER": {"type": "number"}, "BUREAU_AMT_OVERDUE_COUNT": {"type": "integer"}, "BUREAU_AMT_OVERDUE_RATIO": {"type": "number"}, "BUREAU_PROLONG_TOTAL": {"type": "integer"}, "BUREAU_PROLONG_MEAN": {"type": "number"}, "BUREAU_PROLONG_MAX": {"type": "integer"}, "BUREAU_PROLONG_COUNT": {"type": "integer"}, "BUREAU_PROLONG_RATIO": {"type": "number"}, "BUREAU_CREDIT_UTILIZATION_RATIO": {"type": "number"}, "BUREAU_DEBT_TO_CREDIT_RATIO": {"type": "number"}, "BUREAU_OVERDUE_TO_CREDIT_RATIO": {"type": "number"}, "BUREAU_ACTIVE_CREDIT_SUM": {"type": "number"}, "BUREAU_ACTIVE_DEBT_SUM": {"type": "number"}, "BUREAU_ACTIVE_OVERDUE_SUM": {"type": "number"}, "BUREAU_ACTIVE_UTILIZATION_RATIO": {"type": "number"}, "BUREAU_MAXED_OUT_COUNT": {"type": "integer"}, "BUREAU_MAXED_OUT_RATIO": {"type": "number"}, "BUREAU_HIGH_UTIL_COUNT": {"type": "integer"}, "BUREAU_HIGH_UTIL_RATIO": {"type": "number"}, "BUREAU_WITH_BALANCE_COUNT": {"type": "integer"}, "TOTAL_MONTHS_ALL_BUREAUS": {"type": "integer"}, "TOTAL_MONTHS_ON_TIME": {"type": "integer"}, "TOTAL_DPD_ALL_BUREAUS": {"type": "integer"}, "TOTAL_SEVERE_DPD_MONTHS": {"type": "integer"}, "WORST_DPD_RATIO": {"type": "number"}, "WORST_SEVERE_DPD_RATIO": {"type": "number"}, "WORST_ON_TIME_RATIO": {"type": "number"}, "AVG_DPD_RATIO": {"type": "number"}, "AVG_ON_TIME_RATIO": {"type": "number"}, "COUNT_BUREAUS_WITH_SEVERE_DPD": {"type": "integer"}, "COUNT_BUREAUS_WITH_ANY_DPD": {"type": "integer"}, "OVERALL_ON_TIME_RATIO": {"type": "number"}, "OVERALL_DPD_RATIO": {"type": "number"}, "OVERALL_SEVERE_DPD_RATIO": {"type": "number"}, "CLIENT_HAS_SEVERE_DPD_HISTORY": {"type": "integer"}, "CLIENT_HAS_ANY_DPD_HISTORY": {"type": "integer"}}, "additionalProperties": true}äfeast.data_source.KafkaSource¢external_features_source“@tsZ /tmp/external_features.parquet¢external_batch_source`rspark
-âßÅ∆∏ê·í«ÕÜ∆∞°¥r∑]
-ó]
-dwh_featureshccustomer"
-prev_unique_app_count"
-prev_annuity_max"
-pos_min_max_dpd"
-agg_prev_loans"
-pos_mean_mean_dpd" 
-prev_annuity_to_credit_ratio"
-pos_total_months_observed"
-prev_refused_count"
-cc_atm_ratio"
-pos_mean_max_dpd"
-prev_approval_rate"
-prev_pos_portfolio_count"
-cc_other_total"
-avg_util"
-pos_mean_completed_rate"
-prev_over_approved_count"
-prev_apps_last_2y"
-prev_payment_type_diversity" 
-prev_credit_to_app_ratio_min"
-prev_amt_credit_mean"
-prev_payment_terms_std"
-pos_ratio_problem_loans"
-cc_over_limit_months"
-prev_days_decision_max"
-pos_mean_demand_rate"
-prev_amt_credit_total"
-prev_purpose_diversity"
-prev_low_action_count"
-pos_observation_span_months"
-cc_utilization_mean"
-cc_cards_count"
-cc_balance_mean"
-prev_cash_portfolio_count"
-cc_dpd_mean"
-prev_insurance_ratio"
-prev_under_approved_count"
-cc_atm_txn_count"
-prev_interest_rate_min"
-cc_inactive_months"
-pos_latest_month"
-prev_repeater_ratio" 
-prev_credit_to_app_ratio_max" 
-prev_credit_to_app_ratio_std"
-cc_high_util_months"
-cc_dpd_months"
-cc_dpd_31_60_months"
-pos_count_loans_total"
-prev_down_payment_total"
-pos_mean_dpd_rate"
-cc_earliest_month"
-pos_max_repayment_progress"
+sk_id_curr"
+bureau_active_credit_sum"
+ext_source_2"
+ext_source_3"
+ext_source_1"
+bureau_debt_to_credit_ratio"
+bureau_amt_max_overdue_ever*
 
-cc_dpd_max"
-prev_amt_application_total"
-
-sk_id_curr"
-prev_days_decision_min"
-prev_refusal_rate"
-prev_middle_yield_count"
-cc_high_util_ratio"
-prev_portfolio_diversity"
-prev_amt_application_mean"
-cc_inactive_ratio"
-prev_annuity_mean"
-prev_interest_rate_std"
-cc_payment_ratio_mean"
-cc_pos_ratio"
-prev_days_decision_mean"
-prev_bank_payment_count"'
-#record_counts_mart_pos_cash_balance"
-prev_goods_price_mean"
-cc_balance_max"
-cc_dpd_60plus_months"
-pos_max_contract_length"
-prev_apps_last_30d"
-prev_apps_last_1y"
-pos_mean_dpd_30plus_rate"
-prev_cancel_rate"
-cc_utilization_std"
-cc_pos_total"
-pos_count_problem_loans"*
-&record_counts_mart_credit_card_balance"
+sk_id_currJÄı$RttsZ /tmp/external_features.parquetä1feast.infra.offline_stores.file_source.FileSource¢external_batch_sourceZ∞tsj©
+broker:29092hc.application_extÑÅ
+˛{"type": "object", "properties": {"sk_id_curr": {"type": "string"}, "ts": {"type": "number"}, "ext_source_1": {"type": "number"}, "ext_source_2": {"type": "number"}, "ext_source_3": {"type": "number"}, "bureau_debt_to_credit_ratio": {"type": "number"}, "bureau_active_credit_sum": {"type": "number"}, "bureau_amt_max_overdue_ever": {"type": "number"}}, "additionalProperties": true}äfeast.data_source.KafkaSource¢external_features_source“@tsZ /tmp/external_features.parquet¢external_batch_source`rspark
+êö†∆∏úáÇêö†∆∏úáÇr›Y
+ºY
+dwh_featureshccustomer"
+pos_count_problem_loans"
+cc_dpd_total"
+prev_amt_credit_total"
+prev_cash_loan_ratio"
+cc_underpay_months"
+prev_insurance_ratio"
+pos_latest_month"
+pos_count_loans_demand"
+pos_total_months_observed"
+prev_apps_last_1y"
+cc_max_util_ever"
+prev_hc_reject_count"
+cc_severe_dpd_ratio"
+prev_client_reject_count"
+cc_payment_ratio_mean"
+pos_mean_contract_length"
+prev_cash_portfolio_ratio"
+prev_over_approved_count"
+cc_utilization_max"
+prev_approved_count"
+cc_total_drawings"
+pos_max_dpd_rate"
+pos_ratio_problem_loans"
+cc_utilization_std"
+cc_balance_mean"
+prev_days_decision_min"
+cc_payment_ratio_min"
+pos_mean_mean_dpd"
+prev_annuity_mean"
+prev_unique_app_count"
+pos_mean_dpd_rate"
+prev_recent_approved_90d"
+cc_atm_total"
+prev_interest_rate_max"
+prev_payment_type_diversity"
 pos_mean_repayment_progress"
-cc_drawings_mean"
-cc_no_payment_months"
-pos_mean_active_rate"
-cc_atm_total"!
-prev_credit_to_app_ratio_mean"
-pos_min_repayment_progress"
-prev_goods_diversity"
-prev_channel_diversity"
-prev_limit_reject_count"
-prev_interest_rate_max"
-cc_txn_freq_mean"
-cc_utilization_max"
-prev_days_decision_std"
+pos_risk_segment" 
+prev_credit_to_app_ratio_min"
+cc_dpd_60plus_months"
+cc_underpay_ratio"
+cc_high_util_months"
+cc_latest_month"
+prev_amt_credit_mean"
+prev_days_decision_max"
+pos_mean_completed_rate"
+prev_goods_to_credit_ratio"
+prev_down_payment_total"
+cc_over_limit_months"
+prev_interest_rate_min"
+cc_drawings_std"
+cc_drawings_mean"
+cc_limit_mean"
+pos_max_contract_length" 
+prev_credit_to_app_ratio_std"
+pos_min_max_dpd"
+prev_amt_application_max"
+prev_recent_approved_1y"
+
+cc_dpd_max"
+cc_balance_max"
+cc_dpd_31_60_months"
+prev_amt_credit_std"
+pos_mean_dpd_7plus_rate"
+prev_payment_terms_std"
+pos_mean_max_dpd"
+prev_bank_payment_count" 
+prev_with_down_payment_count" 
+prev_annuity_to_credit_ratio"
+cc_cards_count"
+cc_inactive_ratio"
+cc_inactive_months"
+prev_apps_last_2y"
+prev_down_payment_rate_mean"
+prev_new_client_app_count"
+cc_no_payment_ratio"
+prev_repeater_ratio"
+prev_days_decision_mean"!
+prev_credit_to_app_ratio_mean"
+prev_cash_loan_count"
+cc_high_util_ratio"
+prev_limit_reject_count"
+prev_annuity_std"
+prev_goods_price_mean" 
+prev_credit_to_app_ratio_max"
+prev_cancel_rate"
 prev_down_payment_mean"
-prev_amt_application_std"
-prev_payment_terms_max"
+pos_mean_dpd_30plus_rate"
+prev_apps_last_30d"
+prev_middle_yield_count"
+pos_min_repayment_progress"
+cc_min_payment_ratio"
+prev_refused_count"
+prev_days_decision_std"
+cc_dpd_months"
+cc_dpd_ratio"
+prev_under_approved_count"
+pos_max_repayment_progress"
+cc_dpd_1_30_months"
+cc_pos_txn_count"
+prev_high_yield_count"
+pos_min_contract_length"
+prev_app_count"
+prev_amt_application_std"
+pos_count_loans_total"
+prev_over_approval_ratio"
+prev_amt_credit_max"
+cc_pos_total"
+prev_revolving_loan_count"
+prev_canceled_count"
+cc_earliest_month"
+cc_no_payment_months"
+prev_sco_reject_count"
+prev_low_action_count"
+pos_flag_any_severe_dpd"
+pos_max_dpd_30plus_rate"
+prev_refusal_rate"
+prev_repeater_app_count"
+cc_txn_freq_mean"
+pos_mean_demand_rate"
+prev_annuity_max"
+prev_amt_application_mean"
+prev_payment_terms_mean"
 
-delinq_12m"
-prev_down_payment_max"
-prev_hc_reject_count"
-prev_recent_approved_1y"
-cc_months_count"
-prev_apps_last_90d"
-prev_consumer_loan_count"
-prev_repeater_app_count"
-cc_min_payment_ratio"
-prev_client_reject_count"
-cc_pos_txn_count"
-prev_cash_loan_ratio"+
-'record_counts_mart_previous_application"
-prev_down_payment_rate_mean"
-pos_max_dpd_7plus_rate"
-pos_earliest_month"
-prev_cash_loan_count"
-pos_max_dpd_30plus_rate"
-cc_severe_dpd_ratio"
-pos_mean_dpd_7plus_rate"
-prev_revolving_loan_count"
-prev_down_payment_ratio"
-prev_canceled_count"
-prev_app_count"
-cc_underpay_months"
-prev_high_yield_count"
-pos_ratio_loans_demand"
-cc_max_util_ever"
-pos_count_loans_demand"
-prev_approved_count"
-prev_goods_to_credit_ratio"
-cc_no_payment_ratio" 
-prev_multiple_same_day_count"
-prev_over_approval_ratio"
-cc_latest_month"
-cc_limit_max"
-cc_total_drawings"
-prev_sco_reject_count"
-prev_amt_credit_std"
-pos_risk_segment"
-prev_payment_terms_min"
-pos_flag_any_demand"
-prev_new_client_app_count"
-cc_dpd_total"
-prev_amt_credit_max"
-pos_flag_any_severe_dpd"
-pos_max_dpd_rate"
-prev_cash_portfolio_ratio"
-prev_cards_portfolio_count"
-cc_underpay_ratio"
-prev_payment_terms_mean"
-cc_limit_mean"
-pos_mean_contract_length"
-prev_amt_application_max"
-prev_annuity_std" 
-prev_with_down_payment_count"
-cc_drawings_std"
+sk_id_curr"
+cc_pos_ratio"
+pos_observation_span_months"
+cc_limit_max"
+prev_amt_application_total" 
+prev_multiple_same_day_count"
+pos_mean_active_rate"
+cc_other_total"
+pos_ratio_loans_demand"
+pos_flag_any_demand"
+prev_apps_last_90d"
+prev_approval_rate"
+prev_goods_price_max"
+prev_down_payment_ratio"
+prev_interest_rate_std"
+prev_goods_diversity"
+cc_atm_txn_count"
+cc_dpd_mean"
+prev_portfolio_diversity"
+prev_cash_portfolio_count"
+pos_max_max_dpd"
+cc_utilization_mean"
+prev_payment_terms_max"
 prev_interest_rate_mean"
-prev_recent_approved_90d"
-cc_dpd_1_30_months"
-cc_dpd_ratio"
-pos_max_max_dpd"
-pos_min_contract_length"
-cc_payment_ratio_min"
-prev_goods_price_max*
+prev_consumer_loan_count"
+cc_months_count"
+prev_cards_portfolio_count"
+prev_down_payment_max"
+prev_pos_portfolio_count"
+prev_channel_diversity"
+prev_payment_terms_min"
+cc_atm_ratio"
+pos_earliest_month"
+prev_purpose_diversity"
+pos_max_dpd_7plus_rate*
 
-sk_id_currJÄı$RjtsZ/tmp/dwh_features.parquetä1feast.infra.offline_stores.file_source.FileSource¢dwh_batch_sourceZ :tsj“9
-localhost:9092hc.application_dwh´9®9
-•9{"type": "object", "properties": {"sk_id_curr": {"type": "string"}, "ts": {"type": "number"}, "cc_months_count": {"type": "integer"}, "cc_cards_count": {"type": "integer"}, "cc_utilization_mean": {"type": "number"}, "cc_utilization_max": {"type": "number"}, "cc_utilization_std": {"type": "number"}, "cc_high_util_months": {"type": "integer"}, "cc_over_limit_months": {"type": "integer"}, "cc_high_util_ratio": {"type": "number"}, "cc_payment_ratio_mean": {"type": "number"}, "cc_payment_ratio_min": {"type": "number"}, "cc_min_payment_ratio": {"type": "number"}, "cc_underpay_months": {"type": "integer"}, "cc_underpay_ratio": {"type": "number"}, "cc_no_payment_months": {"type": "integer"}, "cc_no_payment_ratio": {"type": "number"}, "cc_dpd_total": {"type": "integer"}, "cc_dpd_mean": {"type": "number"}, "cc_dpd_max": {"type": "integer"}, "cc_dpd_months": {"type": "integer"}, "cc_dpd_1_30_months": {"type": "integer"}, "cc_dpd_31_60_months": {"type": "integer"}, "cc_dpd_60plus_months": {"type": "integer"}, "cc_dpd_ratio": {"type": "number"}, "cc_severe_dpd_ratio": {"type": "number"}, "cc_total_drawings": {"type": "number"}, "cc_drawings_mean": {"type": "number"}, "cc_drawings_std": {"type": "number"}, "cc_atm_total": {"type": "number"}, "cc_pos_total": {"type": "number"}, "cc_other_total": {"type": "number"}, "cc_atm_ratio": {"type": "number"}, "cc_pos_ratio": {"type": "number"}, "cc_txn_freq_mean": {"type": "number"}, "cc_atm_txn_count": {"type": "number"}, "cc_pos_txn_count": {"type": "number"}, "cc_earliest_month": {"type": "integer"}, "cc_latest_month": {"type": "integer"}, "cc_inactive_months": {"type": "integer"}, "cc_inactive_ratio": {"type": "number"}, "cc_limit_mean": {"type": "number"}, "cc_limit_max": {"type": "integer"}, "cc_balance_mean": {"type": "number"}, "cc_balance_max": {"type": "number"}, "cc_max_util_ever": {"type": "number"}, "pos_count_loans_total": {"type": "integer"}, "pos_count_problem_loans": {"type": "integer"}, "pos_count_loans_demand": {"type": "integer"}, "pos_mean_max_dpd": {"type": "number"}, "pos_max_max_dpd": {"type": "integer"}, "pos_min_max_dpd": {"type": "integer"}, "pos_mean_mean_dpd": {"type": "number"}, "pos_mean_dpd_rate": {"type": "number"}, "pos_max_dpd_rate": {"type": "number"}, "pos_mean_dpd_7plus_rate": {"type": "number"}, "pos_max_dpd_7plus_rate": {"type": "number"}, "pos_mean_dpd_30plus_rate": {"type": "number"}, "pos_max_dpd_30plus_rate": {"type": "number"}, "pos_mean_repayment_progress": {"type": "number"}, "pos_max_repayment_progress": {"type": "number"}, "pos_min_repayment_progress": {"type": "number"}, "pos_mean_contract_length": {"type": "number"}, "pos_max_contract_length": {"type": "number"}, "pos_min_contract_length": {"type": "number"}, "pos_mean_completed_rate": {"type": "number"}, "pos_mean_active_rate": {"type": "number"}, "pos_mean_demand_rate": {"type": "number"}, "pos_flag_any_demand": {"type": "integer"}, "pos_flag_any_severe_dpd": {"type": "integer"}, "pos_total_months_observed": {"type": "integer"}, "pos_earliest_month": {"type": "integer"}, "pos_latest_month": {"type": "integer"}, "pos_ratio_problem_loans": {"type": "number"}, "pos_ratio_loans_demand": {"type": "number"}, "pos_observation_span_months": {"type": "integer"}, "pos_risk_segment": {"type": "string"}, "prev_app_count": {"type": "integer"}, "prev_unique_app_count": {"type": "integer"}, "prev_approved_count": {"type": "integer"}, "prev_refused_count": {"type": "integer"}, "prev_canceled_count": {"type": "integer"}, "prev_approval_rate": {"type": "number"}, "prev_refusal_rate": {"type": "number"}, "prev_cancel_rate": {"type": "number"}, "prev_amt_application_total": {"type": "number"}, "prev_amt_application_mean": {"type": "number"}, "prev_amt_application_max": {"type": "number"}, "prev_amt_application_std": {"type": "number"}, "prev_amt_credit_total": {"type": "number"}, "prev_amt_credit_mean": {"type": "number"}, "prev_amt_credit_max": {"type": "number"}, "prev_amt_credit_std": {"type": "number"}, "prev_credit_to_app_ratio_mean": {"type": "number"}, "prev_credit_to_app_ratio_min": {"type": "number"}, "prev_credit_to_app_ratio_max": {"type": "number"}, "prev_credit_to_app_ratio_std": {"type": "number"}, "prev_over_approved_count": {"type": "integer"}, "prev_under_approved_count": {"type": "integer"}, "prev_over_approval_ratio": {"type": "number"}, "prev_annuity_mean": {"type": "number"}, "prev_annuity_max": {"type": "number"}, "prev_annuity_std": {"type": "number"}, "prev_annuity_to_credit_ratio": {"type": "number"}, "prev_down_payment_total": {"type": "number"}, "prev_down_payment_mean": {"type": "number"}, "prev_down_payment_max": {"type": "number"}, "prev_with_down_payment_count": {"type": "integer"}, "prev_down_payment_ratio": {"type": "number"}, "prev_down_payment_rate_mean": {"type": "number"}, "prev_interest_rate_mean": {"type": "number"}, "prev_interest_rate_max": {"type": "number"}, "prev_interest_rate_min": {"type": "number"}, "prev_interest_rate_std": {"type": "number"}, "prev_days_decision_mean": {"type": "number"}, "prev_days_decision_min": {"type": "number"}, "prev_days_decision_max": {"type": "number"}, "prev_days_decision_std": {"type": "number"}, "prev_apps_last_30d": {"type": "integer"}, "prev_apps_last_90d": {"type": "integer"}, "prev_apps_last_1y": {"type": "integer"}, "prev_apps_last_2y": {"type": "integer"}, "prev_recent_approved_1y": {"type": "integer"}, "prev_recent_approved_90d": {"type": "integer"}, "prev_cash_loan_count": {"type": "integer"}, "prev_consumer_loan_count": {"type": "integer"}, "prev_revolving_loan_count": {"type": "integer"}, "prev_cash_loan_ratio": {"type": "number"}, "prev_portfolio_diversity": {"type": "integer"}, "prev_cash_portfolio_count": {"type": "integer"}, "prev_pos_portfolio_count": {"type": "integer"}, "prev_cards_portfolio_count": {"type": "integer"}, "prev_cash_portfolio_ratio": {"type": "number"}, "prev_repeater_app_count": {"type": "integer"}, "prev_new_client_app_count": {"type": "integer"}, "prev_repeater_ratio": {"type": "number"}, "prev_channel_diversity": {"type": "integer"}, "prev_payment_type_diversity": {"type": "integer"}, "prev_bank_payment_count": {"type": "integer"}, "prev_goods_diversity": {"type": "integer"}, "prev_purpose_diversity": {"type": "integer"}, "prev_multiple_same_day_count": {"type": "integer"}, "prev_insurance_ratio": {"type": "number"}, "prev_high_yield_count": {"type": "integer"}, "prev_low_action_count": {"type": "integer"}, "prev_middle_yield_count": {"type": "integer"}, "prev_hc_reject_count": {"type": "integer"}, "prev_limit_reject_count": {"type": "integer"}, "prev_sco_reject_count": {"type": "integer"}, "prev_client_reject_count": {"type": "integer"}, "prev_payment_terms_mean": {"type": "number"}, "prev_payment_terms_max": {"type": "number"}, "prev_payment_terms_min": {"type": "number"}, "prev_payment_terms_std": {"type": "number"}, "prev_goods_price_mean": {"type": "number"}, "prev_goods_price_max": {"type": "number"}, "prev_goods_to_credit_ratio": {"type": "number"}, "record_counts_mart_credit_card_balance": {"type": "integer"}, "record_counts_mart_pos_cash_balance": {"type": "integer"}, "record_counts_mart_previous_application": {"type": "integer"}, "agg_prev_loans": {"type": "integer"}, "delinq_12m": {"type": "integer"}, "avg_util": {"type": "number"}}, "additionalProperties": true}äfeast.data_source.KafkaSource¢dwh_features_source“6tsZ/tmp/dwh_features.parquet¢dwh_batch_source`rspark
-âßÅ∆òﬂÊí«ÕÜ∆î«z*
-hc$8461c35a-bb82-4d61-a224-fd1e35079ce9ä$
-
-hc
-âßÅ∆ÄËºíâßÅ∆ÄËºí
+sk_id_currJÄı$RjtsZ/tmp/dwh_features.parquetä1feast.infra.offline_stores.file_source.FileSource¢dwh_batch_sourceZ£8tsj´7
+broker:29092hc.application_dwhÜ7É7
+Ä7{"type": "object", "properties": {"sk_id_curr": {"type": "string"}, "ts": {"type": "number"}, "cc_months_count": {"type": "integer"}, "cc_cards_count": {"type": "integer"}, "cc_utilization_mean": {"type": "number"}, "cc_utilization_max": {"type": "number"}, "cc_utilization_std": {"type": "number"}, "cc_high_util_months": {"type": "integer"}, "cc_over_limit_months": {"type": "integer"}, "cc_high_util_ratio": {"type": "number"}, "cc_payment_ratio_mean": {"type": "number"}, "cc_payment_ratio_min": {"type": "number"}, "cc_min_payment_ratio": {"type": "number"}, "cc_underpay_months": {"type": "integer"}, "cc_underpay_ratio": {"type": "number"}, "cc_no_payment_months": {"type": "integer"}, "cc_no_payment_ratio": {"type": "number"}, "cc_dpd_total": {"type": "integer"}, "cc_dpd_mean": {"type": "number"}, "cc_dpd_max": {"type": "integer"}, "cc_dpd_months": {"type": "integer"}, "cc_dpd_1_30_months": {"type": "integer"}, "cc_dpd_31_60_months": {"type": "integer"}, "cc_dpd_60plus_months": {"type": "integer"}, "cc_dpd_ratio": {"type": "number"}, "cc_severe_dpd_ratio": {"type": "number"}, "cc_total_drawings": {"type": "number"}, "cc_drawings_mean": {"type": "number"}, "cc_drawings_std": {"type": "number"}, "cc_atm_total": {"type": "number"}, "cc_pos_total": {"type": "number"}, "cc_other_total": {"type": "number"}, "cc_atm_ratio": {"type": "number"}, "cc_pos_ratio": {"type": "number"}, "cc_txn_freq_mean": {"type": "number"}, "cc_atm_txn_count": {"type": "number"}, "cc_pos_txn_count": {"type": "number"}, "cc_earliest_month": {"type": "integer"}, "cc_latest_month": {"type": "integer"}, "cc_inactive_months": {"type": "integer"}, "cc_inactive_ratio": {"type": "number"}, "cc_limit_mean": {"type": "number"}, "cc_limit_max": {"type": "integer"}, "cc_balance_mean": {"type": "number"}, "cc_balance_max": {"type": "number"}, "cc_max_util_ever": {"type": "number"}, "pos_count_loans_total": {"type": "integer"}, "pos_count_problem_loans": {"type": "integer"}, "pos_count_loans_demand": {"type": "integer"}, "pos_mean_max_dpd": {"type": "number"}, "pos_max_max_dpd": {"type": "integer"}, "pos_min_max_dpd": {"type": "integer"}, "pos_mean_mean_dpd": {"type": "number"}, "pos_mean_dpd_rate": {"type": "number"}, "pos_max_dpd_rate": {"type": "number"}, "pos_mean_dpd_7plus_rate": {"type": "number"}, "pos_max_dpd_7plus_rate": {"type": "number"}, "pos_mean_dpd_30plus_rate": {"type": "number"}, "pos_max_dpd_30plus_rate": {"type": "number"}, "pos_mean_repayment_progress": {"type": "number"}, "pos_max_repayment_progress": {"type": "number"}, "pos_min_repayment_progress": {"type": "number"}, "pos_mean_contract_length": {"type": "number"}, "pos_max_contract_length": {"type": "number"}, "pos_min_contract_length": {"type": "number"}, "pos_mean_completed_rate": {"type": "number"}, "pos_mean_active_rate": {"type": "number"}, "pos_mean_demand_rate": {"type": "number"}, "pos_flag_any_demand": {"type": "integer"}, "pos_flag_any_severe_dpd": {"type": "integer"}, "pos_total_months_observed": {"type": "integer"}, "pos_earliest_month": {"type": "integer"}, "pos_latest_month": {"type": "integer"}, "pos_ratio_problem_loans": {"type": "number"}, "pos_ratio_loans_demand": {"type": "number"}, "pos_observation_span_months": {"type": "integer"}, "pos_risk_segment": {"type": "string"}, "prev_app_count": {"type": "integer"}, "prev_unique_app_count": {"type": "integer"}, "prev_approved_count": {"type": "integer"}, "prev_refused_count": {"type": "integer"}, "prev_canceled_count": {"type": "integer"}, "prev_approval_rate": {"type": "number"}, "prev_refusal_rate": {"type": "number"}, "prev_cancel_rate": {"type": "number"}, "prev_amt_application_total": {"type": "number"}, "prev_amt_application_mean": {"type": "number"}, "prev_amt_application_max": {"type": "number"}, "prev_amt_application_std": {"type": "number"}, "prev_amt_credit_total": {"type": "number"}, "prev_amt_credit_mean": {"type": "number"}, "prev_amt_credit_max": {"type": "number"}, "prev_amt_credit_std": {"type": "number"}, "prev_credit_to_app_ratio_mean": {"type": "number"}, "prev_credit_to_app_ratio_min": {"type": "number"}, "prev_credit_to_app_ratio_max": {"type": "number"}, "prev_credit_to_app_ratio_std": {"type": "number"}, "prev_over_approved_count": {"type": "integer"}, "prev_under_approved_count": {"type": "integer"}, "prev_over_approval_ratio": {"type": "number"}, "prev_annuity_mean": {"type": "number"}, "prev_annuity_max": {"type": "number"}, "prev_annuity_std": {"type": "number"}, "prev_annuity_to_credit_ratio": {"type": "number"}, "prev_down_payment_total": {"type": "number"}, "prev_down_payment_mean": {"type": "number"}, "prev_down_payment_max": {"type": "number"}, "prev_with_down_payment_count": {"type": "integer"}, "prev_down_payment_ratio": {"type": "number"}, "prev_down_payment_rate_mean": {"type": "number"}, "prev_interest_rate_mean": {"type": "number"}, "prev_interest_rate_max": {"type": "number"}, "prev_interest_rate_min": {"type": "number"}, "prev_interest_rate_std": {"type": "number"}, "prev_days_decision_mean": {"type": "number"}, "prev_days_decision_min": {"type": "number"}, "prev_days_decision_max": {"type": "number"}, "prev_days_decision_std": {"type": "number"}, "prev_apps_last_30d": {"type": "integer"}, "prev_apps_last_90d": {"type": "integer"}, "prev_apps_last_1y": {"type": "integer"}, "prev_apps_last_2y": {"type": "integer"}, "prev_recent_approved_1y": {"type": "integer"}, "prev_recent_approved_90d": {"type": "integer"}, "prev_cash_loan_count": {"type": "integer"}, "prev_consumer_loan_count": {"type": "integer"}, "prev_revolving_loan_count": {"type": "integer"}, "prev_cash_loan_ratio": {"type": "number"}, "prev_portfolio_diversity": {"type": "integer"}, "prev_cash_portfolio_count": {"type": "integer"}, "prev_pos_portfolio_count": {"type": "integer"}, "prev_cards_portfolio_count": {"type": "integer"}, "prev_cash_portfolio_ratio": {"type": "number"}, "prev_repeater_app_count": {"type": "integer"}, "prev_new_client_app_count": {"type": "integer"}, "prev_repeater_ratio": {"type": "number"}, "prev_channel_diversity": {"type": "integer"}, "prev_payment_type_diversity": {"type": "integer"}, "prev_bank_payment_count": {"type": "integer"}, "prev_goods_diversity": {"type": "integer"}, "prev_purpose_diversity": {"type": "integer"}, "prev_multiple_same_day_count": {"type": "integer"}, "prev_insurance_ratio": {"type": "number"}, "prev_high_yield_count": {"type": "integer"}, "prev_low_action_count": {"type": "integer"}, "prev_middle_yield_count": {"type": "integer"}, "prev_hc_reject_count": {"type": "integer"}, "prev_limit_reject_count": {"type": "integer"}, "prev_sco_reject_count": {"type": "integer"}, "prev_client_reject_count": {"type": "integer"}, "prev_payment_terms_mean": {"type": "number"}, "prev_payment_terms_max": {"type": "number"}, "prev_payment_terms_min": {"type": "number"}, "prev_payment_terms_std": {"type": "number"}, "prev_goods_price_mean": {"type": "number"}, "prev_goods_price_max": {"type": "number"}, "prev_goods_to_credit_ratio": {"type": "number"}}, "additionalProperties": true}äfeast.data_source.KafkaSource¢dwh_features_source“6tsZ/tmp/dwh_features.parquet¢dwh_batch_source`rspark
+êö†∆‡¡íÇêö†∆‡¡íÇz*
+hc$6abbc9d0-7201-4c7e-9c57-5cca07d19138

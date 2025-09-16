@@ -21,7 +21,7 @@ from dataclasses import dataclass
 class FeatureSource(Enum):
     """Feature source types in the streaming pipeline."""
     APPLICATION = "application_features"
-    EXTERNAL = "external_features" 
+    EXTERNAL = "external_features"
     DWH = "dwh_features"
 
 
@@ -64,42 +64,27 @@ class FeatureRegistry:
         FeatureSpec("amt_goods_price", "AMT_GOODS_PRICE", FeatureSource.APPLICATION, FeatureType.NUMERIC, "Price of goods for which loan is given"),
         FeatureSpec("days_birth", "DAYS_BIRTH", FeatureSource.APPLICATION, FeatureType.NUMERIC, "Days before application when client was born (negative)"),
         FeatureSpec("days_employed", "DAYS_EMPLOYED", FeatureSource.APPLICATION, FeatureType.NUMERIC, "Days before application when client started current employment"),
+        FeatureSpec("code_gender", "CODE_GENDER", FeatureSource.APPLICATION, FeatureType.CATEGORICAL, "Applicant gender"),
         FeatureSpec("name_education_type", "NAME_EDUCATION_TYPE", FeatureSource.APPLICATION, FeatureType.CATEGORICAL, "Education level"),
         FeatureSpec("name_family_status", "NAME_FAMILY_STATUS", FeatureSource.APPLICATION, FeatureType.CATEGORICAL, "Family status"),
         FeatureSpec("name_income_type", "NAME_INCOME_TYPE", FeatureSource.APPLICATION, FeatureType.CATEGORICAL, "Income type"),
         FeatureSpec("organization_type", "ORGANIZATION_TYPE", FeatureSource.APPLICATION, FeatureType.CATEGORICAL, "Type of organization where client works"),
-        FeatureSpec("flag_mobil", "FLAG_MOBIL", FeatureSource.APPLICATION, FeatureType.BOOLEAN, "Mobile phone provided flag"),
-        FeatureSpec("flag_emp_phone", "FLAG_EMP_PHONE", FeatureSource.APPLICATION, FeatureType.BOOLEAN, "Work phone provided flag"),
-        FeatureSpec("flag_work_phone", "FLAG_WORK_PHONE", FeatureSource.APPLICATION, FeatureType.BOOLEAN, "Work phone provided flag"),
-        FeatureSpec("flag_phone", "FLAG_PHONE", FeatureSource.APPLICATION, FeatureType.BOOLEAN, "Phone provided flag"),
-        FeatureSpec("flag_email", "FLAG_EMAIL", FeatureSource.APPLICATION, FeatureType.BOOLEAN, "Email provided flag"),
-        FeatureSpec("flag_own_car", "FLAG_OWN_CAR", FeatureSource.APPLICATION, FeatureType.BOOLEAN, "Car ownership flag"),
-        FeatureSpec("flag_own_realty", "FLAG_OWN_REALTY", FeatureSource.APPLICATION, FeatureType.BOOLEAN, "Real estate ownership flag"),
-        FeatureSpec("own_car_age", "OWN_CAR_AGE", FeatureSource.APPLICATION, FeatureType.NUMERIC, "Age of car if owned"),
         
-        # External/Bureau Features (from external service)
+        # External/Bureau Features (from training data)
         FeatureSpec("ext_source_1", "EXT_SOURCE_1", FeatureSource.EXTERNAL, FeatureType.NUMERIC, "External risk score 1"),
         FeatureSpec("ext_source_2", "EXT_SOURCE_2", FeatureSource.EXTERNAL, FeatureType.NUMERIC, "External risk score 2"),
         FeatureSpec("ext_source_3", "EXT_SOURCE_3", FeatureSource.EXTERNAL, FeatureType.NUMERIC, "External risk score 3"),
-        FeatureSpec("BUREAU_DEBT_TO_CREDIT_RATIO", "BUREAU_DEBT_TO_CREDIT_RATIO", FeatureSource.EXTERNAL, FeatureType.NUMERIC, "Bureau debt to credit ratio"),
-        FeatureSpec("BUREAU_AMT_MAX_OVERDUE_EVER", "BUREAU_AMT_MAX_OVERDUE_EVER", FeatureSource.EXTERNAL, FeatureType.NUMERIC, "Maximum overdue amount from bureau"),
+        FeatureSpec("bureau_debt_to_credit_ratio", "BUREAU_DEBT_TO_CREDIT_RATIO", FeatureSource.EXTERNAL, FeatureType.NUMERIC, "Bureau debt to credit ratio"),
+        FeatureSpec("bureau_active_credit_sum", "BUREAU_ACTIVE_CREDIT_SUM", FeatureSource.EXTERNAL, FeatureType.NUMERIC, "Active credit sum from bureau"),
+        FeatureSpec("bureau_amt_max_overdue_ever", "BUREAU_AMT_MAX_OVERDUE_EVER", FeatureSource.EXTERNAL, FeatureType.NUMERIC, "Maximum overdue amount from bureau"),
         
-        # DWH Features (from ClickHouse aggregations)
-        FeatureSpec("agg_prev_loans", "AGG_PREV_LOANS", FeatureSource.DWH, FeatureType.NUMERIC, "Aggregated previous loans count"),
-        FeatureSpec("delinq_12m", "DELINQ_12M", FeatureSource.DWH, FeatureType.NUMERIC, "Delinquencies in last 12 months"),
-        FeatureSpec("avg_util", "AVG_UTIL", FeatureSource.DWH, FeatureType.NUMERIC, "Average credit utilization"),
+        # DWH Features (from training data only)
         FeatureSpec("pos_mean_contract_length", "POS_MEAN_CONTRACT_LENGTH", FeatureSource.DWH, FeatureType.NUMERIC, "Mean POS contract length"),
         FeatureSpec("pos_latest_month", "POS_LATEST_MONTH", FeatureSource.DWH, FeatureType.NUMERIC, "Latest POS contract month"),
         FeatureSpec("pos_total_months_observed", "POS_TOTAL_MONTHS_OBSERVED", FeatureSource.DWH, FeatureType.NUMERIC, "Total POS months observed"),
         FeatureSpec("prev_annuity_mean", "PREV_ANNUITY_MEAN", FeatureSource.DWH, FeatureType.NUMERIC, "Mean previous application annuity"),
         FeatureSpec("prev_goods_to_credit_ratio", "PREV_GOODS_TO_CREDIT_RATIO", FeatureSource.DWH, FeatureType.NUMERIC, "Previous goods to credit ratio"),
         FeatureSpec("prev_refusal_rate", "PREV_REFUSAL_RATE", FeatureSource.DWH, FeatureType.NUMERIC, "Previous application refusal rate"),
-        
-        # Model-specific features (not in Feast but required by model)
-        FeatureSpec("code_gender", "CODE_GENDER", FeatureSource.APPLICATION, FeatureType.CATEGORICAL, "Gender code", required=False),
-        FeatureSpec("bureau_active_credit_sum", "BUREAU_ACTIVE_CREDIT_SUM", FeatureSource.EXTERNAL, FeatureType.NUMERIC, "Active credit sum from bureau", required=False),
-        FeatureSpec("days_id_publish", "DAYS_ID_PUBLISH", FeatureSource.APPLICATION, FeatureType.NUMERIC, "Days before application when ID was published", required=False),
-        FeatureSpec("region_population_relative", "REGION_POPULATION_RELATIVE", FeatureSource.APPLICATION, FeatureType.NUMERIC, "Relative population of region", required=False),
     ]
     
     def __init__(self):
