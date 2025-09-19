@@ -6,3 +6,6 @@ xgboost
 boto3
 clickhouse-connect==0.8.18
 clickhouse-driver
+apache-airflow-providers-apache-spark
+apache-airflow-providers-openlineage>=1.8.0
+apache-airflow-providers-docker

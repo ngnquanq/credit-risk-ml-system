@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow-watcher
+  labels:
+    app: mlflow-watcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow-watcher
+  template:
+    metadata:
+      labels:
+        app: mlflow-watcher
+    spec:
+      containers:
+        - name: watcher
+          image: docker.io/tiangolo/uvicorn-gunicorn-fastapi:python3.11
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MLRW_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: mlflow-watcher-secret
+                  key: secret
+            - name: MLFLOW_BASE_URL
+              value: "http://mlflow.model-registry.svc.cluster.local:80"
+            - name: WATCHER_URL
+              value: "http://mlflow-watcher.model-registry.svc.cluster.local:80/webhook"
+            - name: SECRET_HEADER
+              value: "X-MLFLOW-WEBHOOK-SECRET"
+            - name: SECRET_VALUE
+              valueFrom:
+                secretKeyRef:
+                  name: mlflow-watcher-secret
+                  key: secret
+            - name: EVENTS
+              value: "MODEL_VERSION_CREATED"
+            - name: MODEL_NAME
+              value: "credit_risk_model"
+            # Placeholder configs for future deployment logic
+            - name: MLRW_DEPLOY_STRATEGY
+              value: "k8s"        # or: helm, yatai
+            - name: MLRW_TRIGGER_STAGE
+              value: "Production"  # stage to react to
+            - name: MLRW_SERVING_IMAGE
+              value: ""            # e.g., bentoml/credit-risk-model:v2
+            - name: MLRW_SERVING_NAMESPACE
+              value: ""            # default: same namespace
+            - name: MLRW_SERVING_PORT
+              value: "3000"
+            - name: MODULE_NAME
+              value: main
+            - name: VARIABLE_NAME
+              value: app
+          ports:
+            - containerPort: 80
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          volumeMounts:
+            - name: app-code
+              mountPath: /app
+      volumes:
+        - name: app-code
+          configMap:
+            name: mlflow-watcher-app
+            items:
+              - key: main.py
+                path: main.py

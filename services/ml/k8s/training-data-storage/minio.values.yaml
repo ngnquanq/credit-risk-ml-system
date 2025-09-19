@@ -1,0 +1,48 @@
+## Overrides compatible with Bitnami MinIO chart schema (see values.yaml)
+
+# Authentication
+auth:
+  rootUser: "minio_user"         # change for real deployments
+  rootPassword: "minio_password" # change for real deployments
+  usePasswordFiles: true
+  useSecret: true
+
+image:
+  registry: docker.io
+  repository: bitnamilegacy/minio
+  tag: 2025.7.23-debian-12-r3
+  digest: ""
+  pullPolicy: IfNotPresent
+  debug: false
+# Buckets to create on init (standalone mode)
+defaultBuckets: "training-data"
+
+# Persistence (disabled for simplicity; enable for durability)
+persistence:
+  enabled: false
+  size: 20Gi
+  storageClass: ""
+
+# Expose S3 API externally so Docker/ClickHouse can reach it
+service:
+  type: LoadBalancer
+  ports:
+    api: 9000
+  nodePorts:
+    api: ""
+
+# NetworkPolicy to allow external clients
+networkPolicy:
+  enabled: true
+  allowExternal: true
+  allowExternalEgress: true
+
+# MinIO Console exposure (optional but handy)
+console:
+  enabled: true
+  service:
+    type: LoadBalancer
+    ports:
+      http: 9090
+    nodePorts:
+      http: ""

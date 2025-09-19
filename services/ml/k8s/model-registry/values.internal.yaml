@@ -391,7 +391,11 @@ autoscaling:
     #   selectPolicy: Max
 
 # -- A map of arguments and values to pass to the `mlflow server` command. Keys must be camelcase. Helm will turn them to kebabcase style.
-extraArgs: {}
+extraArgs:
+  # Keep worker count modest for limited nodes
+  workers: "2"
+  # Relax timeouts and add threads for better resilience under load
+  gunicornOpts: "--workers=2 --threads=2 --timeout=120 --keep-alive=2 --graceful-timeout=30"
 # Number of gunicorn worker processes to handle requests (default: 4).
   # workers: TEXT
 # A prefix which will be prepended to the path of all static paths.
@@ -452,7 +456,13 @@ ingress:
   #      - chart-example.local
 
 # -- This block is for setting up the resource management for the pod more information can be found here: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
-resources: {}
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little
   # resources, such as Minikube. If you do want to specify resources, uncomment the following

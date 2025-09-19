@@ -1,0 +1,51 @@
+{{- if .Values.feastStream.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "fs.fullname" . }}-feast-stream
+  labels:
+    {{- include "fs.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.feastStream.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: feast-stream
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: feast-stream
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: feast-stream
+          image: {{ .Values.repo.image.repository }}:{{ .Values.repo.image.tag }}
+          imagePullPolicy: {{ .Values.repo.image.pullPolicy }}
+          workingDir: {{ .Values.repo.workingDir }}
+          command:
+            {{- toYaml .Values.feastStream.command | nindent 12 }}
+          env:
+            - name: FEAST_KAFKA_BROKERS
+              value: {{ .Values.global.kafkaBrokers | quote }}
+            - name: FEAST_PROJECT
+              value: {{ .Values.global.project | quote }}
+            - name: APP_CLICKHOUSE_HOST
+              value: {{ .Values.global.clickhouse.host | quote }}
+            - name: APP_CLICKHOUSE_PORT
+              value: {{ .Values.global.clickhouse.port | quote }}
+            - name: APP_CLICKHOUSE_DB_DWH
+              value: {{ .Values.global.clickhouse.database | quote }}
+            - name: FEAST_TS_FIELD_APP
+              value: {{ .Values.global.tsFields.app | quote }}
+            - name: FEAST_TS_FIELD_EXT
+              value: {{ .Values.global.tsFields.ext | quote }}
+            - name: FEAST_TS_FIELD_DWH
+              value: {{ .Values.global.tsFields.dwh | quote }}
+          resources:
+            {{- toYaml .Values.feastStream.resources | nindent 12 }}
+{{- end }}
+

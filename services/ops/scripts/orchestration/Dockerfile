@@ -1,17 +1,16 @@
-FROM apache/airflow:2.7.1
+FROM apache/airflow:2.10.5
 USER root
 
-# Install system dependencies required for Ray
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+# Install minimal system dependencies only (no Spark client to keep builds fast)
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
         curl \
+        ca-certificates \
         libgl1-mesa-glx \
         libglib2.0-0 \
-        gosu \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-
+        gosu; \
+    rm -rf /var/lib/apt/lists/*
 
 USER airflow
 

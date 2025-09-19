@@ -1,7 +1,12 @@
 services:
   # Spark Master - Cluster coordinator and web UI
   spark-master:
-    image: bitnami/spark:${SPARK_VERSION:-3.4.1}
+    build:
+      context: ./scripts/spark
+      dockerfile: Dockerfile.spark-python
+      args:
+        SPARK_VERSION: ${SPARK_VERSION:-3.4.1}
+    image: custom/spark-bitnami-python:${SPARK_VERSION:-3.4.1}
     container_name: spark_master
     environment:
       # Master configuration
@@ -17,27 +22,31 @@ services:
       
       # Authentication (if needed)
       SPARK_NO_DAEMONIZE: yes
+      PYSPARK_PYTHON: python3
+      PYSPARK_DRIVER_PYTHON: python3
       
     ports:
       - "${SPARK_MASTER_PORT:-7077}:7077"           # Spark cluster port
-      - "${SPARK_MASTER_WEBUI_PORT:-8888}:8080"     # Web UI
+      - "${SPARK_MASTER_WEBUI_PORT:-8899}:8080"     # Web UI
     volumes:
       - spark_master_data:/opt/bitnami/spark/logs
-      - ./spark/apps:/opt/spark-apps                # Spark applications
-      - ./spark/data:/opt/spark-data                # Data files
-      - ./spark/jars:/opt/spark/jars                # JDBC drivers and additional JARs
-      - ./spark/conf:/opt/spark/conf                # Spark configuration
+      - ./scripts/spark/apps:/opt/spark-apps                # Spark applications
+      - ./scripts/spark/data:/opt/spark-data                # Data files
+      - ./scripts/spark/jars:/opt/spark/jars                # JDBC drivers and additional JARs
+      - ./scripts/spark/conf:/opt/spark/conf                # Spark configuration
+      - ./scripts/spark/logs:/opt/spark/logs              # Spark logs for History Server
     networks:
       - hc-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${SPARK_MASTER_WEBUI_PORT:-8080}"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      # Use a non-blocking TCP open via bash's /dev/tcp. 'cat' can block; 'echo' exits immediately.
+      test: ["CMD", "bash", "-lc", "echo > /dev/tcp/localhost/8080"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
   # Spark Worker 1 - Executes tasks
   spark-worker-1:
-    image: bitnami/spark:${SPARK_VERSION:-3.4.1}
+    image: custom/spark-bitnami-python:${SPARK_VERSION:-3.4.1}
     container_name: spark_worker_1
     depends_on:
       spark-master:
@@ -56,22 +65,25 @@ services:
       
       # Configuration
       SPARK_NO_DAEMONIZE: yes
+      PYSPARK_PYTHON: python3
+      PYSPARK_DRIVER_PYTHON: python3
       
     ports:
-      - "${SPARK_WORKER_1_WEBUI_PORT:-8081}:8081"
+      - "${SPARK_WORKER_1_WEBUI_PORT:-8891}:8081"
       - "${SPARK_WORKER_1_PORT:-8881}:8881"
     volumes:
       - spark_worker_1_data:/opt/bitnami/spark/logs
-      - ./spark/apps:/opt/spark-apps
-      - ./spark/data:/opt/spark-data
-      - ./spark/jars:/opt/spark/jars                # JDBC drivers and additional JARs
-      - ./spark/conf:/opt/spark/conf                # Spark configuration
+      - ./scripts/spark/apps:/opt/spark-apps
+      - ./scripts/spark/data:/opt/spark-data
+      - ./scripts/spark/jars:/opt/spark/jars                # JDBC drivers and additional JARs
+      - ./scripts/spark/conf:/opt/spark/conf                # Spark configuration
+      - ./scripts/spark/logs:/opt/spark/logs              # Spark logs for History Server
     networks:
       - hc-network
 
   # Spark Worker 2 - Additional processing capacity
   spark-worker-2:
-    image: bitnami/spark:${SPARK_VERSION:-3.4.1}
+    image: custom/spark-bitnami-python:${SPARK_VERSION:-3.4.1}
     container_name: spark_worker_2
     depends_on:
       spark-master:
@@ -90,27 +102,30 @@ services:
       
       # Configuration
       SPARK_NO_DAEMONIZE: yes
+      PYSPARK_PYTHON: python3
+      PYSPARK_DRIVER_PYTHON: python3
       
     ports:
-      - "${SPARK_WORKER_2_WEBUI_PORT:-8082}:8082"
+      - "${SPARK_WORKER_2_WEBUI_PORT:-8892}:8082"
       - "${SPARK_WORKER_2_PORT:-8882}:8882"
     volumes:
       - spark_worker_2_data:/opt/bitnami/spark/logs
-      - ./spark/apps:/opt/spark-apps
-      - ./spark/data:/opt/spark-data
-      - ./spark/jars:/opt/spark/jars                # JDBC drivers and additional JARs
-      - ./spark/conf:/opt/spark/conf                # Spark configuration
+      - ./scripts/spark/apps:/opt/spark-apps
+      - ./scripts/spark/data:/opt/spark-data
+      - ./scripts/spark/jars:/opt/spark/jars                # JDBC drivers and additional JARs
+      - ./scripts/spark/conf:/opt/spark/conf                # Spark configuration
+      - ./scripts/spark/logs:/opt/spark/logs              # Spark logs for History Server
     networks:
       - hc-network
 
   # Spark History Server - Job monitoring and debugging
   spark-history-server:
-    image: bitnami/spark:${SPARK_VERSION:-3.4.1}
+    image: apache/spark:3.4.1
     container_name: spark_history_server
+    entrypoint: ["/bin/bash","-lc"]
     depends_on:
       - spark-master
     environment:
-      SPARK_MODE: history-server
       SPARK_HISTORY_OPTS: >
         -Dspark.history.ui.port=${SPARK_HISTORY_WEBUI_PORT:-18080}
         -Dspark.history.fs.logDirectory=/opt/spark/logs
@@ -121,7 +136,10 @@ services:
       - "${SPARK_HISTORY_WEBUI_PORT:-18080}:18080"
     volumes:
       - spark_history_data:/opt/spark/logs
-      - ./spark/logs:/opt/spark/logs
+      - ./scripts/spark/logs:/opt/spark/logs
+      - ./scripts/spark/conf:/opt/spark/conf                # Spark configuration
+      - ./scripts/spark/jars:/opt/spark/jars                # JDBC drivers and additional JARs
+      - ./scripts/spark/apps:/opt/spark/apps                # Spark applications
     networks:
       - hc-network
     healthcheck:
@@ -130,61 +148,61 @@ services:
       timeout: 10s
       retries: 3
 
-  # Jupyter Notebook with PySpark - Interactive development
-  jupyter-pyspark:
-    image: jupyter/pyspark-notebook:${JUPYTER_VERSION:-spark-3.4.1}
-    container_name: jupyter_pyspark
-    depends_on:
-      spark-master:
-        condition: service_healthy
-    environment:
-      # Jupyter configuration
-      JUPYTER_ENABLE_LAB: yes
-      JUPYTER_TOKEN: ${JUPYTER_TOKEN:-spark_notebook_token}
+  # # Jupyter Notebook with PySpark - Interactive development
+  # jupyter-pyspark:
+  #   image: jupyter/pyspark-notebook:${JUPYTER_VERSION:-spark-3.4.1}
+  #   container_name: jupyter_pyspark
+  #   depends_on:
+  #     spark-master:
+  #       condition: service_healthy
+  #   environment:
+  #     # Jupyter configuration
+  #     JUPYTER_ENABLE_LAB: yes
+  #     JUPYTER_TOKEN: ${JUPYTER_TOKEN:-spark_notebook_token}
       
-      # Spark configuration for Jupyter
-      SPARK_MASTER: spark://spark-master:${SPARK_MASTER_PORT:-7077}
-      SPARK_DRIVER_HOST: jupyter-pyspark
-      SPARK_DRIVER_MEMORY: ${JUPYTER_SPARK_DRIVER_MEMORY:-1g}
-      SPARK_EXECUTOR_MEMORY: ${JUPYTER_SPARK_EXECUTOR_MEMORY:-1g}
+  #     # Spark configuration for Jupyter
+  #     SPARK_MASTER: spark://spark-master:${SPARK_MASTER_PORT:-7077}
+  #     SPARK_DRIVER_HOST: jupyter-pyspark
+  #     SPARK_DRIVER_MEMORY: ${JUPYTER_SPARK_DRIVER_MEMORY:-1g}
+  #     SPARK_EXECUTOR_MEMORY: ${JUPYTER_SPARK_EXECUTOR_MEMORY:-1g}
       
-      # Database connections
-      POSTGRES_HOST: ops-postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: ${OPS_DB_USER:-ops_admin}
-      POSTGRES_PASSWORD: ${OPS_DB_PASSWORD:-ops_password}
-      POSTGRES_DB: ${OPS_DB_NAME:-operations}
+  #     # Database connections
+  #     POSTGRES_HOST: ops-postgres
+  #     POSTGRES_PORT: 5432
+  #     POSTGRES_USER: ${OPS_DB_USER:-ops_admin}
+  #     POSTGRES_PASSWORD: ${OPS_DB_PASSWORD:-ops_password}
+  #     POSTGRES_DB: ${OPS_DB_NAME:-operations}
       
-      CLICKHOUSE_HOST: clickhouse
-      CLICKHOUSE_PORT: 8123
-      CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: 
-      CLICKHOUSE_DB: default
+  #     CLICKHOUSE_HOST: clickhouse
+  #     CLICKHOUSE_PORT: 8123
+  #     CLICKHOUSE_USER: default
+  #     CLICKHOUSE_PASSWORD: 
+  #     CLICKHOUSE_DB: default
       
-    ports:
-      - "${JUPYTER_PORT:-8888}:8888"
-      - "${JUPYTER_SPARK_UI_PORT:-4040}:4040"  # Spark application UI
-    volumes:
-      - jupyter_data:/home/jovyan/work
-      - ./spark/apps:/home/jovyan/work/apps
-      - ./spark/data:/home/jovyan/work/data
-      - ./spark/notebooks:/home/jovyan/work/notebooks
-      - ./spark/jars:/home/jovyan/work/jars          # Access to JDBC drivers
-      - ../../application:/home/jovyan/work/application  # Access to training scripts
-    networks:
-      - hc-network
-    command: >
-      bash -c "
-        pip install --quiet sqlalchemy psycopg2-binary clickhouse-driver clickhouse-connect &&
-        start-notebook.sh --NotebookApp.token='${JUPYTER_TOKEN:-spark_notebook_token}' --NotebookApp.password=''
-      "
+  #   ports:
+  #     - "${JUPYTER_PORT:-8888}:8888"
+  #     - "${JUPYTER_SPARK_UI_PORT:-4040}:4040"  # Spark application UI
+  #   volumes:
+  #     - jupyter_data:/home/jovyan/work
+  #     - ./spark/apps:/home/jovyan/work/apps
+  #     - ./spark/data:/home/jovyan/work/data
+  #     - ./spark/notebooks:/home/jovyan/work/notebooks
+  #     - ./spark/jars:/home/jovyan/work/jars          # Access to JDBC drivers
+  #     - ../../application:/home/jovyan/work/application  # Access to training scripts
+  #   networks:
+  #     - hc-network
+  #   command: >
+  #     bash -c "
+  #       pip install --quiet sqlalchemy psycopg2-binary clickhouse-driver clickhouse-connect &&
+  #       start-notebook.sh --NotebookApp.token='${JUPYTER_TOKEN:-spark_notebook_token}' --NotebookApp.password=''
+  #     "
 
 volumes:
   spark_master_data:
   spark_worker_1_data:
   spark_worker_2_data:
   spark_history_data:
-  jupyter_data:
+  # jupyter_data:
 
 networks:
   hc-network:

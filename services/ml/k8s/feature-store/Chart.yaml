@@ -1,11 +1,7 @@
-apiVersion: v1
-description: Feature store for machine learning
-home: https://feast.dev/
-keywords:
-- machine learning
-- big data
-- mlops
-name: feast
-sources:
-- https://github.com/feast-dev/feast
-version: 0.53.0
+apiVersion: v2
+name: feature-store
+description: Helm chart for Feast feature store components (apply + stream) and Redis online store
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+

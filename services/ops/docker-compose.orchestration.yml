@@ -59,7 +59,8 @@ x-airflow-common:
     # For backward compatibility, with Airflow <2.3
     AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
-    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+    AIRFLOW__CELERY__DEFAULT_QUEUE: default
     AIRFLOW__CORE__FERNET_KEY: ''
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
@@ -68,6 +69,14 @@ x-airflow-common:
     AIRFLOW__LOGGING__LOGS_SERVER_URL: 'http://airflow-worker:8793'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
     AIRFLOW__SCHEDULER__TASK_QUEUED_TIMEOUT: '100'
+    # Disable OpenLineage integration (we log only to MLflow)
+    AIRFLOW__OPENLINEAGE__ENABLE: 'false'
+    # Spark connection for SparkSubmitOperator (use Spark standalone master)
+    AIRFLOW_CONN_SPARK_DEFAULT: 'spark://spark-master:7077'
+    # Make DockerOperator default to the TCP proxy
+    DOCKER_HOST: 'tcp://docker-proxy:2375'
+    # Host path to application directory for DockerOperator bind mounts
+    APPLICATION_HOST_DIR: ${PWD}/application
 
     # WARNING: Use _PIP_ADDITIONAL_REQUIREMENTS option ONLY for a quick checks
     # for other purpose (development, test and especially production usage) build/extend Airflow image.
@@ -301,18 +310,24 @@ services:
     networks:
       - hc-network
 
-  # # Fix permission denied when using DockerOperator in Airflow
-  # # Ref: https://onedevblog.com/how-to-fix-a-permission-denied-when-using-dockeroperator-in-airflow/
-  # docker-proxy:
-  #   image: bobrik/socat
-  #   container_name: airflow-docker-proxy
-  #   command: "TCP4-LISTEN:2375,fork,reuseaddr UNIX-CONNECT:/var/run/docker.sock"
-  #   ports:
-  #     - "2376:2375"
-  #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock
-  #   networks:
-  #     - hc-network
+  # Fix permission denied when using DockerOperator in Airflow by proxying Docker socket over TCP
+  # Ref: https://onedevblog.com/how-to-fix-a-permission-denied-when-using-dockeroperator-in-airflow/
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: airflow-docker-proxy
+    environment:
+      - CONTAINERS=1
+      - POST=1
+      - IMAGES=1
+      - NETWORKS=1
+      - VOLUMES=1
+      - INFO=1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "2375:2375"
+    networks:
+      - hc-network
 
 volumes:
   postgres-db-volume:
