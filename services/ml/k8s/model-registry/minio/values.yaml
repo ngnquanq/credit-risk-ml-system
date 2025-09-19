@@ -77,7 +77,7 @@ extraDeploy: []
 ##
 image:
   registry: docker.io
-  repository: bitnami/minio
+  repository: bitnamilegacy/minio # Notice, using legacy because bitnami remove those things
   tag: 2025.7.23-debian-12-r3
   digest: ""
   ## Specify a imagePullPolicy
