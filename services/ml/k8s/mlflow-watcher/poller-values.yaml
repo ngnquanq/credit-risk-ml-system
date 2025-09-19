@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mlflow-watcher-poller-env
+data:
+  # Edit these to configure the poller without touching the Deployment
+  MLFLOW_TRACKING_URI: http://mlflow.model-registry.svc.cluster.local:80
+  MODEL_NAME: credit_risk_model
+  POLL_INTERVAL_SECS: "10"
+  REQUIRED_STAGE: Production
+  MAX_PROD_ACTIVE: "2"
+  DEPLOY_TAG_KEY: deploy
+  DEPLOY_TAG_VALUE: "true"

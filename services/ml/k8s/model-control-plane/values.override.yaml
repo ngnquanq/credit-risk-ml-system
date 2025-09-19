@@ -1,0 +1,49 @@
+# Minimal overrides for Yatai (control plane)
+# Adjust hosts/secrets to your cluster. Use this with:
+#   helm upgrade --install yatai services/ml/k8s/model-control-plane \
+#     -n yatai-system -f services/ml/k8s/model-control-plane/values.override.yaml
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 80
+
+postgresql:
+  # Use your Postgres service DNS or external host
+  host: postgresql.yatai-system.svc.cluster.local
+  port: 5432
+  user: yatai
+  database: yatai
+  sslmode: disable
+  # For dev/demo only: inline password. Prefer existing secrets for production.
+  password: "CHANGE_ME_DB_PASSWORD"
+  # Alternatively, reference an existing secret instead of inline password:
+  # passwordExistingSecretName: "yatai-pg-secret"
+  # passwordExistingSecretKey: "password"
+
+s3:
+  # Point to your object storage (MinIO/S3). If MinIO is in another namespace,
+  # use its full cluster DNS, e.g. minio.<ns>.svc.cluster.local:9000
+  endpoint: "http://minio:9000"
+  region: ""
+  bucketName: "yatai-bentos"
+  secure: false  # set true if using https
+  # For dev/demo only: inline access keys. Prefer existing secrets for production.
+  accessKey: "minioadmin"
+  secretKey: "minioadmin"
+  # Alternatively, reference existing secrets:
+  # accessKeyExistingSecretName: "yatai-s3-secret"
+  # aceessKeyExistingSecretKey: "access_key"
+  # secretKeyExistingSecretName: "yatai-s3-secret"
+  # secretKeyExistingSecretKey: "secret_key"
+
+ingress:
+  enabled: false
+  # className: "nginx"
+  # hosts:
+  #   - host: yatai.local
+  #     paths: ["/"]
+
+doNotTrack: false
+

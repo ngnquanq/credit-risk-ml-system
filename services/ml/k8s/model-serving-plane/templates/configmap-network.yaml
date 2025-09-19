@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: network
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "yatai-deployment.labels" . | nindent 4 }}
+data:
+  {{- if .Values.layers.network.ingressClass }}
+  ingress-class: {{ .Values.layers.network.ingressClass }}
+  {{- end }}
+  {{- if .Values.layers.network.ingressAnnotations }}
+  ingress-annotations: {{ mustToJson .Values.layers.network.ingressAnnotations | quote }}
+  {{- end }}
+  {{- if .Values.layers.network.ingressPath }}
+  ingress-path: {{ .Values.layers.network.ingressPath | quote }}
+  {{- end }}
+  {{- if .Values.layers.network.ingressPathType }}
+  ingress-path-type: {{ .Values.layers.network.ingressPathType | quote }}
+  {{- end }}
+  {{- if .Values.layers.network.domainSuffix }}
+  domain-suffix: {{ .Values.layers.network.domainSuffix }}
+  {{- end }}
+  {{- if .Values.layers.network.ingressTlsMode }}
+  {{- $validModes := (list "none" "auto" "static") }}
+  {{- $mode := .Values.layers.network.ingressTlsMode }}
+  {{- if not (has $mode $validModes) }}
+    {{- fail (printf "Invalid value for ingressTlsMode: %s. Expected one of: %s" $mode $validModes) }}
+  {{- end }}
+  {{- if and (eq $mode "static") (eq (trim .Values.layers.network.ingressStaticTlsSecretName) "") }}
+    {{- fail "ingressStaticTlsSecretName cannot be an empty string when ingressTlsMode is set to 'static'" }}
+  {{- end }}
+  ingress-tls-mode: {{ .Values.layers.network.ingressTlsMode | quote }}
+  {{- if .Values.layers.network.ingressStaticTlsSecretName }}
+  ingress-static-tls-secret-name: {{ .Values.layers.network.ingressStaticTlsSecretName | quote }}
+  {{- end }}
+  {{- end }}

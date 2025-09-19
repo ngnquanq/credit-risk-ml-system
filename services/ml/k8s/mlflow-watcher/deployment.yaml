@@ -15,67 +15,21 @@ spec:
         app: mlflow-watcher
     spec:
       containers:
-        - name: watcher
-          image: docker.io/tiangolo/uvicorn-gunicorn-fastapi:python3.11
+        - name: poller
+          image: docker.io/python:3.11-slim
           imagePullPolicy: IfNotPresent
-          env:
-            - name: MLRW_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: mlflow-watcher-secret
-                  key: secret
-            - name: MLFLOW_BASE_URL
-              value: "http://mlflow.model-registry.svc.cluster.local:80"
-            - name: WATCHER_URL
-              value: "http://mlflow-watcher.model-registry.svc.cluster.local:80/webhook"
-            - name: SECRET_HEADER
-              value: "X-MLFLOW-WEBHOOK-SECRET"
-            - name: SECRET_VALUE
-              valueFrom:
-                secretKeyRef:
-                  name: mlflow-watcher-secret
-                  key: secret
-            - name: EVENTS
-              value: "MODEL_VERSION_CREATED"
-            - name: MODEL_NAME
-              value: "credit_risk_model"
-            # Placeholder configs for future deployment logic
-            - name: MLRW_DEPLOY_STRATEGY
-              value: "k8s"        # or: helm, yatai
-            - name: MLRW_TRIGGER_STAGE
-              value: "Production"  # stage to react to
-            - name: MLRW_SERVING_IMAGE
-              value: ""            # e.g., bentoml/credit-risk-model:v2
-            - name: MLRW_SERVING_NAMESPACE
-              value: ""            # default: same namespace
-            - name: MLRW_SERVING_PORT
-              value: "3000"
-            - name: MODULE_NAME
-              value: main
-            - name: VARIABLE_NAME
-              value: app
-          ports:
-            - containerPort: 80
-              name: http
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-            initialDelaySeconds: 10
-            periodSeconds: 20
+          envFrom:
+            - configMapRef:
+                name: mlflow-watcher-poller-env
+          command: ["bash", "-lc"]
+          args: ["pip install --no-cache-dir mlflow==3.4.0 && python /app/poller.py"]
           volumeMounts:
-            - name: app-code
+            - name: poller-code
               mountPath: /app
       volumes:
-        - name: app-code
+        - name: poller-code
           configMap:
-            name: mlflow-watcher-app
+            name: mlflow-watcher-poller
             items:
-              - key: main.py
-                path: main.py
+              - key: poller.py
+                path: poller.py

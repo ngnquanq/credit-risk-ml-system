@@ -1,0 +1,17 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "yatai-deployment.yatai-rolename-in-yatai-system-namespace" . }}
+  namespace: {{ .Values.yataiSystem.namespace }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  resourceNames:
+  - {{ include "yatai-deployment.yatai-common-envname" . }}
+  - {{ include "yatai-deployment.shared-envname" . }}
+  verbs:
+  - get
+  - list
+  - watch
