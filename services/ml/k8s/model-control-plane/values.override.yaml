@@ -11,13 +11,13 @@ service:
 
 postgresql:
   # Use your Postgres service DNS or external host
-  host: postgresql.yatai-system.svc.cluster.local
+  host: yatai-pg-postgresql.model-serving.svc.cluster.local
   port: 5432
   user: yatai
   database: yatai
   sslmode: disable
   # For dev/demo only: inline password. Prefer existing secrets for production.
-  password: "CHANGE_ME_DB_PASSWORD"
+  password: "yataipassword"
   # Alternatively, reference an existing secret instead of inline password:
   # passwordExistingSecretName: "yatai-pg-secret"
   # passwordExistingSecretKey: "password"
@@ -25,7 +25,7 @@ postgresql:
 s3:
   # Point to your object storage (MinIO/S3). If MinIO is in another namespace,
   # use its full cluster DNS, e.g. minio.<ns>.svc.cluster.local:9000
-  endpoint: "http://minio:9000"
+  endpoint: "http://yatai-minio.model-serving.svc.cluster.local:9000"
   region: ""
   bucketName: "yatai-bentos"
   secure: false  # set true if using https

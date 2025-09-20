@@ -1,0 +1,13 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: sklearn-example
+  namespace: model-serving
+spec:
+  predictor:
+    serviceAccountName: kserve-sa
+    sklearn:
+      # Replace with your bucket and model path
+      # For example: s3://yatai-bentos/sklearn/iris-joblib
+      storageUri: s3://yatai-bentos/path/to/your-model
+

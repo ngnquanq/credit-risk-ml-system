@@ -1,0 +1,33 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: credit-risk-bento
+  namespace: model-serving
+  annotations:
+    autoscaling.knative.dev/target: "5"
+spec:
+  predictor:
+    # Use a BentoML-built OCI image
+    containers:
+    - name: user-container
+      image: <REGISTRY>/<REPO>:<TAG>
+      env:
+      - name: PORT
+        value: "8080"  # BentoML respects PORT; 8080 works well with Knative
+      ports:
+      - containerPort: 8080
+        name: http1
+      # Optional health check; adjust path if your Bento exposes a different one
+      readinessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        initialDelaySeconds: 5
+        periodSeconds: 10
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        initialDelaySeconds: 10
+        periodSeconds: 20
+

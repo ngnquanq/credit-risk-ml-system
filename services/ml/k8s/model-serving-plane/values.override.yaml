@@ -1,0 +1,39 @@
+# Minimal overrides for Yatai Serving Plane (yatai-deployment)
+# Usage:
+#   helm upgrade --install yatai-deployment services/ml/k8s/model-serving-plane \
+#     -n model-serving -f services/ml/k8s/model-serving-plane/values.override.yaml
+
+# Keep a single replica of the serving controller
+replicaCount: 1
+
+# Point the serving plane to your Yatai control-plane namespace and service account
+yataiSystem:
+  namespace: "model-serving"
+  serviceAccountName: "yatai"
+
+# Scope BentoDeployments to the namespaces you want (keep it simple: same ns)
+bentoDeploymentAllNamespaces: false
+bentoDeploymentNamespaces: ["model-serving"]
+
+# Network layer: keep internal by default (no ingress, no domain)
+layers:
+  network:
+    ingressClass: ""
+    ingressPath: "/"
+    ingressPathType: ImplementationSpecific
+    ingressTlsMode: "none"
+    domainSuffix: ""
+    automaticDomainSuffixGeneration: true
+
+# Security context knobs (inherit sane defaults)
+enableRestrictedSecurityContext: false
+disableAutomateBentoImageBuilder: false
+disableYataiComponentRegistration: false
+
+
+yataiCommonEnv:
+  create: true
+  # Set to your in-cluster or ingress URL for Yatai control plane
+  endpoint: "http://yatai.model-serving.svc.cluster.local"
+  # Paste a Yatai API token (or set via --set-file yataiCommonEnv.apiToken=@token.txt)
+  apiToken: "d3719ch36grc73an8b70"
