@@ -9,6 +9,7 @@ from .schemas import (
     DocumentUploadResponse,
     HealthResponse
 )
+from .base import Base 
 
 __all__ = [
     "LoanApplication",
@@ -18,5 +19,6 @@ __all__ = [
     "DocumentUpload",
     "DocumentUploadRequest", 
     "DocumentUploadResponse",
-    "HealthResponse"
+    "HealthResponse",
+    "Base"
 ]

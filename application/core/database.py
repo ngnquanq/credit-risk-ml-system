@@ -24,7 +24,7 @@ as 'core', 'models', 'api', etc. Importing via 'application.models' will fail
 inside that container. Use top-level 'models' imports instead.
 """
 
-from models.base import Base
+from application.models.base import Base
 
 
 # Create async engine
