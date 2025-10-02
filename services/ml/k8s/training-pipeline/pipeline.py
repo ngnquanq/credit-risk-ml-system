@@ -319,12 +319,16 @@ def train_and_register(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
 
+    # Define serializable conversion function (lambdas can't be pickled)
+    def to_str(X):
+        return X.astype(str)
+
     num_pipe = Pipeline([
         ("impute", SimpleImputer(strategy="median")),
     ])
     cat_pipe = Pipeline([
         ("impute", SimpleImputer(strategy="most_frequent")),
-        ("to_str", FunctionTransformer(lambda X: X.astype(str))),
+        ("to_str", FunctionTransformer(to_str)),
         ("ord", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)),
     ])
 
@@ -385,7 +389,7 @@ def training_pipeline(
     bucket: str = "training-data",
     object_key: str = "snapshots/ds=2025-09-19/loan_applications.csv",
     mlflow_tracking_uri: str = "http://mlflow.model-registry.svc.cluster.local:80",
-    mlflow_s3_endpoint_url: str = "http://training-minio.training-data.svc.cluster.local:9000",
+    mlflow_s3_endpoint_url: str = "http://minio.model-registry.svc.cluster.local:9000",
     aws_access_key_id: str = "minio_user",
     aws_secret_access_key: str = "minio_password",
     experiment: str = "credit-risk",

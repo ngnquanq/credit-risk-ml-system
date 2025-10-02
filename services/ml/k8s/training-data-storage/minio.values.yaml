@@ -1,6 +1,3 @@
-## Overrides compatible with Bitnami MinIO chart schema (see values.yaml)
-
-# Authentication
 auth:
   rootUser: "minio_user"         # change for real deployments
   rootPassword: "minio_password" # change for real deployments
@@ -24,12 +21,13 @@ persistence:
   storageClass: ""
 
 # Expose S3 API externally so Docker/ClickHouse can reach it
+# Using NodePort for production-ready, predictable port mapping
 service:
-  type: LoadBalancer
+  type: NodePort
   ports:
     api: 9000
   nodePorts:
-    api: ""
+    api: "30900"  # Fixed NodePort for stability
 
 # NetworkPolicy to allow external clients
 networkPolicy:
@@ -41,8 +39,8 @@ networkPolicy:
 console:
   enabled: true
   service:
-    type: LoadBalancer
+    type: NodePort
     ports:
       http: 9090
     nodePorts:
-      http: ""
+      http: "30901"  # Fixed NodePort for console

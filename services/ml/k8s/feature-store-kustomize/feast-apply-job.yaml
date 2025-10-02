@@ -1,0 +1,49 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: feast-apply
+  labels:
+    app: feast-apply
+    component: feature-store
+spec:
+  ttlSecondsAfterFinished: 600  # Cleanup after 10 minutes
+  template:
+    metadata:
+      labels:
+        app: feast-apply
+        component: feature-store
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: feast-apply
+        # Built from application/feast/Dockerfile
+        image: your-registry/feast-repo:latest
+        imagePullPolicy: IfNotPresent
+        workingDir: /work
+        command:
+        - /bin/sh
+        - -lc
+        - python repository.py
+        envFrom:
+        - configMapRef:
+            name: feast-config
+        volumeMounts:
+        - name: feast-store-config
+          mountPath: /work/feature_store.yaml
+          subPath: feature_store.yaml
+        - name: feast-registry
+          mountPath: /work/data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+      volumes:
+      - name: feast-store-config
+        configMap:
+          name: feast-store-config
+      - name: feast-registry
+        persistentVolumeClaim:
+          claimName: feast-registry

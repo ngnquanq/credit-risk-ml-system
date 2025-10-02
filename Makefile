@@ -188,6 +188,22 @@ up-gateway: create-network ## Start gateway services
 up-orchestration: create-network ## Start orchestration services
 	docker compose -f $(OPS_ORCHESTRATION_COMPOSE) up -d
 
+build-orchestration-image: ## Build Airflow orchestration image (with Spark provider)
+	docker build -t hc-airflow-orchestration:local ./services/ops/scripts/orchestration
+
+verify-orchestration-dags: ## Verify Spark provider import and DAG parsing
+	@echo "Building orchestration image..."
+	@docker build -t hc-airflow-orchestration:local ./services/ops/scripts/orchestration
+	@echo "Checking SparkSubmitOperator import..."
+	@docker run --rm hc-airflow-orchestration:local \
+		python -c "from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator; print('SparkSubmitOperator OK')"
+	@echo "Validating DAG parsing..."
+	@docker run --rm \
+		-v $(PWD)/services/ops/scripts/orchestration/dags:/opt/airflow/dags \
+		-v $(PWD)/application:/opt/airflow/application \
+		hc-airflow-orchestration:local \
+		python -c "from airflow.models.dagbag import DagBag; b=DagBag('/opt/airflow/dags', include_examples=False); print('Import errors:', b.import_errors); import sys; sys.exit(1 if b.import_errors else 0)"
+
 # Category-based shutdown
 down-core: ## Stop core services
 	docker compose -f $(CORE_COMPOSE) down

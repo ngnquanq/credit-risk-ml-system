@@ -9,6 +9,8 @@ data:
     import logging
     from typing import List
     from mlflow.tracking import MlflowClient
+    from kubernetes import client as k8s, config as k8s_config
+    import yaml
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     log = logging.getLogger("mlflow-poller")
@@ -20,6 +22,9 @@ data:
     MAX_PROD_ACTIVE = int(os.getenv("MAX_PROD_ACTIVE", "2"))
     DEPLOY_TAG_KEY = os.getenv("DEPLOY_TAG_KEY", "deploy")
     DEPLOY_TAG_VALUE = os.getenv("DEPLOY_TAG_VALUE", "true")
+    TARGET_NAMESPACE = os.getenv("TARGET_NAMESPACE", "kserve")
+    JOB_TEMPLATE_PATH = os.getenv("JOB_TEMPLATE_PATH", "/configs/job-template.yaml")
+    VALUES_PATH = os.getenv("VALUES_PATH", "/configs/values.yaml")
 
     def _stage(v) -> str:
         return (getattr(v, "current_stage", None) or (v.tags or {}).get("stage") or "").lower()
@@ -37,40 +42,95 @@ data:
         # Explicitly mark as not deployed to help external systems
         client.set_model_version_tag(MODEL_NAME, version, DEPLOY_TAG_KEY, "false")
 
+    # Track last seen production version
+    last_production_version = None
+
     def reconcile(client: MlflowClient) -> None:
+        global last_production_version
+
         versions: List = client.search_model_versions(f"name='{MODEL_NAME}'")
         prods = [v for v in versions if _is_production(v)]
         if not prods:
             log.info("No versions in %s for model=%s", REQUIRED_STAGE, MODEL_NAME)
             return
+
         prods.sort(key=lambda v: int(v.version), reverse=True)
-        active = prods[:MAX_PROD_ACTIVE]
-        inactive = prods[MAX_PROD_ACTIVE:]
+        latest_prod = prods[0]
+        current_version = latest_prod.version
 
-        # Ensure top-N have deploy=true
-        for v in active:
-            if not _is_deployed(v):
-                try:
-                    _set_tag(client, v.version, DEPLOY_TAG_KEY, DEPLOY_TAG_VALUE)
-                    log.info("Marked deploy=true for %s v%s (stage=%s)", MODEL_NAME, v.version, _stage(v))
-                except Exception as e:
-                    log.warning("Failed to set deploy tag on %s v%s: %s", MODEL_NAME, v.version, e)
+        # Trigger build if this is a new Production version
+        if last_production_version is None:
+            log.info("First poll - Production version %s detected, triggering build", current_version)
+            try:
+                model_uri = f"models:/{MODEL_NAME}/{current_version}"
+                version_tag = f"v{current_version}"
+                trigger_builder_job(model_uri=model_uri, version_tag=version_tag)
+                log.info("Triggered builder job for %s v%s", MODEL_NAME, current_version)
+                last_production_version = current_version
+            except Exception as e:
+                log.error("Failed to trigger builder job for %s v%s: %s", MODEL_NAME, current_version, e)
+        elif current_version != last_production_version:
+            log.info("New Production version detected: %s (was %s)", current_version, last_production_version)
+            try:
+                model_uri = f"models:/{MODEL_NAME}/{current_version}"
+                version_tag = f"v{current_version}"
+                trigger_builder_job(model_uri=model_uri, version_tag=version_tag)
+                log.info("Triggered builder job for %s v%s", MODEL_NAME, current_version)
+                last_production_version = current_version
+            except Exception as e:
+                log.error("Failed to trigger builder job for %s v%s: %s", MODEL_NAME, current_version, e)
 
-        # Ensure others in production are not active
-        for v in inactive:
-            if _is_deployed(v):
-                try:
-                    _unset_deploy_if_true(client, v.version)
-                    log.info("Marked deploy=false for %s v%s (exceeds top-%d)", MODEL_NAME, v.version, MAX_PROD_ACTIVE)
-                except Exception as e:
-                    log.warning("Failed to unset deploy tag on %s v%s: %s", MODEL_NAME, v.version, e)
+        # Log current production version
+        log.info("Active (top-1) production version: %s", current_version)
 
-        # Log current selection once per cycle
-        log.info(
-            "Active (top-%d) production versions: %s",
-            MAX_PROD_ACTIVE,
-            ", ".join([str(v.version) for v in active]) or "none",
-        )
+    def _load_yaml(path: str):
+        with open(path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+
+    def _set_env(env_list, name: str, value: str):
+        for e in env_list:
+            if e.get("name") == name:
+                e["value"] = value
+                return
+        env_list.append({"name": name, "value": value})
+
+    def trigger_builder_job(*, model_uri: str, version_tag: str) -> None:
+        """Create a builder Job from a YAML template, patching only dynamic envs."""
+        # Load template and (optionally) static values
+        try:
+            job = _load_yaml(JOB_TEMPLATE_PATH)
+        except Exception as e:
+            log.error("Cannot load Job template at %s: %s", JOB_TEMPLATE_PATH, e)
+            return
+
+        try:
+            values = _load_yaml(VALUES_PATH)
+        except Exception:
+            values = {}
+
+        # Patch env
+        try:
+            env = job["spec"]["template"]["spec"]["containers"][0]["env"]
+            _set_env(env, "MODEL_URI", model_uri)
+            _set_env(env, "VERSION_TAG", version_tag)
+            # Ensure MLflow and model name are aligned with poller config if present
+            if MLFLOW_TRACKING_URI:
+                _set_env(env, "MLFLOW_TRACKING_URI", MLFLOW_TRACKING_URI)
+            if MODEL_NAME:
+                _set_env(env, "MODEL_NAME", MODEL_NAME)
+        except Exception as e:
+            log.error("Failed to patch Job env: %s", e)
+            return
+
+        # Submit Job
+        try:
+            k8s_config.load_incluster_config()
+            api = k8s.BatchV1Api()
+            ns = job.get("metadata", {}).get("namespace", TARGET_NAMESPACE)
+            api.create_namespaced_job(namespace=ns, body=job)
+        except Exception as e:
+            log.error("Failed to create builder Job: %s", e)
+            return
 
     def main():
         log.info(

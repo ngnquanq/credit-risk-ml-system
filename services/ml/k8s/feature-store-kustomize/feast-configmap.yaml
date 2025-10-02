@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: feast-config
+  labels:
+    component: feature-store
+data:
+  # Kafka connection - Using Kafka container IP on hc-network
+  # mlops is connected to hc-network, so we can use internal IPs
+  # kafka_broker container IP: 172.18.0.18, internal port: 29092
+  FEAST_KAFKA_BROKERS: "172.18.0.18:29092"
+
+  # Feast project name (using k8s-specific project to avoid registry conflicts)
+  FEAST_PROJECT: "hc_k8s"
+
+  # Kafka topics for the 3 feature streams
+  FEAST_TOPIC_APP_FEATURES: "hc.application_features"    # Stream 1: Flink-processed application data
+  FEAST_TOPIC_EXTERNAL: "hc.application_ext"             # Stream 2: External bureau features
+  FEAST_TOPIC_DWH: "hc.application_dwh"                  # Stream 3: Data warehouse features
+
+  # ClickHouse connection (for DWH schema inference)
+  # Using ClickHouse container IP on hc-network
+  # clickhouse_dwh container IP: 172.18.0.17
+  APP_CLICKHOUSE_HOST: "172.18.0.17"
+  APP_CLICKHOUSE_PORT: "8123"
+  APP_CLICKHOUSE_DB_DWH: "application_mart"
+
+  # Timestamp field names for different data sources
+  FEAST_TS_FIELD_APP: "ts"
+  FEAST_TS_FIELD_EXT: "ts"
+  FEAST_TS_FIELD_DWH: "ts"

@@ -10,6 +10,17 @@
 
 *(All entities are fictional—“Alpha Lending” is a placeholder.)*
 
+## About the application
+This application is for lending money, fully automated decision, i.e the machine will do all the calculation and decide whether you are worthy with the money or not.
+
+Some of the aggrement about the application:
+- SLA approximately 3 minuites (180 second)
+- Fully automated decision making
+- Resilient to external latency and failures via retries and DLQ
+
+Some of the assumptions about the external system:
+- SLA as explained by the credit bureau is under 1 min. 
+- Availability is >= 99%/monthly 
 ## Situation
 
 Alpha Lending processes thousands of loan applications monthly. A large share of applicants have limited or no formal credit history. This creates two challenges:
@@ -304,9 +315,222 @@ Notes
 - The scoring service reads online features directly from Redis using Feast SDK and the shared registry at `application/feast/data/registry.db` (mounted via compose).
 - If you deploy scoring separately without mounting the repo, set envs `SCORING_FEAST_REGISTRY_URI` and `SCORING_FEAST_REDIS_URL` to auto-generate a minimal Feast config at runtime.
 
+#### Spin up k8s cluster for the machine learning purpose.
+We already deploy each of the machine learning components. from feature store, model serving to model registry in a docker compose manner, which may not be the best options for real life scenario. 
 
-#### Spin up training components
+Therefore the better option could be to deploy a dedicated K8s cluster to help us with this. The main reason here is that k8s help scale horizontally on demand with supports rolling, zero down time deployment safely.
 
+Starting by running the K8s cluster:
+
+```shell
+# Due to resources constraint, here are the spec that I use, feel free to change it
+minikube start -p mlops --kubernetes-version=v1.28.3 --driver=docker \
+    --cpus=8 --memory=20000 --disk-size=100g --addons=ingress,metallb
+```
+
+We will use nginx for connectivity from k8s to docker compose
+
+```shell
+kubectl create ns nginx 
+kubectl apply -f ./services/ml/k8s/gateway/configmap-stream.yaml 
+helm install k8s-gateway . -f values.internal.yaml -n nginx
+```
+
+Additionally, we will use socat for connec
+
+For the first components in the cluster, it's kubeflow pipeline for the training job, it support scheduling, parameterized run and rollback. In order to run this:
+```shell
+export PIPELINE_VERSION=2.14.0
+
+kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=$PIPELINE_VERSION"
+kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io
+#kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/dev?ref=$PIPELINE_VERSION"
+kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref=$PIPELINE_VERSION"
+
+# If keep seeing CrashLoop, run this right after
+kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref=$PIPELINE_VERSION"
+```
+
+For the second component, it is the data storage layer, there are 2 main reason why we should dedicate an storage layer for the training pipeline:
+- Versioning purpose: we store things in a minio bucket, seperate by time stamp, therefore we know what are the feature we use to train the model. 
+- Avoid continuosly hitting clickhouse: some of the model may require we keep hitting clickhouse for data (i.e deep learning type) where each epoch is a called to the database, we want to avoid that as well. To run this:
+
+```shell
+# Create namespace
+kubectl create ns training-data
+
+# Create service
+helm upgrade --install training-minio ./services/ml/k8s/training-data-storage -n training-data \
+    -f services/ml/k8s/training-data-storage/minio.values.yaml
+```
+
+**Notice**: The current problem we have is that we need clickhouse container to write files to minio (clickhouse is on docker network). One strategy that we can use is to expose MinIO with service type LoadBalancer so it has an external IP and MetalLB announces that IP (layer 2) so traffic to external-IP:9000(9000 is minio port) reaches the MinIO services. Trade off here is that it require minikube tunnel. Therefore, start a new terminal:
+
+```shell
+minikube tunnel -p mlops
+```
+
+On another terminal, apply the config map for metallb:
+
+```shell
+kubectl apply -f services/ml/k8s/training-data-storage/metallb/configmap.yaml
+```
+
+After this, everything should be up and run correctly, you can just test it by execute into the clickhouse container and run this so that it load data: 
+
+```shell
+docker exec clickhouse_dwh clickhouse-client -q "SET s3_truncate_on_insert=1; \
+INSERT INTO FUNCTION s3('http://172.18.0.12:30900/training-data/snapshots/ds=2025-09-19/loan_applications.csv','minio_user','minio_password','CSVWithNames') \
+SELECT a.*, t.TARGET \
+FROM application_mart.mart_application AS a \
+INNER JOIN application_mart.mart_application_train AS t \
+ON a.SK_ID_CURR = t.SK_ID_CURR"
+```
+
+For further working, we need to connect the mlops network with the hc-network that our docker compose is currently use.
+```shell
+# docker network connect hc-network mlops
+```
+After that, you can inspect the netowrk to see the IP address of both of this. We need to do this because services inside k8s cluster can not resolve the DNS name from services inside the docker compose, but they can interact with each other via IP address. To know the IP address from each network, just run this:
+
+```shell
+docker inspect mlops --format '{{range $key, $value := .NetworkSettings.Networks}}{{$key}}: {{$value.IPAddress}}{{"\n"}}{{end}}'
+```
+
+For the third component, we need the model storage, same as what we did with docker compose, we need mlflow for model registry, postgres and minio for model storage. To run this:
+
+```shell
+# Create namespace
+kubectl create ns model-registry
+
+# Create service
+helm upgrade --install mlflow  ./services/ml/k8s/model-registry/ -n model-registry \
+    -f services/ml/k8s/model-registry/values.internal.yaml
+
+helm upgrade minio services/ml/k8s/model-registry/minio -n model-registry \
+    -f services/ml/k8s/model-registry/minio/values.internal.yaml
+
+      
+```
+
+For the fourth components, it is feature store. We need to setup feast and redis as an online storage for faster feature retrieval. Therefore, let do this step by step:
+
+```shell
+# Create namespace for feature registry
+kubectl create ns feature-registry
+
+# Dockerize the feast components in the applications. 
+cd application/...
+
+docker build ...
+
+cd - 
+
+# Load the feast repo into minikube 
+minikube image load feast-repo:latest --profile=mlops
+kubectl apply -k ./services/ml/k8s/feature-store-kustomize/ --context=mlops
+```
+
+
+
+For the fifth components, it is the serving services. We will use bentoml and yatai as our main model serving services because bentoml is easy to use and yatai make it easy to integrate it to current k8s flow that we have. Run these command line: 
+
+```shell
+# Create namespace
+kubectl create ns model-serving
+```
+
+
+<Some picture here>
+
+After that, you need to get an API token for later use, for example I just created one: d3719ch36grc73an8b70 
+
+After that we may need to authenticate with yatai 
+
+The serving plane chart create a webhook and expect cert manager ti mint is TLS cert. We need to install cert-manager first, the rerun the install. 
+
+```shell
+# Create namespace 
+kubectl create ns cert-manager
+helm upgrade --install cert-manager services/ml/k8s/cert-manager -n cert-manager \
+    -f services/ml/k8s/cert-manager/values.override.yaml
+
+```
+
+After that, we can just create our main model serving pods
+
+```shell
+# Install model serving crds
+helm upgrade --install yatai-deployment-crds services/ml/k8s/vendor-charts/yatai-deployment-crds -n model-serving 
+# Insstall model serving 
+helm upgrade --install yatai-deployment services/ml/k8s/model-serving-plane -n model-serving \
+    -f services/ml/k8s/model-serving-plane/values.override.yaml
+```
+
+For the sixth components, it is the ray related components (notice that the first time run is quite slow, therefore be patient, it should be the case that the head is still creating while worker is init):
+
+```shell
+# Create ns
+kubectl create ns ray 
+
+# Start the ray operator
+helm upgrade --install kuberay-operator ./services/ml/k8s/kuberay-operator \
+    -n ray -f services/ml/k8s/kuberay-operator/values.yaml
+
+# Start the ray cluster
+ kubectl apply -f services/ml/k8s/kuberay-operator/raycluster.yaml
+```
+The current ray cluster setting is with 1 Master and 2 Workers, these will help with the distributed hyperparameter tuning and model training. Now we are full equipment for the training process. But first, we need to create a training pipeline script (written in yaml) so that later on we can submit this to kubeflow pipeline so that it do the tuning, training and registering for us. 
+
+```shell
+python services/ml/k8s/training-pipeline/compile_pipeline.py
+```
+After this, you will see a training_pipeline.yaml file. After that, you can actually just submit that on KFP and run with predetermined parameters and everything is ok. 
+
+
+Later on, when navigate to mlflow, we will see the new model is created. Now is the fun part, we will create a watcher pod, what it do is essentially to create new serving pod in case we promote a new model, the webhook will sent a event, saying that we need to deploy the new model, after the new model is deployed healthy in the pod, we got 2 options:
+1. Wait for the pod to become healthy, we stop the requests to go to the original pod, and just route to the new pod. 
+2. Deploy these 2 simultenously, run with production data at the same time, later on we will audit if this new model is better on the long term and decide if we need to keep it. 
+
+To deploy this watcher pod, simply run:
+
+```shell
+
+# 1. Create RBAC resources (ServiceAccount, Role, RoleBinding)
+kubectl apply -f services/ml/k8s/mlflow-watcher/rbac.yaml
+
+# 2. Deploy MLflow watcher components
+kubectl -n model-registry apply \
+-f services/ml/k8s/mlflow-watcher/poller-values.yaml \
+-f services/ml/k8s/mlflow-watcher/poller-configmap.yaml \
+-f services/ml/k8s/mlflow-watcher/builder-configmap.yaml \
+-f services/ml/k8s/mlflow-watcher/deployment.yaml
+
+# 3. Wait for deployment to be ready
+kubectl -n model-registry rollout status deploy/mlflow-watcher
+```
+
+We will push our image to dockerhub, therefore we need to create secrets so that our k8s can access to dockerhub and pull the image
+
+```shell
+kubectl create secret generic dockerhub-creds \
+  --from-literal=username=YOUR_DOCKERHUB_USERNAME \
+  --from-literal=password=YOUR_DOCKERHUB_PASSWORD \
+  -n model-serving
+
+```
+
+The current setup allow 2 types of model to be on production at the same time, later on if we just want to maintain 1 model, just drain out a request from 1 version, change the stage to not be production. 
+
+
+#### Spin up spark cluster
+Spark cluster enable us to handling big data efficiently, for this application, the current data is not too large (because it's already down-sample from a production setting environment), however, when dealing with production environment, perform model training on approx 100GB or more is normal, which exceed the capacity of just a single machine in most of the companies. Spark help us with this in a distributed manner. Also Spark is well known and have lots of documentation and lots of use case (ML is one of them), therefore I choose spark. 
+
+In this setting, I set that there will be 1 master and 2 slaves. To spin the cluster up, simply run:
+
+```shell
+docker compose -f ./services/data/docker-compose.batch.yml up -d
+```
 
 #### Spin up orchestration components
 Orchestration is crucial in modern data platforms because it automates, schedules, and coordinates complex workflows across multiple services and data pipelines. This ensures reliable data movement, timely processing, dependency management, and error handling, enabling scalable and maintainable operations for analytics and machine learning. Therefore, we will use Airflow for this. 

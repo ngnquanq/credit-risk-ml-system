@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-gateway
+  namespace: nginx
+  labels:
+    app: k8s-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-gateway
+  template:
+    metadata:
+      labels:
+        app: k8s-gateway
+    spec:
+      hostNetwork: false  # Can't use hostNetwork - port 9092 conflict with Kafka
+      containers:
+      - name: nginx
+        image: nginx:1.27-alpine
+        ports:
+        - containerPort: 9092
+          name: kafka
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: k8s-gateway-nginx-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-gateway
+  namespace: nginx
+spec:
+  type: ClusterIP  # Only accessible from within K8s
+  selector:
+    app: k8s-gateway
+  ports:
+  - name: kafka
+    port: 9092
+    targetPort: 9092

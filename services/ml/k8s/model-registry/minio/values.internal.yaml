@@ -1,9 +1,8 @@
 fullnameOverride: minio
 
 auth:
-  rootUser: mlflow # Notice the password must >= 8 char
-  rootPassword: mlflowpass
-  # Inject credentials directly as env vars
+  rootUser: minio_user # Standardized across all MinIO instances
+  rootPassword: minio_password # Standardized across all MinIO instances
   usePasswordFiles: false
   useSecret: true
   forceNewKeys: true

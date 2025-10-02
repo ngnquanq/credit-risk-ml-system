@@ -1,0 +1,37 @@
+fullnameOverride: serving-minio
+
+auth:
+  rootUser: minio_user # Standardized across all MinIO instances
+  rootPassword: minio_password # Standardized across all MinIO instances
+  usePasswordFiles: false
+  useSecret: true
+  forceNewKeys: true
+
+# Create bentoml-bundles bucket on init
+defaultBuckets: "bentoml-bundles"
+
+service:
+  type: ClusterIP  # Internal only - serving pods access directly
+  ports:
+    api: 9000
+
+console:
+  enabled: true  # Useful for debugging
+
+networkPolicy:
+  enabled: true
+  allowExternal: false  # Only K8s pods need access
+  addExternalClientAccess: false
+
+persistence:
+  enabled: true
+  size: 20Gi  # BentoML bundles can be large (models + dependencies)
+  storageClass: "standard"
+  mountPath: /bitnami/minio/data
+
+image:
+  debug: true
+
+defaultInitContainers:
+  volumePermissions:
+    enabled: false

@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bento-builder-script
+  namespace: kserve
+data:
+  build_and_upload.py: |
+    {{- /* Inline a minimal version; prefer using the standalone file with kubectl create configmap --from-file if you edit often. */ -}}
+    import os, subprocess, tempfile, pathlib
+    def sh(cmd, cwd=None):
+        print("+", cmd, flush=True)
+        subprocess.check_call(cmd, shell=True, cwd=cwd)
+    def main():
+        import mlflow, joblib, boto3
+        tracking_uri = os.environ["MLFLOW_TRACKING_URI"]
+        model_name   = os.environ["MODEL_NAME"]
+        model_uri    = os.environ["MODEL_URI"]
+        version_tag  = os.environ["VERSION_TAG"]
+        app_repo     = os.environ["APP_REPO"]
+        app_ref      = os.environ.get("APP_REF", "main")
+        app_local    = os.environ.get("APP_LOCAL_PATH")
+        app_subpath  = os.environ.get("APP_SUBPATH", "application/scoring")
+        bkt          = os.environ["BENTO_BUCKET"]
+        prefix       = os.environ.get("BENTO_PREFIX", "bentos")
+        region       = os.environ.get("AWS_REGION", "us-east-1")
+        endpoint     = os.environ.get("AWS_S3_ENDPOINT")
+        mlflow.set_tracking_uri(tracking_uri)
+        work = tempfile.mkdtemp(prefix="bento-build-")
+        repo_dir = os.path.join(work, "repo")
+        if app_local and os.path.isdir(app_local):
+            import shutil
+            print(f"Copying local repo from {app_local} -> {repo_dir}")
+            shutil.copytree(app_local, repo_dir, dirs_exist_ok=True)
+        else:
+            sh(f"git clone --depth 1 --branch {app_ref} {app_repo} {repo_dir}")
+        svc_dir = os.path.join(repo_dir, app_subpath)
+        print(f"Loading MLflow model: {model_uri}")
+        try:
+            try:
+                mdl = mlflow.sklearn.load_model(model_uri)
+            except Exception:
+                try:
+                    mdl = mlflow.xgboost.load_model(model_uri)
+                except Exception:
+                    mdl = mlflow.pyfunc.load_model(model_uri)
+        except Exception as e:
+            raise SystemExit(f"Failed to load model: {e}")
+        bundle_dir = os.path.join(svc_dir, "bundle")
+        pathlib.Path(bundle_dir).mkdir(parents=True, exist_ok=True)
+        model_rel = os.path.join("bundle", "model.joblib")
+        joblib.dump(mdl, os.path.join(svc_dir, model_rel))
+        # Do not change mlflow.env; the runtime will set SCORING_* env vars
+        sh("pip install --no-cache-dir bentoml mlflow boto3 joblib gitpython", cwd=repo_dir)
+        sh(f"bentoml build --version {version_tag}", cwd=svc_dir)
+        tag = f"credit_risk_scoring:{version_tag}"
+        bento_path = subprocess.check_output(
+            f"bentoml get {tag} --print-location", shell=True, cwd=repo_dir
+        ).decode().strip()
+        s3 = boto3.session.Session(region_name=region).resource("s3", endpoint_url=endpoint)
+        bucket = s3.Bucket(bkt)
+        uri = f"s3://{bkt}/{prefix}/{model_name}/{version_tag}/"
+        print(f"Uploading to {uri}")
+        import os as _os
+        for root, _, files in _os.walk(bento_path):
+            for fn in files:
+                full = _os.path.join(root, fn)
+                rel = _os.path.relpath(full, bento_path)
+                key = f"{prefix}/{model_name}/{version_tag}/{rel}"
+                bucket.upload_file(full, key)
+        print("DONE:", uri)
+    if __name__ == "__main__":
+        main()

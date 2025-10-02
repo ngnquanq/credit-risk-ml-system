@@ -5,7 +5,7 @@
 #    aws_secret_access_key: str [Default: 'minio_password']
 #    bucket: str [Default: 'training-data']
 #    experiment: str [Default: 'credit-risk']
-#    mlflow_s3_endpoint_url: str [Default: 'http://training-minio.training-data.svc.cluster.local:9000']
+#    mlflow_s3_endpoint_url: str [Default: 'http://minio.model-registry.svc.cluster.local:9000']
 #    mlflow_tracking_uri: str [Default: 'http://mlflow.model-registry.svc.cluster.local:80']
 #    object_key: str [Default: 'snapshots/ds=2025-09-19/loan_applications.csv']
 #    ray_address: str [Default: '']
@@ -300,9 +300,11 @@ deploymentSpec:
           \ = [c for c in FEATURES if c not in cat_cols]\n\n    X = df[FEATURES]\n\
           \    y = df[target_col].astype(int)\n    X_train, X_test, y_train, y_test\
           \ = train_test_split(\n        X, y, test_size=0.2, random_state=42, stratify=y\n\
-          \    )\n\n    num_pipe = Pipeline([\n        (\"impute\", SimpleImputer(strategy=\"\
-          median\")),\n    ])\n    cat_pipe = Pipeline([\n        (\"impute\", SimpleImputer(strategy=\"\
-          most_frequent\")),\n        (\"to_str\", FunctionTransformer(lambda X: X.astype(str))),\n\
+          \    )\n\n    # Define serializable conversion function (lambdas can't be\
+          \ pickled)\n    def to_str(X):\n        return X.astype(str)\n\n    num_pipe\
+          \ = Pipeline([\n        (\"impute\", SimpleImputer(strategy=\"median\")),\n\
+          \    ])\n    cat_pipe = Pipeline([\n        (\"impute\", SimpleImputer(strategy=\"\
+          most_frequent\")),\n        (\"to_str\", FunctionTransformer(to_str)),\n\
           \        (\"ord\", OrdinalEncoder(handle_unknown=\"use_encoded_value\",\
           \ unknown_value=-1)),\n    ])\n\n    transformers = []\n    if num_cols:\n\
           \        transformers.append((\"num\", num_pipe, num_cols))\n    if cat_cols:\n\
@@ -429,7 +431,7 @@ root:
         isOptional: true
         parameterType: STRING
       mlflow_s3_endpoint_url:
-        defaultValue: http://training-minio.training-data.svc.cluster.local:9000
+        defaultValue: http://minio.model-registry.svc.cluster.local:9000
         isOptional: true
         parameterType: STRING
       mlflow_tracking_uri:
