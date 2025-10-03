@@ -14,11 +14,14 @@ import os
 import tempfile
 
 import bentoml
-from fastapi import FastAPI
 
-# Import dependencies that might not be available during `bentoml build`
+# Create service first (bentoml needs this at import time)
+svc = bentoml.Service("credit_risk_scoring")
+
+# Import ALL dependencies that might not be available during `bentoml build`
 # These are installed after the build process reads bentofile.yaml
 with bentoml.importing():
+    from fastapi import FastAPI
     from loguru import logger
     import pandas as pd
     from config import settings
@@ -27,15 +30,17 @@ with bentoml.importing():
     from logger import configure_logger
     from feature_registry import get_model_expected_columns, get_feast_to_model_mapping, FEATURE_REGISTRY
 
-try:
-    from kafka import KafkaConsumer, KafkaProducer  # kafka-python
-except Exception:  # pragma: no cover
-    KafkaConsumer = None  # type: ignore
-    KafkaProducer = None  # type: ignore
+    try:
+        from kafka import KafkaConsumer, KafkaProducer  # kafka-python
+    except Exception:  # pragma: no cover
+        KafkaConsumer = None  # type: ignore
+        KafkaProducer = None  # type: ignore
 
+    # Configure logging (defaults from core, overridable via SCORING_*)
+    configure_logger(settings.log_level, settings.log_format)
 
-# Configure logging (defaults from core, overridable via SCORING_*)
-configure_logger(settings.log_level, settings.log_format)
+    # Create FastAPI app after imports succeed
+    app = FastAPI(title="Credit Risk Scoring")
 
 
 # Defer model loading to runtime to avoid failures during `bentoml build`
@@ -102,9 +107,6 @@ def _predict_proba_local(X):
             return model.predict(X)
     raise RuntimeError("Model does not support prediction")
 
-
-svc = bentoml.Service("credit_risk_scoring")
-app = FastAPI(title="Credit Risk Scoring")
 
 # AUTO-GENERATED MLflow model input schema from feature_registry.py (single source of truth)
 EXPECTED_COLUMNS: List[str] = get_model_expected_columns()
