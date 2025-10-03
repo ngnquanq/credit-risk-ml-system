@@ -149,9 +149,19 @@ def main() -> None:
     # Determine Bento location. Service name is defined in service.py
     # In your code: svc = bentoml.Service("credit_risk_scoring")
     bento_tag = f"credit_risk_scoring:{version_tag}"
-    bento_path = subprocess.check_output(
-        f"bentoml get {bento_tag} --print-location", shell=True, cwd=repo_dir
-    ).decode().strip()
+
+    # Use BentoML Python API to get bento path (--print-location flag doesn't exist in newer versions)
+    import bentoml
+    try:
+        bento = bentoml.get(bento_tag)
+        bento_path = bento.path
+    except Exception as e:
+        # Fallback: construct path from default BentoML store location
+        bentoml_home = pathlib.Path.home() / "bentoml" / "bentos"
+        bento_path = str(bentoml_home / "credit_risk_scoring" / version_tag)
+        if not os.path.exists(bento_path):
+            raise SystemExit(f"Bento not found at {bento_path}: {e}")
+
     print(f"Bento path: {bento_path}")
 
     # Upload to S3/MinIO

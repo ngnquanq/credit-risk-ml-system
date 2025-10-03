@@ -1,0 +1,326 @@
+import os
+import time
+import logging
+import subprocess
+import tempfile
+from typing import List, Set
+from kubernetes import client as k8s, config as k8s_config
+import yaml
+import boto3
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+log = logging.getLogger("serving-watcher")
+
+# Configuration
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "http://serving-minio.model-serving.svc.cluster.local:9000")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minio_user")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minio_password")
+BUCKET_NAME = os.getenv("BUCKET_NAME", "bentoml-bundles")
+BENTO_PREFIX = os.getenv("BENTO_PREFIX", "bentos/credit_risk_model")
+REGISTRY_URL = os.getenv("REGISTRY_URL", "docker-registry.model-serving.svc.cluster.local:5000")
+IMAGE_NAME = os.getenv("IMAGE_NAME", "credit-risk-scoring")
+POLL_INTERVAL_SECS = int(os.getenv("POLL_INTERVAL_SECS", "30"))
+MAX_ACTIVE_MODELS = int(os.getenv("MAX_ACTIVE_MODELS", "2"))
+KSERVE_NAMESPACE = os.getenv("KSERVE_NAMESPACE", "kserve")
+
+# Track deployed versions
+deployed_versions: Set[str] = set()
+
+def sh(cmd: str, check=True, **kwargs):
+    """Execute shell command."""
+    log.info(f"Running: {cmd}")
+    result = subprocess.run(cmd, shell=True, check=check, capture_output=True, text=True, **kwargs)
+    if result.stdout:
+        log.info(result.stdout)
+    if result.stderr:
+        log.error(result.stderr)
+    if check and result.returncode != 0:
+        raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
+    return result
+
+def list_bento_versions() -> List[str]:
+    """List all Bento versions in MinIO using boto3."""
+    try:
+        s3 = boto3.client(
+            's3',
+            endpoint_url=MINIO_ENDPOINT,
+            aws_access_key_id=MINIO_ACCESS_KEY,
+            aws_secret_access_key=MINIO_SECRET_KEY
+        )
+
+        prefix = f"{BENTO_PREFIX}/"
+        response = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix=prefix, Delimiter='/')
+
+        versions = []
+        for common_prefix in response.get('CommonPrefixes', []):
+            path = common_prefix['Prefix']
+            version = path.rstrip('/').split('/')[-1]
+            if version.startswith('v'):
+                versions.append(version)
+
+        versions.sort(key=lambda v: int(v[1:]) if v[1:].isdigit() else 0, reverse=True)
+        return versions
+    except Exception as e:
+        log.error(f"Failed to list Bento versions: {e}")
+        return []
+
+def build_and_push_image(version: str) -> bool:
+    """Download Bento, build Docker image, and push to registry."""
+    try:
+        log.info(f"Building image for version {version}")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bento_dir = os.path.join(tmpdir, version)
+            os.makedirs(bento_dir, exist_ok=True)
+
+            # Download Bento from MinIO using boto3
+            log.info(f"Downloading Bento {version} from MinIO")
+            s3 = boto3.client(
+                's3',
+                endpoint_url=MINIO_ENDPOINT,
+                aws_access_key_id=MINIO_ACCESS_KEY,
+                aws_secret_access_key=MINIO_SECRET_KEY
+            )
+
+            prefix = f"{BENTO_PREFIX}/{version}/"
+            paginator = s3.get_paginator('list_objects_v2')
+            for page in paginator.paginate(Bucket=BUCKET_NAME, Prefix=prefix):
+                for obj in page.get('Contents', []):
+                    key = obj['Key']
+                    rel_path = key[len(prefix):]
+                    if not rel_path:
+                        continue
+                    local_file = os.path.join(bento_dir, rel_path)
+                    os.makedirs(os.path.dirname(local_file), exist_ok=True)
+                    s3.download_file(BUCKET_NAME, key, local_file)
+
+            # Check if Dockerfile exists
+            dockerfile_path = os.path.join(bento_dir, "env/docker/Dockerfile")
+            if not os.path.exists(dockerfile_path):
+                log.error(f"Dockerfile not found at {dockerfile_path}")
+                return False
+
+            # Login to Docker Hub if credentials provided
+            username = os.getenv("DOCKER_USERNAME")
+            password = os.getenv("DOCKER_PASSWORD")
+            if username and password:
+                log.info("Logging in to Docker Hub")
+                login_result = subprocess.run(
+                    f"docker login -u {username} -p {password}",
+                    shell=True,
+                    capture_output=True
+                )
+                if login_result.returncode == 0:
+                    log.info("Docker Hub login successful")
+                else:
+                    log.warning("Docker Hub login failed, push may fail")
+
+            # Build Docker image with both version tag and latest tag
+            image_tag = f"{REGISTRY_URL}/{IMAGE_NAME}:{version}"
+            image_tag_latest = f"{REGISTRY_URL}/{IMAGE_NAME}:latest"
+            log.info(f"Building Docker image: {image_tag} and {image_tag_latest}")
+            result = subprocess.run(
+                f"docker build -t {image_tag} -t {image_tag_latest} -f {dockerfile_path} {bento_dir}",
+                shell=True,
+                check=True
+            )
+            log.info(f"Build exit code: {result.returncode}")
+
+            # Push both tags to Docker Hub
+            log.info(f"Pushing image to Docker Hub: {image_tag}")
+            sh(f"docker push {image_tag}")
+            log.info(f"Pushing latest tag to Docker Hub: {image_tag_latest}")
+            sh(f"docker push {image_tag_latest}")
+
+            log.info(f"Successfully built and pushed {image_tag}")
+            return True
+
+    except Exception as e:
+        log.error(f"Failed to build/push image for {version}: {e}")
+        return False
+
+def create_or_update_inferenceservice(version: str) -> bool:
+    """Create or update KServe InferenceService for a version."""
+    try:
+        k8s_config.load_incluster_config()
+        custom_api = k8s.CustomObjectsApi()
+
+        service_name = f"credit-risk-{version}"
+        image_uri = f"{REGISTRY_URL}/{IMAGE_NAME}:latest"
+
+        # InferenceService manifest (RawDeployment mode - no Knative needed)
+        isvc = {
+            "apiVersion": "serving.kserve.io/v1beta1",
+            "kind": "InferenceService",
+            "metadata": {
+                "name": service_name,
+                "namespace": KSERVE_NAMESPACE,
+                "labels": {
+                    "app": "credit-risk-scoring",
+                    "version": version,
+                },
+                "annotations": {
+                    "serving.kserve.io/deploymentMode": "RawDeployment"
+                }
+            },
+            "spec": {
+                "predictor": {
+                    "hostAliases": [{
+                        "ip": "192.168.1.42",
+                        "hostnames": ["broker", "kafka"]
+                    }],
+                    "containers": [{
+                        "name": "kserve-container",
+                        "image": image_uri,
+                        "ports": [{
+                            "containerPort": 3000,
+                            "protocol": "TCP"
+                        }],
+                        "env": [
+                            {"name": "SCORING_MODEL_SOURCE", "value": "local"},
+                            {"name": "SCORING_MODEL_PATH", "value": "bundle/model.joblib"},
+                            {"name": "SCORING_LOG_LEVEL", "value": "INFO"},
+                            {"name": "SCORING_FEAST_ENABLED", "value": "true"},
+                            {"name": "SCORING_FEAST_REDIS_URL", "value": "redis://host.minikube.internal:36379/0"},
+                            {"name": "SCORING_FEAST_REGISTRY_URI", "value": "s3://feast-registry/feature_repo/registry.db"},
+                            {"name": "SCORING_FEAST_PROJECT", "value": "hc"},
+                            {"name": "SCORING_FEAST_PROVIDER", "value": "local"},
+                            {"name": "SCORING_FEAST_INLINE_CONFIG_ENABLED", "value": "true"},
+                            {"name": "AWS_S3_ENDPOINT", "value": "http://host.minikube.internal:31900"},
+                            {"name": "AWS_ACCESS_KEY_ID", "value": "minio_user"},
+                            {"name": "AWS_SECRET_ACCESS_KEY", "value": "minio_password"},
+                            {"name": "AWS_DEFAULT_REGION", "value": "us-east-1"},
+                            {"name": "SCORING_ENABLE_KAFKA", "value": "true"},
+                            {"name": "SCORING_KAFKA_BOOTSTRAP_SERVERS", "value": "host.minikube.internal:39092"},
+                            {"name": "SCORING_LOAN_APPLICATION_TOPIC", "value": "hc.applications.public.loan_applications"},
+                            {"name": "SCORING_KAFKA_GROUP_ID", "value": "credit-risk-scoring"},
+                        ],
+                        "resources": {
+                            "requests": {
+                                "cpu": "500m",
+                                "memory": "1Gi"
+                            },
+                            "limits": {
+                                "cpu": "2",
+                                "memory": "2Gi"
+                            }
+                        }
+                    }]
+                }
+            }
+        }
+
+        # Try to get existing InferenceService
+        try:
+            existing = custom_api.get_namespaced_custom_object(
+                group="serving.kserve.io",
+                version="v1beta1",
+                namespace=KSERVE_NAMESPACE,
+                plural="inferenceservices",
+                name=service_name
+            )
+            # Update existing
+            log.info(f"Updating InferenceService {service_name}")
+            custom_api.patch_namespaced_custom_object(
+                group="serving.kserve.io",
+                version="v1beta1",
+                namespace=KSERVE_NAMESPACE,
+                plural="inferenceservices",
+                name=service_name,
+                body=isvc
+            )
+        except k8s.rest.ApiException as e:
+            if e.status == 404:
+                # Create new
+                log.info(f"Creating InferenceService {service_name}")
+                custom_api.create_namespaced_custom_object(
+                    group="serving.kserve.io",
+                    version="v1beta1",
+                    namespace=KSERVE_NAMESPACE,
+                    plural="inferenceservices",
+                    body=isvc
+                )
+            else:
+                raise
+
+        log.info(f"InferenceService {service_name} ready")
+        return True
+
+    except Exception as e:
+        log.error(f"Failed to create/update InferenceService for {version}: {e}")
+        return False
+
+def delete_inferenceservice(version: str) -> bool:
+    """Delete KServe InferenceService."""
+    try:
+        k8s_config.load_incluster_config()
+        custom_api = k8s.CustomObjectsApi()
+
+        service_name = f"credit-risk-{version}"
+
+        log.info(f"Deleting InferenceService {service_name}")
+        custom_api.delete_namespaced_custom_object(
+            group="serving.kserve.io",
+            version="v1beta1",
+            namespace=KSERVE_NAMESPACE,
+            plural="inferenceservices",
+            name=service_name
+        )
+        return True
+    except k8s.rest.ApiException as e:
+        if e.status == 404:
+            log.info(f"InferenceService {service_name} already deleted")
+            return True
+        log.error(f"Failed to delete InferenceService {service_name}: {e}")
+        return False
+
+def reconcile() -> None:
+    """Reconcile serving state: ensure top-N versions are deployed."""
+    global deployed_versions
+
+    # Get all available Bento versions from MinIO
+    available_versions = list_bento_versions()
+    if not available_versions:
+        log.info("No Bento versions found in MinIO")
+        return
+
+    log.info(f"Found {len(available_versions)} Bento versions: {available_versions}")
+
+    # Determine top-N versions to deploy
+    target_versions = set(available_versions[:MAX_ACTIVE_MODELS])
+    log.info(f"Target versions to deploy: {target_versions}")
+
+    # Deploy new versions
+    for version in target_versions:
+        if version not in deployed_versions:
+            log.info(f"New version detected: {version}")
+            if build_and_push_image(version):
+                if create_or_update_inferenceservice(version):
+                    deployed_versions.add(version)
+
+    # Remove old versions
+    versions_to_remove = deployed_versions - target_versions
+    for version in versions_to_remove:
+        log.info(f"Removing old version: {version}")
+        if delete_inferenceservice(version):
+            deployed_versions.discard(version)
+
+    log.info(f"Active deployed versions: {deployed_versions}")
+
+def main():
+    log.info(
+        "Starting serving watcher: bucket=%s prefix=%s max_active=%d",
+        BUCKET_NAME,
+        BENTO_PREFIX,
+        MAX_ACTIVE_MODELS
+    )
+
+    while True:
+        try:
+            reconcile()
+        except Exception as e:
+            log.error(f"Reconciliation error: {e}")
+        time.sleep(POLL_INTERVAL_SECS)
+
+if __name__ == "__main__":
+    main()
