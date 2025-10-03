@@ -75,6 +75,113 @@ with bentoml.importing():
     # Create FastAPI app after imports succeed
     app = FastAPI(title="Credit Risk Scoring")
 
+    # Register all routes and events inside this block to ensure app exists
+    # This must be done here because decorators execute at module import time
+
+    @app.on_event("startup")
+    def _on_startup() -> None:  # pragma: no cover
+        """Ensure model and optional Kafka consumer start when server starts."""
+        try:
+            logger.info(
+                "Initializing scoring service (kafka_enabled=%s, topic=%s, bootstrap=%s)",
+                settings.enable_kafka,
+                settings.loan_application_topic,
+                settings.kafka_bootstrap_servers,
+            )
+        except Exception:
+            pass
+        ensure_model_loaded()
+
+    @app.get("/healthz")
+    def health(_: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "model": MODEL_NAME,
+            "version": MODEL_VERSION,
+        }
+
+    @app.post("/v1/score")
+    def score(req: ScoreRequest) -> Dict[str, Any]:
+        ensure_model_loaded()
+        X_df = _as_dataframe_row(req.features)
+        raw = _predict_proba_local(X_df)
+        prob = float(raw[0]) if hasattr(raw, "__len__") else float(raw)
+        probability, decision = postprocess(prob, settings.prediction_threshold)
+
+        resp = ScoreResponse(
+            probability=probability,
+            decision=decision,
+            threshold=settings.prediction_threshold,
+            model_name=MODEL_NAME,
+            model_version=MODEL_VERSION,
+        )
+        logger.bind(event="inference").info(
+            {"user_id": req.user_id, "probability": probability, "decision": decision}
+        )
+        return resp.model_dump()
+
+    @app.post("/v1/score-by-id")
+    def score_by_id(req: ScoreByIdRequest) -> Dict[str, Any]:
+        ensure_model_loaded()
+        if not settings.feast_enabled:
+            raise bentoml.exceptions.BentoMLException(
+                "Feast is disabled. Set SCORING_FEAST_ENABLED=true to enable."
+            )
+        try:
+            from feast import FeatureStore
+        except Exception as e:  # pragma: no cover
+            raise bentoml.exceptions.BentoMLException(f"Feast not available: {e}")
+
+        fs = FeatureStore(repo_path=_resolve_feast_repo_path())
+        feature_refs = (
+            [f.strip() for f in (settings.feast_feature_refs or "").split(",") if f.strip()]
+        )
+        if not feature_refs:
+            raise bentoml.exceptions.BentoMLException("No Feast feature refs configured")
+
+        res = fs.get_online_features(features=feature_refs, entity_rows=[{"sk_id_curr": req.sk_id_curr}]).to_dict()
+        logger.info(f"Feast lookup for sk_id_curr={req.sk_id_curr}: {res}")
+
+        validation_issues = FEATURE_REGISTRY.validate_feast_result(res)
+        if validation_issues["missing_required"]:
+            logger.warning(f"Missing required features: {validation_issues['missing_required']}")
+        if validation_issues["unexpected_features"]:
+            logger.info(f"Unexpected features received: {validation_issues['unexpected_features']}")
+
+        has_customer_data = False
+        for ref in feature_refs:
+            vals = res.get(ref) or res.get(ref.split(":")[-1])
+            if vals and vals[0] is not None:
+                has_customer_data = True
+                break
+
+        if not has_customer_data and settings.require_customer_data:
+            raise bentoml.exceptions.BentoMLException(
+                f"No feature data found for sk_id_curr={req.sk_id_curr}. "
+                f"Customer data may still be processing in the streaming pipeline or does not exist. "
+                f"Set SCORING_REQUIRE_CUSTOMER_DATA=false to allow predictions with missing data."
+            )
+
+        features = _map_feast_features(res, feature_refs)
+        X_df = _as_dataframe_row(features)
+        raw = _predict_proba_local(X_df)
+        logger.info("Model data transform: " + str(X_df.to_dict(orient="records")))
+        prob = float(raw[0]) if hasattr(raw, "__len__") else float(raw)
+        probability, decision = postprocess(prob, settings.prediction_threshold)
+
+        resp = ScoreResponse(
+            probability=probability,
+            decision=decision,
+            threshold=settings.prediction_threshold,
+            model_name=MODEL_NAME,
+            model_version=MODEL_VERSION,
+        )
+        logger.bind(event="inference").info(
+            {"sk_id_curr": req.sk_id_curr, "probability": probability, "decision": decision}
+        )
+        return resp.model_dump()
+
 
 # Defer model loading to runtime to avoid failures during `bentoml build`
 # These globals are populated in the @svc.on_startup hook below.
@@ -161,23 +268,6 @@ def _as_dataframe_row(features: Dict[str, Any]) -> pd.DataFrame:
     cols = _get_expected_columns()
     row = {col: features.get(col, None) for col in cols}
     return pd.DataFrame([row], columns=cols)
-
-
-@app.on_event("startup")
-def _on_startup() -> None:  # pragma: no cover
-    """Ensure model and optional Kafka consumer start when server starts."""
-    try:
-        logger.info(
-            "Initializing scoring service (kafka_enabled=%s, topic=%s, bootstrap=%s)",
-            settings.enable_kafka,
-            settings.loan_application_topic,
-            settings.kafka_bootstrap_servers,
-        )
-    except Exception:
-        # Avoid formatting issues if settings not ready yet
-        pass
-    # Load model and start Kafka consumer if enabled
-    ensure_model_loaded()
 
 
 def _resolve_feast_repo_path() -> str:
@@ -276,104 +366,6 @@ def _extract_sk_id_curr_from_cdc(message: Dict[str, Any]) -> Optional[str]:
         return None
     except Exception:
         return None
-
-
-@app.get("/healthz")
-def health(_: Dict[str, Any] | None = None) -> Dict[str, Any]:
-    return {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
-        "model": MODEL_NAME,
-        "version": MODEL_VERSION,
-    }
-
-
-@app.post("/v1/score")
-def score(req: ScoreRequest) -> Dict[str, Any]:
-    ensure_model_loaded()
-    X_df = _as_dataframe_row(req.features)
-    raw = _predict_proba_local(X_df)
-    prob = float(raw[0]) if hasattr(raw, "__len__") else float(raw)
-    probability, decision = postprocess(prob, settings.prediction_threshold)
-
-    resp = ScoreResponse(
-        probability=probability,
-        decision=decision,
-        threshold=settings.prediction_threshold,
-        model_name=MODEL_NAME,
-        model_version=MODEL_VERSION,
-    )
-    logger.bind(event="inference").info(
-        {"user_id": req.user_id, "probability": probability, "decision": decision}
-    )
-    return resp.model_dump()
-
-
-@app.post("/v1/score-by-id")
-def score_by_id(req: ScoreByIdRequest) -> Dict[str, Any]:
-    ensure_model_loaded()
-    if not settings.feast_enabled:
-        raise bentoml.exceptions.BentoMLException(
-            "Feast is disabled. Set SCORING_FEAST_ENABLED=true to enable."
-        )
-    try:
-        from feast import FeatureStore
-    except Exception as e:  # pragma: no cover
-        raise bentoml.exceptions.BentoMLException(f"Feast not available: {e}")
-
-    fs = FeatureStore(repo_path=_resolve_feast_repo_path())
-    feature_refs = (
-        [f.strip() for f in (settings.feast_feature_refs or "").split(",") if f.strip()]
-    )
-    if not feature_refs:
-        raise bentoml.exceptions.BentoMLException("No Feast feature refs configured")
-
-    res = fs.get_online_features(features=feature_refs, entity_rows=[{"sk_id_curr": req.sk_id_curr}]).to_dict()
-    logger.info(f"Feast lookup for sk_id_curr={req.sk_id_curr}: {res}")
-    
-    # Validate Feast result against expected features
-    validation_issues = FEATURE_REGISTRY.validate_feast_result(res)
-    if validation_issues["missing_required"]:
-        logger.warning(f"Missing required features: {validation_issues['missing_required']}")
-    if validation_issues["unexpected_features"]:
-        logger.info(f"Unexpected features received: {validation_issues['unexpected_features']}")
-    
-    # Check if customer data exists in Redis (data completeness check)
-    has_customer_data = False
-    for ref in feature_refs:
-        vals = res.get(ref) or res.get(ref.split(":")[-1])
-        if vals and vals[0] is not None:
-            has_customer_data = True
-            break
-    
-    if not has_customer_data and settings.require_customer_data:
-        raise bentoml.exceptions.BentoMLException(
-            f"No feature data found for sk_id_curr={req.sk_id_curr}. "
-            f"Customer data may still be processing in the streaming pipeline or does not exist. "
-            f"Set SCORING_REQUIRE_CUSTOMER_DATA=false to allow predictions with missing data."
-        )
-    
-    # Map Feast features to ML model column names
-    features = _map_feast_features(res, feature_refs)
-
-    # Build DataFrame with all expected columns (Feast might supply a subset)
-    X_df = _as_dataframe_row(features)
-    raw = _predict_proba_local(X_df)
-    logger.info("Model data transform: " + str(X_df.to_dict(orient="records")))
-    prob = float(raw[0]) if hasattr(raw, "__len__") else float(raw)
-    probability, decision = postprocess(prob, settings.prediction_threshold)
-
-    resp = ScoreResponse(
-        probability=probability,
-        decision=decision,
-        threshold=settings.prediction_threshold,
-        model_name=MODEL_NAME,
-        model_version=MODEL_VERSION,
-    )
-    logger.bind(event="inference").info(
-        {"sk_id_curr": req.sk_id_curr, "probability": probability, "decision": decision}
-    )
-    return resp.model_dump()
 
 
 def _run_kafka_consumer():  # pragma: no cover
