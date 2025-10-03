@@ -18,23 +18,56 @@ import bentoml
 # Create service first (bentoml needs this at import time)
 svc = bentoml.Service("credit_risk_scoring")
 
+# Declare globals that will be populated inside bentoml.importing() block
+app = None  # type: ignore
+logger = None  # type: ignore
+pd = None  # type: ignore
+settings = None  # type: ignore
+ScoreRequest = None  # type: ignore
+ScoreResponse = None  # type: ignore
+ScoreByIdRequest = None  # type: ignore
+as_vector = None  # type: ignore
+postprocess = None  # type: ignore
+configure_logger = None  # type: ignore
+get_model_expected_columns = None  # type: ignore
+get_feast_to_model_mapping = None  # type: ignore
+FEATURE_REGISTRY = None  # type: ignore
+KafkaConsumer = None  # type: ignore
+KafkaProducer = None  # type: ignore
+
 # Import ALL dependencies that might not be available during `bentoml build`
 # These are installed after the build process reads bentofile.yaml
 with bentoml.importing():
     from fastapi import FastAPI
-    from loguru import logger
-    import pandas as pd
-    from config import settings
-    from schemas import ScoreRequest, ScoreResponse, ScoreByIdRequest
-    from pipeline import as_vector, postprocess
-    from logger import configure_logger
-    from feature_registry import get_model_expected_columns, get_feast_to_model_mapping, FEATURE_REGISTRY
+    from loguru import logger as _logger
+    import pandas as _pd
+    from config import settings as _settings
+    from schemas import ScoreRequest as _ScoreRequest, ScoreResponse as _ScoreResponse, ScoreByIdRequest as _ScoreByIdRequest
+    from pipeline import as_vector as _as_vector, postprocess as _postprocess
+    from logger import configure_logger as _configure_logger
+    from feature_registry import get_model_expected_columns as _get_model_expected_columns, get_feast_to_model_mapping as _get_feast_to_model_mapping, FEATURE_REGISTRY as _FEATURE_REGISTRY
 
     try:
-        from kafka import KafkaConsumer, KafkaProducer  # kafka-python
+        from kafka import KafkaConsumer as _KafkaConsumer, KafkaProducer as _KafkaProducer
     except Exception:  # pragma: no cover
-        KafkaConsumer = None  # type: ignore
-        KafkaProducer = None  # type: ignore
+        _KafkaConsumer = None  # type: ignore
+        _KafkaProducer = None  # type: ignore
+
+    # Assign to module globals so they're accessible outside this block
+    logger = _logger
+    pd = _pd
+    settings = _settings
+    ScoreRequest = _ScoreRequest
+    ScoreResponse = _ScoreResponse
+    ScoreByIdRequest = _ScoreByIdRequest
+    as_vector = _as_vector
+    postprocess = _postprocess
+    configure_logger = _configure_logger
+    get_model_expected_columns = _get_model_expected_columns
+    get_feast_to_model_mapping = _get_feast_to_model_mapping
+    FEATURE_REGISTRY = _FEATURE_REGISTRY
+    KafkaConsumer = _KafkaConsumer
+    KafkaProducer = _KafkaProducer
 
     # Configure logging (defaults from core, overridable via SCORING_*)
     configure_logger(settings.log_level, settings.log_format)
@@ -109,7 +142,15 @@ def _predict_proba_local(X):
 
 
 # AUTO-GENERATED MLflow model input schema from feature_registry.py (single source of truth)
-EXPECTED_COLUMNS: List[str] = get_model_expected_columns()
+# Lazy-loaded to avoid import errors during build
+_EXPECTED_COLUMNS: Optional[List[str]] = None
+
+def _get_expected_columns() -> List[str]:
+    """Lazy-load expected columns from feature registry."""
+    global _EXPECTED_COLUMNS
+    if _EXPECTED_COLUMNS is None:
+        _EXPECTED_COLUMNS = get_model_expected_columns()
+    return _EXPECTED_COLUMNS
 
 def _as_dataframe_row(features: Dict[str, Any]) -> pd.DataFrame:
     """Return a single-row DataFrame with all expected columns present.
@@ -117,8 +158,9 @@ def _as_dataframe_row(features: Dict[str, Any]) -> pd.DataFrame:
     Categorical fields should be strings; numeric as numbers. Missing
     columns are included with None to satisfy schema column presence.
     """
-    row = {col: features.get(col, None) for col in EXPECTED_COLUMNS}
-    return pd.DataFrame([row], columns=EXPECTED_COLUMNS)
+    cols = _get_expected_columns()
+    row = {col: features.get(col, None) for col in cols}
+    return pd.DataFrame([row], columns=cols)
 
 
 @app.on_event("startup")
