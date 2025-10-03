@@ -325,7 +325,7 @@ Starting by running the K8s cluster:
 ```shell
 # Due to resources constraint, here are the spec that I use, feel free to change it
 minikube start -p mlops --kubernetes-version=v1.28.3 --driver=docker \
-    --cpus=8 --memory=20000 --disk-size=100g --addons=ingress,metallb
+    --cpus=10 --memory=20000 --disk-size=100g --addons=ingress,metallb
 ```
 
 We will use nginx for connectivity from k8s to docker compose
@@ -333,6 +333,7 @@ We will use nginx for connectivity from k8s to docker compose
 ```shell
 kubectl create ns nginx 
 kubectl apply -f ./services/ml/k8s/gateway/configmap-stream.yaml 
+# Check this command later
 helm install k8s-gateway . -f values.internal.yaml -n nginx
 ```
 
@@ -345,9 +346,6 @@ export PIPELINE_VERSION=2.14.0
 kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=$PIPELINE_VERSION"
 kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io
 #kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/dev?ref=$PIPELINE_VERSION"
-kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref=$PIPELINE_VERSION"
-
-# If keep seeing CrashLoop, run this right after
 kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref=$PIPELINE_VERSION"
 ```
 
@@ -380,21 +378,11 @@ After this, everything should be up and run correctly, you can just test it by e
 
 ```shell
 docker exec clickhouse_dwh clickhouse-client -q "SET s3_truncate_on_insert=1; \
-INSERT INTO FUNCTION s3('http://172.18.0.12:30900/training-data/snapshots/ds=2025-09-19/loan_applications.csv','minio_user','minio_password','CSVWithNames') \
+INSERT INTO FUNCTION s3('http://172.18.0.1:31900/training-data/snapshots/ds=2025-09-19/loan_applications.csv','minio_user','minio_password','CSVWithNames') \
 SELECT a.*, t.TARGET \
 FROM application_mart.mart_application AS a \
 INNER JOIN application_mart.mart_application_train AS t \
 ON a.SK_ID_CURR = t.SK_ID_CURR"
-```
-
-For further working, we need to connect the mlops network with the hc-network that our docker compose is currently use.
-```shell
-# docker network connect hc-network mlops
-```
-After that, you can inspect the netowrk to see the IP address of both of this. We need to do this because services inside k8s cluster can not resolve the DNS name from services inside the docker compose, but they can interact with each other via IP address. To know the IP address from each network, just run this:
-
-```shell
-docker inspect mlops --format '{{range $key, $value := .NetworkSettings.Networks}}{{$key}}: {{$value.IPAddress}}{{"\n"}}{{end}}'
 ```
 
 For the third component, we need the model storage, same as what we did with docker compose, we need mlflow for model registry, postgres and minio for model storage. To run this:
@@ -407,30 +395,48 @@ kubectl create ns model-registry
 helm upgrade --install mlflow  ./services/ml/k8s/model-registry/ -n model-registry \
     -f services/ml/k8s/model-registry/values.internal.yaml
 
-helm upgrade minio services/ml/k8s/model-registry/minio -n model-registry \
+helm upgrade --install minio services/ml/k8s/model-registry/minio -n model-registry \
     -f services/ml/k8s/model-registry/minio/values.internal.yaml
 
       
 ```
 
-For the fourth components, it is feature store. We need to setup feast and redis as an online storage for faster feature retrieval. Therefore, let do this step by step:
+Later on, when navigate to mlflow, we will see the new model is created. Now is the fun part, we will create a watcher pod, what it do is essentially to create new serving pod in case we promote a new model, the webhook will sent a event, saying that we need to deploy the new model, after the new model is deployed healthy in the pod, we got 2 options:
+1. Wait for the pod to become healthy, we stop the requests to go to the original pod, and just route to the new pod. 
+2. Deploy these 2 simultenously, run with production data at the same time, later on we will audit if this new model is better on the long term and decide if we need to keep it. 
+
+To deploy this watcher pod, simply run:
 
 ```shell
-# Create namespace for feature registry
-kubectl create ns feature-registry
+kubectl apply -f services/ml/k8s/mlflow-watcher/rbac.yaml
 
-# Dockerize the feast components in the applications. 
-cd application/...
+# 2. Deploy MLflow watcher components
+kubectl -n model-registry apply \
+-f services/ml/k8s/mlflow-watcher/poller-values.yaml \
+-f services/ml/k8s/mlflow-watcher/poller-configmap.yaml \
+-f services/ml/k8s/mlflow-watcher/builder-configmap.yaml \
+-f services/ml/k8s/mlflow-watcher/deployment.yaml
 
-docker build ...
-
-cd - 
-
-# Load the feast repo into minikube 
-minikube image load feast-repo:latest --profile=mlops
-kubectl apply -k ./services/ml/k8s/feature-store-kustomize/ --context=mlops
+# 3. Wait for deployment to be ready
+kubectl -n model-registry rollout status deploy/mlflow-watcher
 ```
 
+We need to install Kserve
+
+```shell
+# 1. Create RBAC resources (ServiceAccount, Role, RoleBinding)
+kubectl create ns kserve
+kubectl apply -f services/ml/k8s/kserve/cert-manager.yaml
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+
+# 2. Install kserve
+cd services/ml/k8s/kserve/kserve-crd
+helm install kserve-crd . -n kserve
+
+# Install KServe controller
+cd ../kserve-main
+helm install kserve . -n kserve
+```
 
 
 For the fifth components, it is the serving services. We will use bentoml and yatai as our main model serving services because bentoml is easy to use and yatai make it easy to integrate it to current k8s flow that we have. Run these command line: 
@@ -439,7 +445,33 @@ For the fifth components, it is the serving services. We will use bentoml and ya
 # Create namespace
 kubectl create ns model-serving
 ```
+We will push our image to dockerhub, therefore we need to create secrets so that our k8s can access to dockerhub and pull the image
 
+```shell
+kubectl create secret generic dockerhub-creds \
+  --from-literal=username=YOUR_DOCKERHUB_USERNAME \
+  --from-literal=password=YOUR_DOCKERHUB_PASSWORD \
+  -n model-serving
+```
+
+Now we need to update watcher config (same working mechanism for the mlflow poller, but this is for minio to containerize all the files)
+
+```shell
+cd services/ml/k8s/model-serving
+
+# Deploy MinIO for BentoML bundles
+cd bundle-storage
+helm install serving-minio . -n model-serving -f values.internal.yaml
+
+# Deploy Docker registry (for model images)
+cd ..
+kubectl apply -f registry-deployment.yaml
+
+# Deploy serving watcher (automation)
+kubectl apply -f watcher-rbac.yaml
+kubectl apply -f watcher-configmap.yaml
+kubectl apply -f watcher-deployment.yaml
+```
 
 <Some picture here>
 
@@ -455,16 +487,6 @@ kubectl create ns cert-manager
 helm upgrade --install cert-manager services/ml/k8s/cert-manager -n cert-manager \
     -f services/ml/k8s/cert-manager/values.override.yaml
 
-```
-
-After that, we can just create our main model serving pods
-
-```shell
-# Install model serving crds
-helm upgrade --install yatai-deployment-crds services/ml/k8s/vendor-charts/yatai-deployment-crds -n model-serving 
-# Insstall model serving 
-helm upgrade --install yatai-deployment services/ml/k8s/model-serving-plane -n model-serving \
-    -f services/ml/k8s/model-serving-plane/values.override.yaml
 ```
 
 For the sixth components, it is the ray related components (notice that the first time run is quite slow, therefore be patient, it should be the case that the head is still creating while worker is init):
@@ -487,38 +509,6 @@ python services/ml/k8s/training-pipeline/compile_pipeline.py
 ```
 After this, you will see a training_pipeline.yaml file. After that, you can actually just submit that on KFP and run with predetermined parameters and everything is ok. 
 
-
-Later on, when navigate to mlflow, we will see the new model is created. Now is the fun part, we will create a watcher pod, what it do is essentially to create new serving pod in case we promote a new model, the webhook will sent a event, saying that we need to deploy the new model, after the new model is deployed healthy in the pod, we got 2 options:
-1. Wait for the pod to become healthy, we stop the requests to go to the original pod, and just route to the new pod. 
-2. Deploy these 2 simultenously, run with production data at the same time, later on we will audit if this new model is better on the long term and decide if we need to keep it. 
-
-To deploy this watcher pod, simply run:
-
-```shell
-
-# 1. Create RBAC resources (ServiceAccount, Role, RoleBinding)
-kubectl apply -f services/ml/k8s/mlflow-watcher/rbac.yaml
-
-# 2. Deploy MLflow watcher components
-kubectl -n model-registry apply \
--f services/ml/k8s/mlflow-watcher/poller-values.yaml \
--f services/ml/k8s/mlflow-watcher/poller-configmap.yaml \
--f services/ml/k8s/mlflow-watcher/builder-configmap.yaml \
--f services/ml/k8s/mlflow-watcher/deployment.yaml
-
-# 3. Wait for deployment to be ready
-kubectl -n model-registry rollout status deploy/mlflow-watcher
-```
-
-We will push our image to dockerhub, therefore we need to create secrets so that our k8s can access to dockerhub and pull the image
-
-```shell
-kubectl create secret generic dockerhub-creds \
-  --from-literal=username=YOUR_DOCKERHUB_USERNAME \
-  --from-literal=password=YOUR_DOCKERHUB_PASSWORD \
-  -n model-serving
-
-```
 
 The current setup allow 2 types of model to be on production at the same time, later on if we just want to maintain 1 model, just drain out a request from 1 version, change the stage to not be production. 
 

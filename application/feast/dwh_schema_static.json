@@ -1,0 +1,626 @@
+[
+  {
+    "name": "sk_id_curr",
+    "dtype": "String"
+  },
+  {
+    "name": "cc_months_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "cc_cards_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "cc_utilization_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_utilization_max",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_utilization_std",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_high_util_months",
+    "dtype": "Int64"
+  },
+  {
+    "name": "cc_over_limit_months",
+    "dtype": "Int64"
+  },
+  {
+    "name": "cc_high_util_ratio",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_payment_ratio_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_payment_ratio_min",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_min_payment_ratio",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_underpay_months",
+    "dtype": "Int64"
+  },
+  {
+    "name": "cc_underpay_ratio",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_no_payment_months",
+    "dtype": "Int64"
+  },
+  {
+    "name": "cc_no_payment_ratio",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_dpd_total",
+    "dtype": "Int64"
+  },
+  {
+    "name": "cc_dpd_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_dpd_max",
+    "dtype": "Int64"
+  },
+  {
+    "name": "cc_dpd_months",
+    "dtype": "Int64"
+  },
+  {
+    "name": "cc_dpd_1_30_months",
+    "dtype": "Int64"
+  },
+  {
+    "name": "cc_dpd_31_60_months",
+    "dtype": "Int64"
+  },
+  {
+    "name": "cc_dpd_60plus_months",
+    "dtype": "Int64"
+  },
+  {
+    "name": "cc_dpd_ratio",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_severe_dpd_ratio",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_total_drawings",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_drawings_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_drawings_std",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_atm_total",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_pos_total",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_other_total",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_atm_ratio",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_pos_ratio",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_txn_freq_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_atm_txn_count",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_pos_txn_count",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_earliest_month",
+    "dtype": "Int64"
+  },
+  {
+    "name": "cc_latest_month",
+    "dtype": "Int64"
+  },
+  {
+    "name": "cc_inactive_months",
+    "dtype": "Int64"
+  },
+  {
+    "name": "cc_inactive_ratio",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_limit_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_limit_max",
+    "dtype": "Int64"
+  },
+  {
+    "name": "cc_balance_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_balance_max",
+    "dtype": "Float32"
+  },
+  {
+    "name": "cc_max_util_ever",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_count_loans_total",
+    "dtype": "Int64"
+  },
+  {
+    "name": "pos_count_problem_loans",
+    "dtype": "Int64"
+  },
+  {
+    "name": "pos_count_loans_demand",
+    "dtype": "Int64"
+  },
+  {
+    "name": "pos_mean_max_dpd",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_max_max_dpd",
+    "dtype": "Int64"
+  },
+  {
+    "name": "pos_min_max_dpd",
+    "dtype": "Int64"
+  },
+  {
+    "name": "pos_mean_mean_dpd",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_mean_dpd_rate",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_max_dpd_rate",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_mean_dpd_7plus_rate",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_max_dpd_7plus_rate",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_mean_dpd_30plus_rate",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_max_dpd_30plus_rate",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_mean_repayment_progress",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_max_repayment_progress",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_min_repayment_progress",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_mean_contract_length",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_max_contract_length",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_min_contract_length",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_mean_completed_rate",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_mean_active_rate",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_mean_demand_rate",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_flag_any_demand",
+    "dtype": "Int64"
+  },
+  {
+    "name": "pos_flag_any_severe_dpd",
+    "dtype": "Int64"
+  },
+  {
+    "name": "pos_total_months_observed",
+    "dtype": "Int64"
+  },
+  {
+    "name": "pos_earliest_month",
+    "dtype": "Int64"
+  },
+  {
+    "name": "pos_latest_month",
+    "dtype": "Int64"
+  },
+  {
+    "name": "pos_ratio_problem_loans",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_ratio_loans_demand",
+    "dtype": "Float32"
+  },
+  {
+    "name": "pos_observation_span_months",
+    "dtype": "Int64"
+  },
+  {
+    "name": "pos_risk_segment",
+    "dtype": "String"
+  },
+  {
+    "name": "prev_app_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_unique_app_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_approved_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_refused_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_canceled_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_approval_rate",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_refusal_rate",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_cancel_rate",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_amt_application_total",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_amt_application_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_amt_application_max",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_amt_application_std",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_amt_credit_total",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_amt_credit_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_amt_credit_max",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_amt_credit_std",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_credit_to_app_ratio_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_credit_to_app_ratio_min",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_credit_to_app_ratio_max",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_credit_to_app_ratio_std",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_over_approved_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_under_approved_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_over_approval_ratio",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_annuity_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_annuity_max",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_annuity_std",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_annuity_to_credit_ratio",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_down_payment_total",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_down_payment_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_down_payment_max",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_with_down_payment_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_down_payment_ratio",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_down_payment_rate_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_interest_rate_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_interest_rate_max",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_interest_rate_min",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_interest_rate_std",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_days_decision_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_days_decision_min",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_days_decision_max",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_days_decision_std",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_apps_last_30d",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_apps_last_90d",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_apps_last_1y",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_apps_last_2y",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_recent_approved_1y",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_recent_approved_90d",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_cash_loan_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_consumer_loan_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_revolving_loan_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_cash_loan_ratio",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_portfolio_diversity",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_cash_portfolio_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_pos_portfolio_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_cards_portfolio_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_cash_portfolio_ratio",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_repeater_app_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_new_client_app_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_repeater_ratio",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_channel_diversity",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_payment_type_diversity",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_bank_payment_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_goods_diversity",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_purpose_diversity",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_multiple_same_day_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_insurance_ratio",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_high_yield_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_low_action_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_middle_yield_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_hc_reject_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_limit_reject_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_sco_reject_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_client_reject_count",
+    "dtype": "Int64"
+  },
+  {
+    "name": "prev_payment_terms_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_payment_terms_max",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_payment_terms_min",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_payment_terms_std",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_goods_price_mean",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_goods_price_max",
+    "dtype": "Float32"
+  },
+  {
+    "name": "prev_goods_to_credit_ratio",
+    "dtype": "Float32"
+  }
+]

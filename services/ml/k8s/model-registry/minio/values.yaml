@@ -943,8 +943,8 @@ console:
   ##
   image:
     registry: docker.io
-    repository: bitnami/minio-object-browser
-    tag: 2.0.2-debian-12-r3
+    repository: bitnamilegacy/minio-object-browser
+    tag: latest
     digest: ""
     ## Specify a imagePullPolicy
     ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'

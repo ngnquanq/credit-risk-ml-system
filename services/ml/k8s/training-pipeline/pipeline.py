@@ -268,6 +268,7 @@ def ray_tune_hyperparams(
         "scikit-learn==1.5.1",
         "xgboost==2.1.0",
         "mlflow==2.14.3",
+        "pyyaml==6.0.1",  
     ],
 )
 def train_and_register(
@@ -280,13 +281,16 @@ def train_and_register(
     mlflow_s3_endpoint_url: str,
     aws_access_key_id: str,
     aws_secret_access_key: str,
+    feast_feature_view: str = "loan_all_features",
+    entity_key: str = "SK_ID_CURR",
 ) -> str:
     """
-    Train with provided params and register to MLflow. Returns the MLflow run_id.
-    Mirrors application/training/train_register.py at a high level.
+    Train with provided params and register to MLflow. 
+    Now also logs Feast feature metadata for serving.
     """
     import os
     import json
+    import yaml
     import pandas as pd
     from sklearn.compose import ColumnTransformer
     from sklearn.impute import SimpleImputer
@@ -308,7 +312,7 @@ def train_and_register(
     if target_col not in df.columns:
         raise ValueError("TARGET column not found in data")
 
-    # Basic heuristic to split categorical/numeric
+    # Feature preparation
     cat_cols = [c for c in df.columns if df[c].dtype == "object" and c != target_col]
     FEATURES = [c for c in df.columns if c != target_col]
     num_cols = [c for c in FEATURES if c not in cat_cols]
@@ -319,16 +323,16 @@ def train_and_register(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
 
-    # Define serializable conversion function (lambdas can't be pickled)
-    def to_str(X):
-        return X.astype(str)
+    # Build pipeline - convert categorical columns to string before pipeline
+    # This avoids unpicklable FunctionTransformer with custom functions
+    if cat_cols:
+        for col in cat_cols:
+            X_train[col] = X_train[col].astype(str)
+            X_test[col] = X_test[col].astype(str)
 
-    num_pipe = Pipeline([
-        ("impute", SimpleImputer(strategy="median")),
-    ])
+    num_pipe = Pipeline([("impute", SimpleImputer(strategy="median"))])
     cat_pipe = Pipeline([
         ("impute", SimpleImputer(strategy="most_frequent")),
-        ("to_str", FunctionTransformer(to_str)),
         ("ord", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)),
     ])
 
@@ -359,6 +363,8 @@ def train_and_register(
     with mlflow.start_run() as run:
         mlflow.log_params(base)
         mlflow.log_metric("auc", auc)
+
+        # Original: Log model with input example
         input_example = X_train.iloc[:1]
         model_info = mlflow.sklearn.log_model(
             sk_model=pipe,
@@ -366,6 +372,29 @@ def train_and_register(
             input_example=input_example,
             registered_model_name=register_name,
         )
+
+        feast_metadata = {
+            "feast_feature_view": feast_feature_view,
+            "selected_features": FEATURES,  # All features used in training
+            "entity_key": entity_key,
+            "num_features": len(FEATURES),
+            "categorical_features": cat_cols,
+            "numerical_features": num_cols,
+            "model_signature": {
+                "inputs": list(X_train.columns),
+                "output": "binary_classification",
+            },
+            "training_date": pd.Timestamp.now().isoformat(),
+        }
+
+        # Log as YAML artifact
+        with open("feast_metadata.yaml", "w") as f:
+            yaml.dump(feast_metadata, f, default_flow_style=False)
+        mlflow.log_artifact("feast_metadata.yaml")
+
+        print(f"✅ Logged feast_metadata.yaml with {len(FEATURES)} features")
+
+        # Transition to stage (same as before)
         if stage:
             client = mlflow.tracking.MlflowClient()
             version = None
@@ -400,6 +429,9 @@ def training_pipeline(
     ray_num_samples: int = 4,
     ray_cpus_per_trial: float = 0.5,
     ray_gpus_per_trial: float = 0.0,
+    # Feast param
+    feast_feature_view: str = "loan_all_features",
+    entity_key: str = "SK_ID_CURR",
 ):
     snap = fetch_minio_snapshot(
         s3_endpoint=s3_endpoint,
@@ -426,4 +458,6 @@ def training_pipeline(
         mlflow_s3_endpoint_url=mlflow_s3_endpoint_url,
         aws_access_key_id=aws_access_key_id,
         aws_secret_access_key=aws_secret_access_key,
+        feast_feature_view=feast_feature_view,
+        entity_key=entity_key,
     )

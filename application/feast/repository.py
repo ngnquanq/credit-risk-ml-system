@@ -8,9 +8,6 @@ try:
         fv_application_features,
         fv_external,
         fv_dwh,
-        fv_application_features_batch,
-        fv_external_batch,
-        fv_dwh_batch,
     )
     from .feature_services import realtime_scoring_v1  # type: ignore
 except Exception:  # pragma: no cover
@@ -19,9 +16,6 @@ except Exception:  # pragma: no cover
         fv_application_features,
         fv_external,
         fv_dwh,
-        fv_application_features_batch,
-        fv_external_batch,
-        fv_dwh_batch,
     )
     from feature_services import realtime_scoring_v1  # type: ignore
 # from generate_config import generate as generate_feast_config  # File removed

@@ -1,1 +1,0 @@
-# yatai-deployment-chart

@@ -201,27 +201,8 @@ fv_dwh = _make_stream_fv(
     ttl_days=7,
 )
 
-# Also create regular batch feature views for historical data access
-fv_application_features_batch = FeatureView(
-    name="application_features_batch",
-    entities=[customer],
-    ttl=timedelta(days=7),
-    schema=_app_fields,
-    online=True,
-    source=application_batch_source)
-
-fv_external_batch = FeatureView(
-    name="external_features_batch",
-    entities=[customer],
-    ttl=timedelta(days=7),
-    schema=_ext_fields,
-    online=True,
-    source=external_batch_source)
-
-fv_dwh_batch = FeatureView(
-    name="dwh_features_batch",
-    entities=[customer],
-    ttl=timedelta(days=7),
-    schema=_dwh_fields,
-    online=True,
-    source=dwh_batch_source)
+# Note: StreamFeatureViews above support both:
+# - Offline/Training: via batch_source (MinIO Parquet files)
+# - Online/Serving: via online store (Redis)
+# No need for separate batch FeatureViews - this prevents name conflicts
+# and ensures training/serving use identical feature definitions

@@ -14,10 +14,14 @@ services:
         socat TCP-LISTEN:31900,reuseaddr,fork TCP:192.168.49.2:30900 &
         socat TCP-LISTEN:31901,reuseaddr,fork TCP:192.168.49.2:30901 &
         socat TCP-LISTEN:36379,reuseaddr,fork TCP:172.17.0.1:6379 &
+        socat TCP-LISTEN:39092,reuseaddr,fork TCP:172.18.0.30:29092 &
+        socat TCP-LISTEN:29092,reuseaddr,fork TCP:172.18.0.30:29092 &
         echo 'Gateway ready'
-        echo '  Docker:31900 -> Minikube:30900 (training-minio)'
+        echo '  Docker:31900 -> Minikube:30900 (training-minio S3)'
         echo '  Docker:31901 -> Minikube:30901 (minio-console)'
-        echo '  Host:36379 -> Docker:6379 (Feast Redis - accessible from K8s)'
+        echo '  Host:36379 -> Docker:6379 (Feast Redis - K8s can connect)'
+        echo '  Host:39092 -> Docker:172.18.0.30:29092 (Kafka bootstrap - K8s can connect)'
+        echo '  Host:29092 -> Docker:172.18.0.30:29092 (Kafka broker - for advertised listener)'
         wait
     restart: unless-stopped
 

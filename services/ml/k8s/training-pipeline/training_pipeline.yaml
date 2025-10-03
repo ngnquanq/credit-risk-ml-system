@@ -4,7 +4,9 @@
 #    aws_access_key_id: str [Default: 'minio_user']
 #    aws_secret_access_key: str [Default: 'minio_password']
 #    bucket: str [Default: 'training-data']
+#    entity_key: str [Default: 'SK_ID_CURR']
 #    experiment: str [Default: 'credit-risk']
+#    feast_feature_view: str [Default: 'loan_all_features']
 #    mlflow_s3_endpoint_url: str [Default: 'http://minio.model-registry.svc.cluster.local:9000']
 #    mlflow_tracking_uri: str [Default: 'http://mlflow.model-registry.svc.cluster.local:80']
 #    object_key: str [Default: 'snapshots/ds=2025-09-19/loan_applications.csv']
@@ -80,7 +82,15 @@ components:
           parameterType: STRING
         best_params_json:
           parameterType: STRING
+        entity_key:
+          defaultValue: SK_ID_CURR
+          isOptional: true
+          parameterType: STRING
         experiment:
+          parameterType: STRING
+        feast_feature_view:
+          defaultValue: loan_all_features
+          isOptional: true
           parameterType: STRING
         mlflow_s3_endpoint_url:
           parameterType: STRING
@@ -261,10 +271,10 @@ deploymentSpec:
         - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
           \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
           \ python3 -m pip install --quiet --no-warn-script-location 'pandas==2.2.2'\
-          \ 'scikit-learn==1.5.1' 'xgboost==2.1.0' 'mlflow==2.14.3'  &&  python3 -m\
-          \ pip install --quiet --no-warn-script-location 'kfp==2.14.3' '--no-deps'\
-          \ 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"$0\" \"$@\"\
-          \n"
+          \ 'scikit-learn==1.5.1' 'xgboost==2.1.0' 'mlflow==2.14.3' 'pyyaml==6.0.1'\
+          \  &&  python3 -m pip install --quiet --no-warn-script-location 'kfp==2.14.3'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
         - sh
         - -ec
         - 'program_path=$(mktemp -d)
@@ -279,12 +289,13 @@ deploymentSpec:
           \ *\n\ndef train_and_register(\n    data: Input[Dataset],\n    best_params_json:\
           \ str,\n    experiment: str,\n    register_name: str,\n    stage: str,\n\
           \    mlflow_tracking_uri: str,\n    mlflow_s3_endpoint_url: str,\n    aws_access_key_id:\
-          \ str,\n    aws_secret_access_key: str,\n) -> str:\n    \"\"\"\n    Train\
-          \ with provided params and register to MLflow. Returns the MLflow run_id.\n\
-          \    Mirrors application/training/train_register.py at a high level.\n \
-          \   \"\"\"\n    import os\n    import json\n    import pandas as pd\n  \
-          \  from sklearn.compose import ColumnTransformer\n    from sklearn.impute\
-          \ import SimpleImputer\n    from sklearn.model_selection import train_test_split\n\
+          \ str,\n    aws_secret_access_key: str,\n    feast_feature_view: str = \"\
+          loan_all_features\",\n    entity_key: str = \"SK_ID_CURR\",\n) -> str:\n\
+          \    \"\"\"\n    Train with provided params and register to MLflow. \n \
+          \   Now also logs Feast feature metadata for serving.\n    \"\"\"\n    import\
+          \ os\n    import json\n    import yaml\n    import pandas as pd\n    from\
+          \ sklearn.compose import ColumnTransformer\n    from sklearn.impute import\
+          \ SimpleImputer\n    from sklearn.model_selection import train_test_split\n\
           \    from sklearn.pipeline import Pipeline\n    from sklearn.preprocessing\
           \ import OrdinalEncoder, FunctionTransformer\n    from sklearn.metrics import\
           \ roc_auc_score\n    from xgboost import XGBClassifier\n    import mlflow\n\
@@ -294,22 +305,23 @@ deploymentSpec:
           AWS_SECRET_ACCESS_KEY\"] = aws_secret_access_key\n\n    df = pd.read_csv(data.path,\
           \ low_memory=False)\n    target_col = \"TARGET\"\n    if target_col not\
           \ in df.columns:\n        raise ValueError(\"TARGET column not found in\
-          \ data\")\n\n    # Basic heuristic to split categorical/numeric\n    cat_cols\
-          \ = [c for c in df.columns if df[c].dtype == \"object\" and c != target_col]\n\
-          \    FEATURES = [c for c in df.columns if c != target_col]\n    num_cols\
-          \ = [c for c in FEATURES if c not in cat_cols]\n\n    X = df[FEATURES]\n\
-          \    y = df[target_col].astype(int)\n    X_train, X_test, y_train, y_test\
-          \ = train_test_split(\n        X, y, test_size=0.2, random_state=42, stratify=y\n\
-          \    )\n\n    # Define serializable conversion function (lambdas can't be\
-          \ pickled)\n    def to_str(X):\n        return X.astype(str)\n\n    num_pipe\
-          \ = Pipeline([\n        (\"impute\", SimpleImputer(strategy=\"median\")),\n\
-          \    ])\n    cat_pipe = Pipeline([\n        (\"impute\", SimpleImputer(strategy=\"\
-          most_frequent\")),\n        (\"to_str\", FunctionTransformer(to_str)),\n\
-          \        (\"ord\", OrdinalEncoder(handle_unknown=\"use_encoded_value\",\
-          \ unknown_value=-1)),\n    ])\n\n    transformers = []\n    if num_cols:\n\
-          \        transformers.append((\"num\", num_pipe, num_cols))\n    if cat_cols:\n\
-          \        transformers.append((\"cat\", cat_pipe, cat_cols))\n    pre = ColumnTransformer(transformers,\
-          \ remainder=\"drop\")\n\n    params = json.loads(best_params_json) if best_params_json\
+          \ data\")\n\n    # Feature preparation\n    cat_cols = [c for c in df.columns\
+          \ if df[c].dtype == \"object\" and c != target_col]\n    FEATURES = [c for\
+          \ c in df.columns if c != target_col]\n    num_cols = [c for c in FEATURES\
+          \ if c not in cat_cols]\n\n    X = df[FEATURES]\n    y = df[target_col].astype(int)\n\
+          \    X_train, X_test, y_train, y_test = train_test_split(\n        X, y,\
+          \ test_size=0.2, random_state=42, stratify=y\n    )\n\n    # Build pipeline\
+          \ - convert categorical columns to string before pipeline\n    # This avoids\
+          \ unpicklable FunctionTransformer with custom functions\n    if cat_cols:\n\
+          \        for col in cat_cols:\n            X_train[col] = X_train[col].astype(str)\n\
+          \            X_test[col] = X_test[col].astype(str)\n\n    num_pipe = Pipeline([(\"\
+          impute\", SimpleImputer(strategy=\"median\"))])\n    cat_pipe = Pipeline([\n\
+          \        (\"impute\", SimpleImputer(strategy=\"most_frequent\")),\n    \
+          \    (\"ord\", OrdinalEncoder(handle_unknown=\"use_encoded_value\", unknown_value=-1)),\n\
+          \    ])\n\n    transformers = []\n    if num_cols:\n        transformers.append((\"\
+          num\", num_pipe, num_cols))\n    if cat_cols:\n        transformers.append((\"\
+          cat\", cat_pipe, cat_cols))\n    pre = ColumnTransformer(transformers, remainder=\"\
+          drop\")\n\n    params = json.loads(best_params_json) if best_params_json\
           \ else {}\n    base = dict(\n        subsample=0.8,\n        colsample_bytree=0.8,\n\
           \        eval_metric=\"logloss\",\n        n_jobs=-1,\n        random_state=42,\n\
           \    )\n    base.update(params)\n    clf = XGBClassifier(**base)\n    pipe\
@@ -317,14 +329,28 @@ deploymentSpec:
           \ y_train)\n    proba = pipe.predict_proba(X_test)[:, 1]\n    auc = float(roc_auc_score(y_test,\
           \ proba))\n\n    mlflow.set_experiment(experiment)\n    with mlflow.start_run()\
           \ as run:\n        mlflow.log_params(base)\n        mlflow.log_metric(\"\
-          auc\", auc)\n        input_example = X_train.iloc[:1]\n        model_info\
-          \ = mlflow.sklearn.log_model(\n            sk_model=pipe,\n            artifact_path=\"\
-          model\",\n            input_example=input_example,\n            registered_model_name=register_name,\n\
-          \        )\n        if stage:\n            client = mlflow.tracking.MlflowClient()\n\
-          \            version = None\n            for v in client.search_model_versions(f\"\
-          name='{register_name}'\"):\n                if v.run_id == run.info.run_id:\n\
-          \                    version = v.version\n                    break\n  \
-          \          if version is not None:\n                client.transition_model_version_stage(\n\
+          auc\", auc)\n\n        # Original: Log model with input example\n      \
+          \  input_example = X_train.iloc[:1]\n        model_info = mlflow.sklearn.log_model(\n\
+          \            sk_model=pipe,\n            artifact_path=\"model\",\n    \
+          \        input_example=input_example,\n            registered_model_name=register_name,\n\
+          \        )\n\n        feast_metadata = {\n            \"feast_feature_view\"\
+          : feast_feature_view,\n            \"selected_features\": FEATURES,  # All\
+          \ features used in training\n            \"entity_key\": entity_key,\n \
+          \           \"num_features\": len(FEATURES),\n            \"categorical_features\"\
+          : cat_cols,\n            \"numerical_features\": num_cols,\n           \
+          \ \"model_signature\": {\n                \"inputs\": list(X_train.columns),\n\
+          \                \"output\": \"binary_classification\",\n            },\n\
+          \            \"training_date\": pd.Timestamp.now().isoformat(),\n      \
+          \  }\n\n        # Log as YAML artifact\n        with open(\"feast_metadata.yaml\"\
+          , \"w\") as f:\n            yaml.dump(feast_metadata, f, default_flow_style=False)\n\
+          \        mlflow.log_artifact(\"feast_metadata.yaml\")\n\n        print(f\"\
+          \u2705 Logged feast_metadata.yaml with {len(FEATURES)} features\")\n\n \
+          \       # Transition to stage (same as before)\n        if stage:\n    \
+          \        client = mlflow.tracking.MlflowClient()\n            version =\
+          \ None\n            for v in client.search_model_versions(f\"name='{register_name}'\"\
+          ):\n                if v.run_id == run.info.run_id:\n                  \
+          \  version = v.version\n                    break\n            if version\
+          \ is not None:\n                client.transition_model_version_stage(\n\
           \                    name=register_name,\n                    version=str(version),\n\
           \                    stage=stage,\n                    archive_existing_versions=False,\n\
           \                )\n        return run.info.run_id\n\n"
@@ -400,8 +426,12 @@ root:
               taskOutputParameter:
                 outputParameterKey: Output
                 producerTask: ray-tune-hyperparams
+            entity_key:
+              componentInputParameter: entity_key
             experiment:
               componentInputParameter: experiment
+            feast_feature_view:
+              componentInputParameter: feast_feature_view
             mlflow_s3_endpoint_url:
               componentInputParameter: mlflow_s3_endpoint_url
             mlflow_tracking_uri:
@@ -426,8 +456,16 @@ root:
         defaultValue: training-data
         isOptional: true
         parameterType: STRING
+      entity_key:
+        defaultValue: SK_ID_CURR
+        isOptional: true
+        parameterType: STRING
       experiment:
         defaultValue: credit-risk
+        isOptional: true
+        parameterType: STRING
+      feast_feature_view:
+        defaultValue: loan_all_features
         isOptional: true
         parameterType: STRING
       mlflow_s3_endpoint_url:

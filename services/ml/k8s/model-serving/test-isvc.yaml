@@ -12,7 +12,7 @@ spec:
   predictor:
     containers:
     - name: kserve-container
-      image: docker.io/ngnquanq/credit-risk-scoring:v5@sha256:2f822ad591b7d15dadf60f696b7fdd8a135667859d7a1275bb07e067db60e210
+      image: docker.io/ngnquanq/credit-risk-scoring:latest
       imagePullPolicy: Always
       ports:
       - containerPort: 3000

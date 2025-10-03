@@ -17,6 +17,10 @@ service:
 
 console:
   enabled: true  # Useful for debugging
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/minio-object-browser
+    tag: latest
 
 networkPolicy:
   enabled: true

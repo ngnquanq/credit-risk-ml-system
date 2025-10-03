@@ -38,6 +38,10 @@ networkPolicy:
 # MinIO Console exposure (optional but handy)
 console:
   enabled: true
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/minio-object-browser
+    tag: latest
   service:
     type: NodePort
     ports:

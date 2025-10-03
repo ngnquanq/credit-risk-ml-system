@@ -14,15 +14,18 @@ import os
 import tempfile
 
 import bentoml
-from loguru import logger
 from fastapi import FastAPI
-import pandas as pd
 
-from config import settings
-from schemas import ScoreRequest, ScoreResponse, ScoreByIdRequest
-from pipeline import as_vector, postprocess
-from logger import configure_logger
-from feature_registry import get_model_expected_columns, get_feast_to_model_mapping, FEATURE_REGISTRY
+# Import dependencies that might not be available during `bentoml build`
+# These are installed after the build process reads bentofile.yaml
+with bentoml.importing():
+    from loguru import logger
+    import pandas as pd
+    from config import settings
+    from schemas import ScoreRequest, ScoreResponse, ScoreByIdRequest
+    from pipeline import as_vector, postprocess
+    from logger import configure_logger
+    from feature_registry import get_model_expected_columns, get_feast_to_model_mapping, FEATURE_REGISTRY
 
 try:
     from kafka import KafkaConsumer, KafkaProducer  # kafka-python
