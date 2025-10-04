@@ -48,10 +48,10 @@ class FeastStreamProcessor:
             
             # Log available feature views for debugging
             try:
-                feature_views = [fv.name for fv in self.fs.list_feature_views()]
-                logger.info(f"Available feature views: {feature_views}")
+                stream_feature_views = [fv.name for fv in self.fs.list_stream_feature_views()]
+                logger.info(f"Available StreamFeatureViews: {stream_feature_views}")
             except Exception as list_error:
-                logger.warning(f"Could not list feature views during init: {list_error}")
+                logger.warning(f"Could not list StreamFeatureViews during init: {list_error}")
 
         except Exception as e:
             logger.error(f"✗ Failed to initialize Feast: {e}")

@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: feast-stream
+  namespace: feature-registry
   labels:
     app: feast-stream
     component: feature-store
@@ -20,11 +21,13 @@ spec:
       hostAliases:
       - ip: "192.168.49.1"  # host.minikube.internal IP
         hostnames:
+        - "host.minikube.internal"
         - "broker"  # Kafka advertised listener hostname
+        - "kafka"
       containers:
       - name: feast-stream
         # Built from application/feast/Dockerfile
-        image: your-registry/feast-repo:latest
+        image: ngnquanq/feast-repo:v5
         imagePullPolicy: IfNotPresent
         workingDir: /work
         command:
@@ -50,9 +53,9 @@ spec:
         livenessProbe:
           exec:
             command:
-            - pgrep
-            - -f
-            - "python repository.py stream"
+            - /bin/sh
+            - -c
+            - "pgrep -f 'python repository.py stream' || test -f /tmp/healthy"
           initialDelaySeconds: 30
           periodSeconds: 30
           failureThreshold: 3

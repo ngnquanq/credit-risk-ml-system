@@ -2,6 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: feast-apply
+  namespace: feature-registry
   labels:
     app: feast-apply
     component: feature-store
@@ -17,7 +18,7 @@ spec:
       containers:
       - name: feast-apply
         # Built from application/feast/Dockerfile
-        image: your-registry/feast-repo:latest
+        image: ngnquanq/feast-repo:v5
         imagePullPolicy: IfNotPresent
         workingDir: /work
         command:

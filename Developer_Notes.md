@@ -1,5 +1,263 @@
 # 2025-10-03
 
+## Fixed KServe Serving Pod Kafka Connectivity and Feast Integration
+
+**Problem**: After restarting the system, both the Feast stream processor and KServe serving pods failed with Kafka connectivity errors and Feast registry access issues.
+
+### Issues Encountered and Solutions
+
+#### 1. Serving Pod: DNS Resolution Failure for Kafka
+
+**Error**:
+```
+DNS lookup failed for host.minikube.internal:39092, exception was [Errno -3] Temporary failure in name resolution
+NoBrokersAvailable
+```
+
+**Root Cause**:
+- The `serving-watcher` was creating InferenceServices with incorrect `hostAliases`
+- IP was set to `192.168.1.42` instead of Minikube host IP `192.168.49.1`
+- Missing `host.minikube.internal` hostname mapping
+
+**Solution**: Updated `services/ml/k8s/kserve/serving-watcher/watcher.py`
+
+```python
+# Line 168-171: Fix hostAliases configuration
+"hostAliases": [{
+    "ip": "192.168.49.1",  # Correct Minikube host IP
+    "hostnames": ["host.minikube.internal", "broker", "kafka"]
+}],
+```
+
+**Files Modified**:
+- `services/ml/k8s/kserve/serving-watcher/watcher.py` (lines 168-171)
+
+**Commands to Apply Fix**:
+```bash
+# Update watcher ConfigMap
+kubectl create configmap serving-watcher \
+  --from-file=watcher.py=services/ml/k8s/kserve/serving-watcher/watcher.py \
+  -n model-serving --dry-run=client -o yaml | kubectl apply -f -
+
+# Restart watcher
+kubectl rollout restart deployment/serving-watcher -n model-serving
+
+# Delete existing InferenceServices to force recreation
+kubectl delete inferenceservice --all -n kserve
+```
+
+---
+
+#### 2. Feast Registry: S3 Bucket Not Found
+
+**Error**:
+```
+Feast lookup failed for {sk_id}: S3 bucket feast-registry for the Feast registry can't be accessed
+```
+
+**Root Cause**:
+- Serving pod configured to load Feast registry from `s3://feast-registry/feature_repo/registry.db`
+- The `feast-registry` bucket didn't exist in serving MinIO
+- Feast registry was only available locally in the feature-registry pod
+
+**Solution**: Upload Feast registry to MinIO S3
+
+```bash
+# 1. Copy registry from Feast pod to local
+kubectl cp feature-registry/$(kubectl get pods -n feature-registry -l app=feast-stream -o jsonpath='{.items[0].metadata.name}'):data/registry.db /tmp/feast-registry.db
+
+# 2. Copy to MinIO pod
+kubectl cp /tmp/feast-registry.db model-serving/serving-minio-<pod-id>:/tmp/registry.db
+
+# 3. Upload to S3 bucket (bucket auto-created)
+kubectl exec -n model-serving serving-minio-<pod-id> -- \
+  mc cp /tmp/registry.db local/feast-registry/feature_repo/registry.db
+
+# 4. Verify upload
+kubectl exec -n model-serving serving-minio-<pod-id> -- \
+  mc ls local/feast-registry/feature_repo/
+```
+
+**Result**: Registry accessible at `s3://feast-registry/feature_repo/registry.db` (27 KB)
+
+---
+
+#### 3. Feast Stream Processor: CrashLoopBackOff
+
+**Error**:
+```
+Liveness probe failed: OCI runtime exec failed: exec failed: unable to start container process: exec: "pgrep": executable file not found in $PATH
+```
+
+**Root Cause**:
+- Liveness probe used `pgrep` command which doesn't exist in the Python slim container
+- Kubernetes kept killing the pod even though Feast was working perfectly
+- Pod would process messages successfully for ~30 seconds, then get killed
+
+**Solution**: Updated liveness probe to use shell-based process check
+
+**File Modified**: `services/ml/k8s/feature-store/feast-stream-deployment.yaml`
+
+```yaml
+# Before (lines 50-58):
+livenessProbe:
+  exec:
+    command:
+    - pgrep
+    - -f
+    - "python repository.py stream"
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  failureThreshold: 3
+
+# After:
+livenessProbe:
+  exec:
+    command:
+    - /bin/sh
+    - -c
+    - "ps aux | grep '[p]ython repository.py stream'"
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  failureThreshold: 3
+```
+
+**Commands to Apply**:
+```bash
+# Apply updated deployment
+kubectl apply -f services/ml/k8s/feature-store/feast-stream-deployment.yaml
+
+# Restart to apply changes
+kubectl rollout restart deployment/feast-stream -n feature-registry
+```
+
+---
+
+### Verification
+
+**1. Check Serving Pod Kafka Connection**:
+```bash
+kubectl logs -n kserve -l serving.kserve.io/inferenceservice=credit-risk-v11 | grep "Kafka consumer started"
+# Should see: Kafka consumer started: topic=hc.applications.public.loan_applications
+
+# Verify no DNS errors
+kubectl logs -n kserve -l serving.kserve.io/inferenceservice=credit-risk-v11 | grep -i "dns\|noBrokersAvailable"
+# Should be empty
+```
+
+**2. Check Feast Stream Processor**:
+```bash
+kubectl get pods -n feature-registry
+# feast-stream pod should be Running (not CrashLoopBackOff)
+
+kubectl logs -n feature-registry -l app=feast-stream | grep "Status:"
+# Should see: Status: 3/3 consumers running
+```
+
+**3. Verify Features in Redis**:
+```bash
+kubectl exec -n feature-registry feast-redis-<pod> -- redis-cli KEYS "*sk_id_curr*"
+# Should list customer keys like: sk_id_curr 100002hc_k8s
+```
+
+**4. Check Feast Registry Access**:
+```bash
+kubectl exec -n model-serving deployment/serving-minio -- \
+  mc ls local/feast-registry/feature_repo/
+# Should show: registry.db (27 KB)
+```
+
+---
+
+### Key Files Modified
+
+1. **`services/ml/k8s/kserve/serving-watcher/watcher.py`**
+   - Fixed `hostAliases` IP and added `host.minikube.internal` hostname
+
+2. **`services/ml/k8s/feature-store/feast-stream-deployment.yaml`**
+   - Fixed liveness probe to use `ps aux | grep` instead of `pgrep`
+
+3. **`services/ops/docker-compose.gateway.yml`** (from earlier session)
+   - Added dynamic Kafka broker IP resolution
+
+4. **`services/ops/restart-gateway.sh`** (from earlier session)
+   - Helper script to restart gateway with correct Kafka IP
+
+---
+
+### Architecture Summary
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│           Docker Kafka (hc-network: 172.18.0.19)             │
+│              Topics: hc.applications.public.*                │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────────────┐
+│     k8s_gateway (host network) - Dynamic IP Resolution       │
+│     Port 39092 → 172.18.0.19:29092 (Kafka bootstrap)         │
+│     Port 29092 → 172.18.0.19:29092 (Kafka advertised)        │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+                         ├─────────────────┬───────────────────┐
+                         │                 │                   │
+                         ▼                 ▼                   ▼
+┌─────────────────────────────┐  ┌─────────────────┐  ┌────────────────┐
+│ Feast Stream Processor      │  │ KServe Serving  │  │ Other K8s Pods │
+│ (feature-registry namespace)│  │ (kserve ns)     │  │                │
+│                             │  │                 │  │                │
+│ hostAliases:                │  │ hostAliases:    │  │                │
+│  192.168.49.1 → broker      │  │  192.168.49.1:  │  │                │
+│                             │  │  - host.min...  │  │                │
+│ Consumes:                   │  │  - broker       │  │                │
+│  - hc.application_features  │  │  - kafka        │  │                │
+│  - hc.application_ext       │  │                 │  │                │
+│  - hc.application_dwh       │  │ Consumes:       │  │                │
+│                             │  │  - hc.app...    │  │                │
+│ Writes to ↓                 │  │  loan_apps      │  │                │
+└──────────┬──────────────────┘  └────────┬────────┘  └────────────────┘
+           │                              │
+           ▼                              ▼
+┌─────────────────────────────┐  ┌─────────────────────────────────────┐
+│ Redis Online Store          │  │ MinIO S3                            │
+│ (feature-registry)          │  │ (model-serving)                     │
+│                             │  │                                     │
+│ Features for customers:     │  │ s3://feast-registry/feature_repo/   │
+│  - sk_id_curr=100002        │◄─┤   registry.db (27 KB)               │
+│  - sk_id_curr=12            │  │                                     │
+│  - sk_id_curr=10            │  │ Feast registry with:                │
+│                             │  │  - 3 StreamFeatureViews             │
+│ Queried by serving pod ─────┘  │  - 176 total features               │
+│ via Feast SDK                  │  - Entity: sk_id_curr               │
+└────────────────────────────────┘  └─────────────────────────────────────┘
+```
+
+---
+
+### Lessons Learned
+
+1. **hostAliases are Critical for Cross-Network Communication**:
+   - K8s pods cannot resolve Docker container hostnames without explicit mapping
+   - Must include all hostnames that appear in connection strings
+
+2. **Liveness Probes Must Use Available Commands**:
+   - Python slim images don't include `pgrep`, `ps` utilities
+   - Always test probe commands in the actual container image
+   - Use shell wrappers for complex checks
+
+3. **Feast Registry Location Matters**:
+   - Registry must be accessible from all services needing Feast
+   - For K8s deployments, use S3/MinIO instead of local file
+   - Upload registry after each `feast apply`
+
+4. **After System Restart**:
+   - Always run `restart-gateway.sh` to update Kafka IP
+   - Check `hostAliases` in deployments match current IPs
+   - Verify Feast registry is accessible from MinIO
+
+---
+
 ## Successfully Built and Deployed BentoML Model Serving with KServe
 
 **Problem**: MLflow model version 2 needed to be packaged as BentoML bundle and deployed to KServe for serving, but encountered multiple blocking errors during the build and deployment pipeline.
@@ -754,6 +1012,162 @@ kubectl exec -n feature-registry deployment/feast-stream -- \
 5. **Feature Store Architecture**: Feast loads ALL features
    - Serving pods SELECT features based on model metadata
    - No manual feature synchronization required
+
+---
+
+## System Restart Procedures: Fixed K8s-Docker Gateway Connectivity
+
+**Problem**: After restarting computer, Feast stream processor and other services failed with "Invalid file object: None" and Kafka connection errors.
+
+**Root Cause**:
+- Using `docker start $(docker ps -aq)` restarts containers but Docker networks don't properly reconnect
+- Container IPs may change (e.g., Kafka broker moved from `172.18.0.14` → `172.18.0.19`)
+- The `k8s_gateway` container had hardcoded Kafka broker IP in socat forwarding rules
+- Traffic from K8s to Kafka (`host.minikube.internal:39092` → `172.18.0.14:29092`) went to wrong IP
+- This caused cascading failures in Feast consumers and other Docker containers trying to reach Kafka
+
+**Solution**: Dynamic IP resolution with helper script
+
+### Created `services/ops/restart-gateway.sh`
+
+Helper script that:
+1. Queries Docker for current Kafka broker IP
+2. Exports as environment variable
+3. Recreates gateway with correct configuration
+
+**Script**:
+```bash
+#!/bin/bash
+# Helper script to restart k8s_gateway with current Kafka broker IP
+# Run this after restarting Docker containers
+
+set -e
+
+cd "$(dirname "$0")"
+
+# Get current Kafka broker IP
+KAFKA_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' kafka_broker 2>/dev/null | head -1)
+
+if [ -z "$KAFKA_IP" ]; then
+    echo "ERROR: Cannot find kafka_broker container. Is it running?"
+    echo "Start Kafka first with: docker start kafka_broker"
+    exit 1
+fi
+
+echo "Detected Kafka broker IP: $KAFKA_IP"
+
+# Export for docker-compose
+export KAFKA_BROKER_IP=$KAFKA_IP
+
+# Restart gateway
+echo "Restarting k8s_gateway..."
+docker compose -f docker-compose.gateway.yml down
+docker compose -f docker-compose.gateway.yml up -d
+
+echo "✓ Gateway restarted successfully"
+docker logs k8s_gateway --tail=10
+```
+
+### Updated `services/ops/docker-compose.gateway.yml`
+
+Changed from hardcoded IP to environment variable:
+
+```yaml
+k8s-gateway:
+  image: alpine/socat:latest
+  container_name: k8s_gateway
+  network_mode: host  # Required for K8s-Docker bridge
+  environment:
+    - KAFKA_BROKER_IP=${KAFKA_BROKER_IP:-172.18.0.19}  # Dynamic IP
+  command:
+    - -c
+    - |
+      echo 'K8s Gateway Bridge starting (host network mode)...'
+      echo "Using Kafka broker IP: $${KAFKA_BROKER_IP}"
+
+      socat TCP-LISTEN:31900,reuseaddr,fork TCP:192.168.49.2:30900 &
+      socat TCP-LISTEN:31901,reuseaddr,fork TCP:192.168.49.2:30901 &
+      socat TCP-LISTEN:36379,reuseaddr,fork TCP:172.17.0.1:6379 &
+      socat TCP-LISTEN:39092,reuseaddr,fork TCP:$${KAFKA_BROKER_IP}:29092 &
+      socat TCP-LISTEN:29092,reuseaddr,fork TCP:$${KAFKA_BROKER_IP}:29092 &
+      # ...
+```
+
+### Proper Restart Sequence (After Computer Restart)
+
+```bash
+# 1. Start Docker containers
+docker start $(docker ps -aq)
+
+# 2. Start Minikube
+minikube start -p mlops
+
+# 3. Restart the gateway with current Kafka IP (CRITICAL)
+cd /home/nhatquang/home-credit-credit-risk-model-stability/services/ops
+./restart-gateway.sh
+
+# 4. Restart affected K8s pods (if needed)
+kubectl delete pod -n feature-registry -l app=feast-stream
+# Restart other affected pods as needed
+```
+
+### Why This Is Necessary
+
+**Network Architecture**:
+- Docker services run on `hc-network` (172.18.0.0/16)
+- Minikube runs on separate network (192.168.49.0/24)
+- `k8s_gateway` uses `network_mode: host` to bridge both networks
+- Gateway forwards traffic between K8s services and Docker services
+
+**The Problem with `docker start`**:
+- Containers start but Docker network state isn't fully restored
+- DHCP may assign different IPs to containers
+- Gateway's socat rules still point to old IPs
+- Results in "Connection refused" and "Invalid file object" errors
+
+**Why We Use `network_mode: host`**:
+- K8s pods can't directly reach Docker container IPs
+- Docker containers can't directly reach K8s ClusterIPs
+- Gateway on host network has access to both
+- Uses socat to forward ports bidirectionally
+
+### Verification
+
+After running restart script, verify:
+
+```bash
+# 1. Check gateway is using correct IP
+docker logs k8s_gateway | grep "Using Kafka broker IP"
+# Should show: Using Kafka broker IP: 172.18.0.X (current IP)
+
+# 2. Verify port 39092 is listening
+netstat -tuln | grep 39092
+
+# 3. Check Feast consumers are connected
+kubectl logs -n feature-registry -l app=feast-stream | grep "Started.*consumer"
+# Should see: ✓ Started application consumer for topic: hc.application_features
+#            ✓ Started external consumer for topic: hc.application_ext
+#            ✓ Started dwh consumer for topic: hc.application_dwh
+```
+
+### Troubleshooting
+
+**If you see these errors after restart**:
+- `Invalid file object: None` → Kafka connectivity broken
+- `Failed to resolve 'broker:29092'` → DNS not working between containers
+- `Connection refused to 172.18.0.X:29092` with old IP → Gateway using stale IP
+
+**Solution**: Run `./restart-gateway.sh` from step 3 above.
+
+### Files Modified
+
+1. **`services/ops/docker-compose.gateway.yml`**
+   - Changed hardcoded Kafka IP to environment variable
+   - Added `KAFKA_BROKER_IP` with default fallback
+
+2. **`services/ops/restart-gateway.sh`** (NEW)
+   - Auto-detects current Kafka broker IP
+   - Restarts gateway with correct configuration
 
 ---
 

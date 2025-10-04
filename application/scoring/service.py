@@ -418,27 +418,45 @@ def _run_kafka_consumer():  # pragma: no cover
                 if not features and settings.feast_enabled and sk_id:
                     try:
                         from feast import FeatureStore
+                        import time
+
                         fs = FeatureStore(repo_path=_resolve_feast_repo_path())
                         feature_refs = [
                             f.strip() for f in (settings.feast_feature_refs or "").split(",") if f.strip()
                         ]
-                        res = fs.get_online_features(features=feature_refs, entity_rows=[{"sk_id_curr": sk_id}]).to_dict()
-                        logger.info(f"Kafka Feast lookup for sk_id_curr={sk_id}: {res}")
-                        
-                        # Check if customer data exists in Redis
+
+                        # Retry logic to handle race condition with feast-stream materialization
                         has_customer_data = False
-                        for ref in feature_refs:
-                            vals = res.get(ref) or res.get(ref.split(":")[-1])
-                            if vals and vals[0] is not None:
-                                has_customer_data = True
+                        max_attempts = settings.feast_retry_max_attempts if settings.feast_retry_enabled else 1
+                        delay_ms = settings.feast_retry_delay_ms
+
+                        for attempt in range(1, max_attempts + 1):
+                            res = fs.get_online_features(features=feature_refs, entity_rows=[{"sk_id_curr": sk_id}]).to_dict()
+
+                            # Check if customer data exists in Redis
+                            has_customer_data = False
+                            for ref in feature_refs:
+                                vals = res.get(ref) or res.get(ref.split(":")[-1])
+                                if vals and vals[0] is not None:
+                                    has_customer_data = True
+                                    break
+
+                            if has_customer_data:
+                                logger.info(f"Feast lookup succeeded for sk_id_curr={sk_id} (attempt {attempt}/{max_attempts})")
+                                # Map Feast features to ML model column names
+                                features = _map_feast_features(res, feature_refs)
                                 break
-                        
+                            elif attempt < max_attempts:
+                                # Calculate exponential backoff delay
+                                current_delay_ms = delay_ms * (settings.feast_retry_backoff_multiplier ** (attempt - 1))
+                                logger.info(f"No data for sk_id_curr={sk_id} on attempt {attempt}/{max_attempts}, retrying in {current_delay_ms:.0f}ms...")
+                                time.sleep(current_delay_ms / 1000.0)
+                            else:
+                                logger.warning(f"No feature data found for sk_id_curr={sk_id} after {max_attempts} attempts. Skipping prediction.")
+
                         if not has_customer_data and settings.require_customer_data:
-                            logger.warning(f"No feature data found for sk_id_curr={sk_id}. Skipping prediction.")
                             continue
-                        
-                        # Map Feast features to ML model column names (same as REST endpoint)
-                        features = _map_feast_features(res, feature_refs)
+
                     except Exception as e:
                         logger.warning(f"Feast lookup failed for {sk_id}: {e}")
 

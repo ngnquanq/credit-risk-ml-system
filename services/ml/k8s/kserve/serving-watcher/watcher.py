@@ -120,7 +120,7 @@ def build_and_push_image(version: str) -> bool:
             image_tag_latest = f"{REGISTRY_URL}/{IMAGE_NAME}:latest"
             log.info(f"Building Docker image: {image_tag} and {image_tag_latest}")
             result = subprocess.run(
-                f"docker build -t {image_tag} -t {image_tag_latest} -f {dockerfile_path} {bento_dir}",
+                f"docker build --no-cache -t {image_tag} -t {image_tag_latest} -f {dockerfile_path} {bento_dir}",
                 shell=True,
                 check=True
             )
@@ -166,12 +166,13 @@ def create_or_update_inferenceservice(version: str) -> bool:
             "spec": {
                 "predictor": {
                     "hostAliases": [{
-                        "ip": "192.168.1.42",
-                        "hostnames": ["broker", "kafka"]
+                        "ip": "192.168.49.1",
+                        "hostnames": ["host.minikube.internal", "broker", "kafka"]
                     }],
                     "containers": [{
                         "name": "kserve-container",
                         "image": image_uri,
+                        "imagePullPolicy": "Always",
                         "ports": [{
                             "containerPort": 3000,
                             "protocol": "TCP"
@@ -181,12 +182,13 @@ def create_or_update_inferenceservice(version: str) -> bool:
                             {"name": "SCORING_MODEL_PATH", "value": "bundle/model.joblib"},
                             {"name": "SCORING_LOG_LEVEL", "value": "INFO"},
                             {"name": "SCORING_FEAST_ENABLED", "value": "true"},
-                            {"name": "SCORING_FEAST_REDIS_URL", "value": "redis://host.minikube.internal:36379/0"},
+                            {"name": "SCORING_FEAST_REDIS_URL", "value": "feast-redis.feature-registry.svc.cluster.local:6379"},
                             {"name": "SCORING_FEAST_REGISTRY_URI", "value": "s3://feast-registry/feature_repo/registry.db"},
-                            {"name": "SCORING_FEAST_PROJECT", "value": "hc"},
+                            {"name": "SCORING_FEAST_PROJECT", "value": "hc_k8s"},
                             {"name": "SCORING_FEAST_PROVIDER", "value": "local"},
                             {"name": "SCORING_FEAST_INLINE_CONFIG_ENABLED", "value": "true"},
-                            {"name": "AWS_S3_ENDPOINT", "value": "http://host.minikube.internal:31900"},
+                            {"name": "FEAST_S3_ENDPOINT_URL", "value": "http://serving-minio.model-serving.svc.cluster.local:9000"},
+                            {"name": "AWS_S3_ENDPOINT", "value": "http://serving-minio.model-serving.svc.cluster.local:9000"},
                             {"name": "AWS_ACCESS_KEY_ID", "value": "minio_user"},
                             {"name": "AWS_SECRET_ACCESS_KEY", "value": "minio_password"},
                             {"name": "AWS_DEFAULT_REGION", "value": "us-east-1"},
@@ -194,6 +196,9 @@ def create_or_update_inferenceservice(version: str) -> bool:
                             {"name": "SCORING_KAFKA_BOOTSTRAP_SERVERS", "value": "host.minikube.internal:39092"},
                             {"name": "SCORING_LOAN_APPLICATION_TOPIC", "value": "hc.applications.public.loan_applications"},
                             {"name": "SCORING_KAFKA_GROUP_ID", "value": "credit-risk-scoring"},
+                            {"name": "SCORING_FEAST_RETRY_ENABLED", "value": "true"},
+                            {"name": "SCORING_FEAST_RETRY_MAX_ATTEMPTS", "value": "3"},
+                            {"name": "SCORING_FEAST_RETRY_DELAY_MS", "value": "200"},
                         ],
                         "resources": {
                             "requests": {

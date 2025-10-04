@@ -87,7 +87,21 @@ class ScoringSettings(BaseSettings):
     require_customer_data: bool = Field(
         default=True, description="Require customer data to exist in Redis before prediction"
     )
-    
+
+    # Feast retry configuration (handle race condition with feast-stream materialization)
+    feast_retry_enabled: bool = Field(
+        default=True, description="Enable retry logic when Feast returns no features"
+    )
+    feast_retry_max_attempts: int = Field(
+        default=3, description="Maximum number of Feast lookup retry attempts"
+    )
+    feast_retry_delay_ms: int = Field(
+        default=200, description="Initial delay between retries in milliseconds"
+    )
+    feast_retry_backoff_multiplier: float = Field(
+        default=2.0, description="Exponential backoff multiplier for retry delays"
+    )
+
     # Observability (default to core app settings when present)
     log_format: str = Field(
         default=(getattr(app_settings, "log_format", "json") or "json")
