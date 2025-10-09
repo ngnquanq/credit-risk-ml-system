@@ -43,6 +43,7 @@ def main():
     bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
     default_topics = [
         os.getenv("FEAST_TOPIC_APP_FEATURES", "hc.application_features"),
+        os.getenv("CLICKHOUSE_EXTERNAL", "hc.application_ext_raw"),
         os.getenv("FEAST_TOPIC_EXTERNAL", "hc.application_ext"),
         os.getenv("FEAST_TOPIC_DWH", "hc.application_dwh"),
         os.getenv("BENTOML_SCORING_OUTPUT_TOPIC", "hc.scoring"),

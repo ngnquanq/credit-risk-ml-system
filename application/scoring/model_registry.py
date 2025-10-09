@@ -1,6 +1,6 @@
 """Model loading helpers with local or MLflow backends."""
 
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, Dict, List
 from loguru import logger
 import importlib
 import os
@@ -41,20 +41,76 @@ def _load_mlflow_model(uri: str) -> Any:
     return mlflow.pyfunc.load_model(uri)
 
 
+def _load_feast_metadata(mlflow_uri: str) -> Optional[Dict[str, Any]]:
+    """Load feast_metadata.yaml from MLflow model artifacts if available.
+
+    Returns feast metadata dict or None if not found.
+    """
+    try:
+        import tempfile
+        import yaml
+        mlflow = importlib.import_module("mlflow")
+        client = mlflow.tracking.MlflowClient()  # type: ignore[attr-defined]
+
+        # Parse model URI to get run_id
+        m = re.match(r"models:/([^/]+)/([^/]+)$", mlflow_uri.strip())
+        if not m:
+            logger.debug("MLflow URI not in models:/ format, cannot load feast metadata")
+            return None
+
+        model_name, stage_or_version = m.group(1), m.group(2)
+
+        # Resolve to specific version
+        if stage_or_version.isalpha():
+            # It's a stage name
+            versions = client.get_latest_versions(model_name, [stage_or_version])
+            if not versions:
+                logger.warning(f"No model versions found for {model_name}/{stage_or_version}")
+                return None
+            model_version = versions[0]
+        else:
+            # It's a version number
+            model_version = client.get_model_version(model_name, stage_or_version)
+
+        run_id = model_version.run_id
+        logger.info(f"Loading feast metadata from run {run_id}")
+
+        # Download feast_metadata.yaml artifact
+        with tempfile.TemporaryDirectory() as tmpdir:
+            try:
+                artifact_path = client.download_artifacts(run_id, "feast_metadata.yaml", tmpdir)
+                with open(artifact_path, "r") as f:
+                    metadata = yaml.safe_load(f)
+                logger.info(f"✓ Loaded feast metadata: {metadata.get('num_features', 0)} features")
+                return metadata
+            except Exception as e:
+                logger.warning(f"feast_metadata.yaml not found in model artifacts: {e}")
+                return None
+
+    except Exception as e:
+        logger.warning(f"Failed to load feast metadata: {e}")
+        return None
+
+
 def load_model(
     *, source: str, path: Optional[str], mlflow_uri: Optional[str]
-) -> Tuple[Any, str, Optional[str]]:
-    """Return (model, model_name, model_version).
+) -> Tuple[Any, str, Optional[str], Optional[Dict[str, Any]]]:
+    """Return (model, model_name, model_version, feast_metadata).
 
     For MLflow URIs of the form models:/<name>/<stage|version>, this attempts to
     resolve the exact registered model version via MlflowClient. Falls back to
     MODEL_NAME / MODEL_VERSION env vars when resolution is not possible.
+
+    feast_metadata contains feature selection info from training if available.
     """
     if source == "mlflow":
         if not mlflow_uri:
             raise ValueError("mlflow_model_uri is required when model_source=mlflow")
         logger.info(f"Loading model from MLflow: {mlflow_uri}")
         model = _load_mlflow_model(mlflow_uri)
+
+        # Load feast metadata (feature selection from training)
+        feast_metadata = _load_feast_metadata(mlflow_uri)
 
         # Defaults from env (optional override)
         name_env = os.environ.get("MODEL_NAME")
@@ -84,10 +140,10 @@ def load_model(
 
         # Final fallbacks
         name = name or "credit_risk_model"
-        return model, name, version
+        return model, name, version, feast_metadata
     if path:
         logger.info(f"Loading local model: {path}")
         model = _load_local_model(path)
         name = os.path.basename(path)
-        return model, name, None
+        return model, name, None, None
     raise ValueError("Provide model_path or use MLflow source")

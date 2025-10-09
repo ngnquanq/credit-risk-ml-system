@@ -32,8 +32,10 @@ spec:
         workingDir: /work
         command:
         - /bin/sh
-        - -lc
-        - python repository.py stream
+        - -c
+        - |
+          touch /tmp/healthy
+          python repository.py stream
         envFrom:
         - configMapRef:
             name: feast-config
@@ -53,9 +55,9 @@ spec:
         livenessProbe:
           exec:
             command:
-            - /bin/sh
-            - -c
-            - "pgrep -f 'python repository.py stream' || test -f /tmp/healthy"
+            - test
+            - -f
+            - /tmp/healthy
           initialDelaySeconds: 30
           periodSeconds: 30
           failureThreshold: 3

@@ -130,6 +130,7 @@ with bentoml.importing():
             )
         try:
             from feast import FeatureStore
+            import time
         except Exception as e:  # pragma: no cover
             raise bentoml.exceptions.BentoMLException(f"Feast not available: {e}")
 
@@ -140,25 +141,55 @@ with bentoml.importing():
         if not feature_refs:
             raise bentoml.exceptions.BentoMLException("No Feast feature refs configured")
 
-        res = fs.get_online_features(features=feature_refs, entity_rows=[{"sk_id_curr": req.sk_id_curr}]).to_dict()
+        # Retry logic to handle race condition with feast-stream materialization
+        has_customer_data = False
+        res = None
+        max_attempts = settings.feast_retry_max_attempts if settings.feast_retry_enabled else 1
+        delay_ms = settings.feast_retry_delay_ms
+
+        for attempt in range(1, max_attempts + 1):
+            res = fs.get_online_features(features=feature_refs, entity_rows=[{"sk_id_curr": req.sk_id_curr}]).to_dict()
+
+            # Check if customer data exists in Redis
+            has_customer_data = False
+            for ref in feature_refs:
+                vals = res.get(ref) or res.get(ref.split(":")[-1])
+                if vals and vals[0] is not None:
+                    has_customer_data = True
+                    break
+
+            if has_customer_data:
+                logger.info(f"Feast lookup succeeded for sk_id_curr={req.sk_id_curr} (attempt {attempt}/{max_attempts})")
+                break
+            elif attempt < max_attempts:
+                # Calculate exponential backoff delay
+                current_delay_ms = delay_ms * (settings.feast_retry_backoff_multiplier ** (attempt - 1))
+                logger.info(f"No data for sk_id_curr={req.sk_id_curr} on attempt {attempt}/{max_attempts}, retrying in {current_delay_ms:.0f}ms...")
+                time.sleep(current_delay_ms / 1000.0)
+            else:
+                logger.warning(f"No feature data found for sk_id_curr={req.sk_id_curr} after {max_attempts} attempts")
+
         logger.info(f"Feast lookup for sk_id_curr={req.sk_id_curr}: {res}")
 
+        # Validate against hardcoded registry (legacy validation)
         validation_issues = FEATURE_REGISTRY.validate_feast_result(res)
         if validation_issues["missing_required"]:
-            logger.warning(f"Missing required features: {validation_issues['missing_required']}")
+            logger.warning(f"Missing required features (registry): {validation_issues['missing_required']}")
         if validation_issues["unexpected_features"]:
-            logger.info(f"Unexpected features received: {validation_issues['unexpected_features']}")
+            logger.info(f"Unexpected features received (registry): {validation_issues['unexpected_features']}")
 
-        has_customer_data = False
-        for ref in feature_refs:
-            vals = res.get(ref) or res.get(ref.split(":")[-1])
-            if vals and vals[0] is not None:
-                has_customer_data = True
-                break
+        # NEW: Validate against model's training features if available
+        if MODEL_FEAST_METADATA and MODEL_FEAST_METADATA.get("selected_features"):
+            expected_features = set(MODEL_FEAST_METADATA["selected_features"])
+            received_features = set(res.keys())
+            missing_model_features = expected_features - received_features
+            if missing_model_features:
+                logger.warning(f"⚠ Missing features expected by trained model: {list(missing_model_features)[:10]}")
+                logger.warning(f"  Model expects {len(expected_features)} features but Feast returned {len(received_features)}")
 
         if not has_customer_data and settings.require_customer_data:
             raise bentoml.exceptions.BentoMLException(
-                f"No feature data found for sk_id_curr={req.sk_id_curr}. "
+                f"No feature data found for sk_id_curr={req.sk_id_curr} after {max_attempts} attempts. "
                 f"Customer data may still be processing in the streaming pipeline or does not exist. "
                 f"Set SCORING_REQUIRE_CUSTOMER_DATA=false to allow predictions with missing data."
             )
@@ -188,6 +219,7 @@ with bentoml.importing():
 model = None  # type: ignore[var-annotated]
 MODEL_NAME: str = "unknown"
 MODEL_VERSION: Optional[str] = None
+MODEL_FEAST_METADATA: Optional[Dict[str, Any]] = None  # Feature selection from training
 
 
 def _map_feast_features(feast_result: Dict[str, Any], feature_refs: List[str]) -> Dict[str, Any]:
@@ -253,10 +285,22 @@ def _predict_proba_local(X):
 _EXPECTED_COLUMNS: Optional[List[str]] = None
 
 def _get_expected_columns() -> List[str]:
-    """Lazy-load expected columns from feature registry."""
+    """Get expected columns from model's feast metadata or fallback to feature registry.
+
+    Priority:
+    1. Use selected_features from MODEL_FEAST_METADATA (loaded from MLflow)
+    2. Fallback to hardcoded feature_registry.py
+    """
     global _EXPECTED_COLUMNS
     if _EXPECTED_COLUMNS is None:
-        _EXPECTED_COLUMNS = get_model_expected_columns()
+        # Try to use features from the trained model
+        if MODEL_FEAST_METADATA and MODEL_FEAST_METADATA.get("selected_features"):
+            _EXPECTED_COLUMNS = MODEL_FEAST_METADATA["selected_features"]
+            logger.info(f"Using {len(_EXPECTED_COLUMNS)} features from model's feast_metadata.yaml")
+        else:
+            # Fallback to hardcoded registry
+            _EXPECTED_COLUMNS = get_model_expected_columns()
+            logger.warning(f"Using {len(_EXPECTED_COLUMNS)} features from hardcoded feature_registry.py (fallback)")
     return _EXPECTED_COLUMNS
 
 def _as_dataframe_row(features: Dict[str, Any]) -> pd.DataFrame:
@@ -315,7 +359,7 @@ _initialized = False
 _kafka_started = False
 
 def ensure_model_loaded() -> None:
-    global model, MODEL_NAME, MODEL_VERSION, _initialized, _kafka_started
+    global model, MODEL_NAME, MODEL_VERSION, MODEL_FEAST_METADATA, _initialized, _kafka_started
     if _initialized and model is not None:
         return
     with _init_lock:
@@ -323,7 +367,7 @@ def ensure_model_loaded() -> None:
             return
         from model_registry import load_model  # runtime import
         with bentoml.importing():
-            loaded_model, name, version = load_model(
+            loaded_model, name, version, feast_metadata = load_model(
                 source=settings.model_source,
                 path=settings.model_path,
                 mlflow_uri=(settings.mlflow_model_uri or "models:/credit_risk_model/Production"),
@@ -335,6 +379,15 @@ def ensure_model_loaded() -> None:
         model = loaded_model
         MODEL_NAME = name
         MODEL_VERSION = version
+        MODEL_FEAST_METADATA = feast_metadata
+
+        # Log feature selection info
+        if feast_metadata:
+            logger.info(f"✓ Model trained with {feast_metadata.get('num_features', 0)} features")
+            logger.info(f"  Selected features: {feast_metadata.get('selected_features', [])[:5]}...")
+        else:
+            logger.warning("⚠ No feast_metadata.yaml found - using feature_registry.py fallback")
+
         _initialized = True
 
         # Optionally start Kafka consumer once
