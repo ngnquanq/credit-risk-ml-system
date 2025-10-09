@@ -5,7 +5,6 @@ metadata:
   namespace: kserve
 data:
   build_and_upload.py: |
-    {{- /* Inline a minimal version; prefer using the standalone file with kubectl create configmap --from-file if you edit often. */ -}}
     import os, subprocess, tempfile, pathlib
     def sh(cmd, cwd=None):
         print("+", cmd, flush=True)
@@ -49,13 +48,49 @@ data:
         pathlib.Path(bundle_dir).mkdir(parents=True, exist_ok=True)
         model_rel = os.path.join("bundle", "model.joblib")
         joblib.dump(mdl, os.path.join(svc_dir, model_rel))
+        # Download feast_metadata.yaml from MLflow if available
+        try:
+            import re, yaml, shutil
+            client = mlflow.tracking.MlflowClient()
+            match = re.match(r"models:/([^/]+)/([^/]+)$", model_uri.strip())
+            if match:
+                parsed_name, stage_or_version = match.groups()
+                if stage_or_version.isalpha():
+                    versions = client.get_latest_versions(parsed_name, [stage_or_version])
+                    if versions:
+                        run_id = versions[0].run_id
+                    else:
+                        raise Exception(f"No versions found for {parsed_name}/{stage_or_version}")
+                else:
+                    mv = client.get_model_version(parsed_name, stage_or_version)
+                    run_id = mv.run_id
+                print(f"Downloading feast_metadata.yaml from run {run_id}")
+                metadata_tmp = client.download_artifacts(run_id, "feast_metadata.yaml", work)
+                metadata_dest = os.path.join(bundle_dir, "feast_metadata.yaml")
+                shutil.copy(metadata_tmp, metadata_dest)
+                with open(metadata_dest) as f:
+                    meta = yaml.safe_load(f)
+                    print(f"✓ feast_metadata.yaml saved ({meta.get('num_features', 0)} features)")
+        except Exception as e:
+            print(f"⚠ Failed to download feast_metadata.yaml: {e}")
+            print("  Scoring will fall back to feature_registry.py")
         # Do not change mlflow.env; the runtime will set SCORING_* env vars
-        sh("pip install --no-cache-dir bentoml mlflow boto3 joblib gitpython", cwd=repo_dir)
+        sh("pip install --no-cache-dir bentoml mlflow boto3 joblib gitpython pyyaml", cwd=repo_dir)
         sh(f"bentoml build --version {version_tag}", cwd=svc_dir)
         tag = f"credit_risk_scoring:{version_tag}"
-        bento_path = subprocess.check_output(
-            f"bentoml get {tag} --print-location", shell=True, cwd=repo_dir
-        ).decode().strip()
+        # Get Bento path using Python API instead of CLI
+        try:
+            import bentoml
+            bento = bentoml.get(tag)
+            bento_path = str(bento.path)
+            print(f"Found Bento at: {bento_path}")
+        except Exception as e:
+            # Fallback: construct from default BentoML home
+            bentoml_home = pathlib.Path.home() / "bentoml" / "bentos"
+            bento_path = str(bentoml_home / "credit_risk_scoring" / version_tag)
+            if not os.path.exists(bento_path):
+                raise SystemExit(f"Bento not found: {e}")
+            print(f"Using fallback path: {bento_path}")
         s3 = boto3.session.Session(region_name=region).resource("s3", endpoint_url=endpoint)
         bucket = s3.Bucket(bkt)
         uri = f"s3://{bkt}/{prefix}/{model_name}/{version_tag}/"

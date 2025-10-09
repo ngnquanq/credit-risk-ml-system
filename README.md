@@ -288,8 +288,15 @@ python application/training/train_register.py \
 --stage Production
 ```
 
-After you run that script, you should see the following logs: 
+After you run that script, you should see the following logs:
 ![MLFlow train logs](mlflow_logs.png)
+
+**Important**: When training models, the Kubeflow pipeline automatically saves `feast_metadata.yaml` alongside the model in MLflow. This file contains:
+- Feature selection (which features the model was trained on)
+- Feature types (categorical vs numerical)
+- Training metadata (date, feature counts)
+
+This ensures the scoring service uses the **exact same features** the model was trained on, preventing feature mismatch errors.
 
 #### Spin up serving components
 For the serving purpose, we will use bentoml since they make it easy for us to create endpoints and popular for serving ml applications. 
@@ -401,9 +408,25 @@ helm upgrade --install minio services/ml/k8s/model-registry/minio -n model-regis
       
 ```
 
-Later on, when navigate to mlflow, we will see the new model is created. Now is the fun part, we will create a watcher pod, what it do is essentially to create new serving pod in case we promote a new model, the webhook will sent a event, saying that we need to deploy the new model, after the new model is deployed healthy in the pod, we got 2 options:
-1. Wait for the pod to become healthy, we stop the requests to go to the original pod, and just route to the new pod. 
-2. Deploy these 2 simultenously, run with production data at the same time, later on we will audit if this new model is better on the long term and decide if we need to keep it. 
+Later on, when navigate to mlflow, we will see the new model is created. Now is the fun part, we will create a watcher pod, what it do is essentially to create new serving pod in case we promote a new model:
+
+**How the model deployment pipeline works:**
+1. **MLflow watcher** polls MLflow for new model versions promoted to Production/Staging
+2. When detected, it triggers a **bento-build Job** that:
+   - Downloads the model from MLflow
+   - Downloads `feast_metadata.yaml` from the same MLflow run (contains feature list)
+   - Packages both into a Bento bundle
+   - Uploads to MinIO storage
+3. **Serving watcher** monitors MinIO for new Bento bundles
+4. When found, creates a new KServe InferenceService
+5. KServe deploys the new model with automatic:
+   - Canary rollout (gradual traffic shift)
+   - Health checks
+   - Autoscaling
+
+**Deployment strategies available:**
+1. **Blue-green**: Wait for new pod to become healthy, then route 100% traffic to it
+2. **Canary**: Deploy both simultaneously, gradually shift traffic from old to new while monitoring metrics
 
 To deploy this watcher pod, simply run:
 
@@ -547,4 +570,52 @@ For more detail, access the localhost:9055, the username/password is airflow/air
 
 
 #### Spin up BI components
-  
+
+
+## Troubleshooting
+
+### Feature Mismatch Error: "columns are missing"
+
+**Symptom**: Scoring service logs show:
+```
+ERROR: columns are missing: {'FLAG_OWN_REALTY', 'FLAG_DOCUMENT_7', ...}
+```
+
+**Cause**: The model was trained on more features than Feast is providing.
+
+**Solution**: The system now automatically handles this through `feast_metadata.yaml`:
+
+1. **During training** (Kubeflow pipeline):
+   - Saves `feast_metadata.yaml` with the exact feature list used
+   - Uploaded to MLflow alongside the model
+
+2. **During deployment** (bento-build Job):
+   - Downloads both model AND `feast_metadata.yaml` from MLflow
+   - Packages both into the Bento bundle
+
+3. **During serving** (scoring pods):
+   - Loads model from `bundle/model.joblib`
+   - Loads features from `bundle/feast_metadata.yaml`
+   - Uses the **actual training features**, not hardcoded defaults
+
+**Verification**:
+```bash
+# Check if feast_metadata.yaml was downloaded during build
+kubectl logs -n kserve <bento-build-pod-name> | grep feast_metadata
+
+# Expected output:
+# ✓ feast_metadata.yaml saved (58 features)
+
+# Check if scoring pod loaded it
+kubectl logs -n kserve <predictor-pod-name> | grep "feast_metadata\|features"
+
+# Expected output:
+# ✓ Loaded feast metadata from bundle/feast_metadata.yaml: 58 features
+# Using 58 features from model's feast_metadata.yaml
+```
+
+**If the error persists**:
+1. Ensure your Kubeflow training pipeline includes the `feast_metadata.yaml` logging step
+2. Verify the ConfigMap was updated: `kubectl get configmap bento-builder-script -n kserve -o yaml | grep feast_metadata`
+3. Rebuild the Bento by promoting a new model version to trigger mlflow-watcher
+

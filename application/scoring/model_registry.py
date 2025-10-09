@@ -145,5 +145,24 @@ def load_model(
         logger.info(f"Loading local model: {path}")
         model = _load_local_model(path)
         name = os.path.basename(path)
-        return model, name, None, None
+
+        # Try to load feast_metadata.yaml from same directory as model
+        feast_metadata = None
+        model_dir = os.path.dirname(os.path.abspath(path))
+        metadata_path = os.path.join(model_dir, "feast_metadata.yaml")
+
+        logger.debug(f"Looking for feast_metadata.yaml: model_dir={model_dir}, metadata_path={metadata_path}, exists={os.path.exists(metadata_path)}")
+
+        if os.path.exists(metadata_path):
+            try:
+                import yaml
+                with open(metadata_path, "r") as f:
+                    feast_metadata = yaml.safe_load(f)
+                logger.info(f"✓ Loaded feast metadata from {metadata_path}: {feast_metadata.get('num_features', 0)} features")
+            except Exception as e:
+                logger.warning(f"Failed to load feast_metadata.yaml from {metadata_path}: {e}")
+        else:
+            logger.warning(f"⚠ No feast_metadata.yaml found at {metadata_path} - using feature_registry.py fallback")
+
+        return model, name, None, feast_metadata
     raise ValueError("Provide model_path or use MLflow source")
