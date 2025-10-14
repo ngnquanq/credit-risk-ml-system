@@ -197,8 +197,9 @@ def create_or_update_inferenceservice(version: str) -> bool:
                             {"name": "SCORING_LOAN_APPLICATION_TOPIC", "value": "hc.applications.public.loan_applications"},
                             {"name": "SCORING_KAFKA_GROUP_ID", "value": "credit-risk-scoring"},
                             {"name": "SCORING_FEAST_RETRY_ENABLED", "value": "true"},
-                            {"name": "SCORING_FEAST_RETRY_MAX_ATTEMPTS", "value": "3"},
-                            {"name": "SCORING_FEAST_RETRY_DELAY_MS", "value": "200"},
+                            {"name": "SCORING_FEAST_RETRY_MAX_ATTEMPTS", "value": "15"},
+                            {"name": "SCORING_FEAST_RETRY_DELAY_MS", "value": "300"},
+                            {"name": "SCORING_FEAST_RETRY_BACKOFF_MULTIPLIER", "value": "1.0"},
                         ],
                         "resources": {
                             "requests": {
