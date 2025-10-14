@@ -1,0 +1,178 @@
+# Custom values for kube-prometheus-stack
+# Minimal configuration for K8s cluster monitoring
+# Focus: Internal K8s metrics only (pods, nodes, resources)
+
+## Global Settings
+nameOverride: ""
+fullnameOverride: ""
+
+## Grafana Configuration
+grafana:
+  enabled: true
+
+  # Admin credentials (CHANGE THIS!)
+  adminPassword: "admin"
+
+  # Expose via NodePort (your standard pattern)
+  service:
+    type: NodePort
+    nodePort: 30300  # Access at http://localhost:30300
+
+  # Persist dashboards and configs
+  persistence:
+    enabled: true
+    type: pvc
+    size: 5Gi
+
+  # Timezone configuration
+  grafana.ini:
+    server:
+      root_url: http://localhost:30300
+    # Set Grafana timezone to GMT+7 (Hanoi Time)
+    # This affects how timestamps are displayed in dashboards
+    # Note: Prometheus still stores data in UTC internally
+    date_formats:
+      default_timezone: Asia/Ho_Chi_Minh
+
+  # Security context to fix PVC permission issues
+  initChownData:
+    enabled: false  # Disable problematic init container
+
+  # Default datasource (Prometheus)
+  # datasources:
+  #   datasources.yaml:
+  #     apiVersion: 1
+  #     datasources:
+  #     - name: Prometheus
+  #       type: prometheus
+  #       url: http://prometheus-stack-kube-prom-prometheus:9090
+  #       access: proxy
+  #       isDefault: true
+
+## Prometheus Configuration
+prometheus:
+  enabled: true
+
+  # Expose Prometheus UI via NodePort
+  service:
+    type: ClusterIP
+
+  prometheusSpec:
+    # Retention period for metrics
+    retention: 7d
+
+    # Persist metrics data across restarts
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+    # Resource limits (adjust based on your system)
+    resources:
+      requests:
+        memory: 400Mi
+        cpu: 200m
+      limits:
+        memory: 2Gi
+        cpu: 1000m
+
+    # Monitor all namespaces
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+
+    # Scrape interval
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+
+## Alertmanager Configuration
+alertmanager:
+  enabled: true
+
+  # Expose Alertmanager via NodePort
+  service:
+    type: NodePort
+    nodePort: 30903  # Access at http://localhost:30903
+
+  alertmanagerSpec:
+    # Persist alert data
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+
+    # Resource limits
+    resources:
+      requests:
+        memory: 200Mi
+        cpu: 100m
+      limits:
+        memory: 500Mi
+        cpu: 500m
+
+## Node Exporter (collects host-level metrics)
+nodeExporter:
+  enabled: true
+
+## Kube State Metrics (collects K8s object metrics)
+kubeStateMetrics:
+  enabled: true
+
+## Prometheus Operator
+prometheusOperator:
+  enabled: true
+
+  # Resource limits for operator
+  resources:
+    requests:
+      memory: 200Mi
+      cpu: 100m
+    limits:
+      memory: 500Mi
+      cpu: 500m
+
+## Default Monitoring Rules
+defaultRules:
+  create: true
+  rules:
+    # Enable all default K8s monitoring rules
+    alertmanager: true
+    etcd: true
+    general: true
+    k8s: true
+    kubeApiserverAvailability: true
+    kubeApiserverBurnrate: true
+    kubeApiserverHistogram: true
+    kubeApiserverSlos: true
+    kubelet: true
+    kubeProxy: true
+    kubernetesApps: true
+    kubernetesResources: true
+    kubernetesStorage: true
+    kubernetesSystem: true
+    node: true
+    prometheus: true
+    prometheusOperator: true
+
+## Disable external integrations (for now)
+## These are for monitoring components outside K8s
+kubeControllerManager:
+  enabled: false  # Minikube doesn't expose this easily
+
+kubeScheduler:
+  enabled: false  # Minikube doesn't expose this easily
+
+kubeEtcd:
+  enabled: false  # Minikube doesn't expose this easily
+
+## Disable unused components
+coreDns:
+  enabled: true  # Monitor CoreDNS (you had issues with this!)
+
+kubeDns:
+  enabled: false  # Not used in your setup

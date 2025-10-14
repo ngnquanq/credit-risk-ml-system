@@ -10,7 +10,7 @@ services:
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
       - CDC_SOURCE_TOPIC=${CDC_TOPIC_PREFIX:-hc.applications}.public.loan_applications
-      - SINK_TOPIC_EXT=${FEAST_TOPIC_EXTERNAL:-hc.application_ext}
+      - RAW_TOPIC_EXT=${RAW_TOPIC_EXT:-hc.application_ext_raw}
       - CONSUMER_GROUP_ID=external-bureau-sink
       # ClickHouse (bureau) connection
       - APP_CLICKHOUSE_HOST=${CLICKHOUSE_HOST:-clickhouse_dwh}

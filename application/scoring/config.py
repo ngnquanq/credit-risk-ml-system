@@ -93,13 +93,13 @@ class ScoringSettings(BaseSettings):
         default=True, description="Enable retry logic when Feast returns no features"
     )
     feast_retry_max_attempts: int = Field(
-        default=3, description="Maximum number of Feast lookup retry attempts"
+        default=15, description="Maximum number of Feast lookup retry attempts (15 × 300ms = 4.5s max wait)"
     )
     feast_retry_delay_ms: int = Field(
-        default=200, description="Initial delay between retries in milliseconds"
+        default=300, description="Fixed delay between retries in milliseconds"
     )
     feast_retry_backoff_multiplier: float = Field(
-        default=2.0, description="Exponential backoff multiplier for retry delays"
+        default=1.0, description="Backoff multiplier (1.0 = fixed delay, >1.0 = exponential backoff)"
     )
 
     # Observability (default to core app settings when present)

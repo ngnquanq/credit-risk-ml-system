@@ -1211,3 +1211,366 @@ kubectl rollout restart deployment/serving-watcher -n model-serving
 kubectl get pods -n kserve
 kubectl logs -n kserve <pod-name>
 ```
+
+---
+
+# 2025-10-09
+
+## Fixed Training-Serving Feature Mismatch with feast_metadata.yaml Contract
+
+**Problem**: Scoring service was using hardcoded 26 features while models were trained on 43 features, causing silent prediction errors and training-serving skew.
+
+### Root Cause Analysis
+
+**Initial Discovery**:
+- Training pipeline (Kubeflow) used 43 features selected from Feast registry
+- Scoring service (`application/scoring/feature_registry.py`) had hardcoded list of 26 features
+- When new features were added during training, serving pods still used old feature list
+- Result: Model received incomplete feature vectors with `None` values for missing columns
+
+**Why This Happened**:
+- No contract between training and serving code
+- Feature selection logic duplicated in two places
+- No validation that serving uses same features as training
+
+### Solution: feast_metadata.yaml Contract
+
+Implemented a contract file that travels with the model from training to serving:
+
+**1. Training Pipeline** (`services/ml/k8s/training-pipeline/pipeline.py` lines 423-437):
+```python
+# After feature selection, save metadata
+feast_metadata = {
+    "selected_features": selected_features,  # List of 43 feature names
+    "num_features": len(selected_features),
+    "feature_types": {"categorical": cat_cols, "numerical": num_cols},
+    "training_date": datetime.now().isoformat(),
+}
+
+# Save alongside model in MLflow
+with open("feast_metadata.yaml", "w") as f:
+    yaml.dump(feast_metadata, f)
+
+mlflow.log_artifact("feast_metadata.yaml")
+```
+
+**2. Bento Builder** (`services/ml/k8s/kserve/bento-builder/configmap.yaml` lines 79-93):
+```python
+# Download feast_metadata.yaml from MLflow artifacts
+artifact_uri = model_version.source
+metadata_path = f"{artifact_uri}/feast_metadata.yaml"
+
+try:
+    client.download_artifacts(run_id, "feast_metadata.yaml", local_dir)
+    shutil.copy(f"{local_dir}/feast_metadata.yaml", f"{bento_path}/src/bundle/")
+    logger.info("✓ feast_metadata.yaml packaged with Bento")
+except Exception as e:
+    logger.warning(f"⚠ No feast_metadata.yaml found: {e}")
+```
+
+**3. Scoring Service** (`application/scoring/model_registry.py` lines 149-166):
+```python
+def load_model(*, source: str, path: Optional[str], mlflow_uri: Optional[str]):
+    """Load model AND its feature metadata."""
+
+    # Load feast_metadata.yaml from bundle directory
+    model_dir = os.path.dirname(os.path.abspath(path))
+    metadata_path = os.path.join(model_dir, "feast_metadata.yaml")
+
+    if os.path.exists(metadata_path):
+        with open(metadata_path, "r") as f:
+            feast_metadata = yaml.safe_load(f)
+        logger.info(f"✓ Loaded feast metadata: {feast_metadata.get('num_features', 0)} features")
+        return model, name, version, feast_metadata
+    else:
+        logger.warning("⚠ No feast_metadata.yaml - using feature_registry.py fallback")
+        return model, name, version, None
+```
+
+**4. Feature Selection in Service** (`application/scoring/service.py` lines 287-304):
+```python
+def _get_expected_columns() -> List[str]:
+    """Get features from model's metadata, not hardcoded list."""
+    global _EXPECTED_COLUMNS
+    if _EXPECTED_COLUMNS is None:
+        # Priority 1: Use model's actual training features
+        if MODEL_FEAST_METADATA and MODEL_FEAST_METADATA.get("selected_features"):
+            _EXPECTED_COLUMNS = MODEL_FEAST_METADATA["selected_features"]
+            logger.info(f"Using {len(_EXPECTED_COLUMNS)} features from model's feast_metadata.yaml")
+        else:
+            # Priority 2: Fallback to hardcoded registry
+            _EXPECTED_COLUMNS = get_model_expected_columns()
+            logger.warning(f"Using {len(_EXPECTED_COLUMNS)} features from hardcoded feature_registry.py")
+    return _EXPECTED_COLUMNS
+```
+
+**Result**: Scoring service now automatically uses the exact same 43 features the model was trained on.
+
+---
+
+### Issue 2: Kafka Consumer Not Starting in Serving Pods
+
+**Error**: Logs showed "Initializing scoring service" but no "Kafka consumer started" message.
+
+**Root Cause**:
+- Checked pod environment: `SCORING_ENABLE_KAFKA=false`
+- InferenceService was created BEFORE watcher ConfigMap was updated with Kafka settings
+- Watcher's `create_or_update_inferenceservice()` had `"SCORING_ENABLE_KAFKA": "false"`
+
+**Solution**:
+1. Updated `services/ml/k8s/model-serving/watcher-configmap.yaml` line 197:
+   ```yaml
+   {"name": "SCORING_ENABLE_KAFKA", "value": "true"},
+   ```
+
+2. Applied updated ConfigMap and restarted watcher:
+   ```bash
+   kubectl apply -f services/ml/k8s/model-serving/watcher-configmap.yaml
+   kubectl rollout restart -n model-serving deployment/serving-watcher
+   ```
+
+3. Deleted existing InferenceService to force recreation:
+   ```bash
+   kubectl delete inferenceservice -n kserve credit-risk-v13
+   ```
+
+4. Watcher automatically recreated v13 with Kafka enabled.
+
+**Verification**:
+```bash
+# Check environment
+kubectl exec -n kserve credit-risk-v13-predictor-xxx -- env | grep SCORING_ENABLE_KAFKA
+# Output: SCORING_ENABLE_KAFKA=true ✅
+
+# Check logs
+kubectl logs -n kserve credit-risk-v13-predictor-xxx | grep "Kafka consumer started"
+# Output: Kafka consumer started: topic=hc.applications.public.loan_applications ✅
+```
+
+---
+
+### Issue 3: Kafka DNS Resolution Failure
+
+**Error**: After Kafka consumer started, pods failed with:
+```
+DNS lookup failed for broker:29092
+NoBrokersAvailable
+```
+
+**Root Cause Analysis**:
+- Consumer connected to bootstrap server: `host.minikube.internal:39092` ✅
+- Kafka metadata response said: "Real broker is at `broker:29092`"
+- KServe pods couldn't resolve hostname `broker` → connection failed ❌
+
+**Why This Happened**:
+1. Kafka advertised listener is `broker:29092` (configured in Docker Compose)
+2. K8s pods only know about `host.minikube.internal` (via hostAliases)
+3. After bootstrap connection, Kafka tells consumer "now connect to `broker:29092` for data"
+4. Pod tries DNS lookup for `broker` → fails
+
+**Solution**: Created Kubernetes Service with Endpoints
+
+Created `services/ml/k8s/kserve/kafka-broker-service.yaml`:
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: broker
+  namespace: kserve
+spec:
+  ports:
+  - port: 29092
+    targetPort: 29092
+    protocol: TCP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: broker
+  namespace: kserve
+subsets:
+- addresses:
+  - ip: 192.168.49.1  # Minikube host IP (adjust if needed)
+  ports:
+  - port: 39092  # Socat gateway port
+```
+
+**How It Works**:
+1. Pod tries to connect to `broker:29092`
+2. K8s DNS resolves `broker` to Service ClusterIP
+3. Service forwards to Endpoint: `192.168.49.1:39092`
+4. Socat gateway forwards to Docker Kafka: `172.18.0.x:29092`
+5. Connection succeeds! ✅
+
+**Apply Fix**:
+```bash
+kubectl apply -f services/ml/k8s/kserve/kafka-broker-service.yaml
+```
+
+**Verification**:
+```bash
+kubectl logs -n kserve credit-risk-v13-predictor-xxx | grep -i "dns\|NoBrokersAvailable"
+# Output: (empty - no errors) ✅
+
+kubectl logs -n kserve credit-risk-v13-predictor-xxx | grep "stream_inference"
+# Output:
+# {'sk_id_curr': '33', 'probability': 0.10496515, 'decision': 'approve'} ✅
+```
+
+---
+
+### Final Working Architecture
+
+```
+Streamlit Form Submission
+    ↓
+PostgreSQL (loan_applications table)
+    ↓
+Debezium CDC
+    ↓
+Kafka: hc.applications.public.loan_applications
+    ↓
+Docker → host:39092 (socat gateway)
+    ↓
+KServe Pod (v13 predictor)
+  - SCORING_ENABLE_KAFKA=true ✅
+  - Connects to host.minikube.internal:39092 (bootstrap)
+  - Resolves broker:29092 via Service/Endpoints ✅
+  - Kafka Consumer Thread Running ✅
+    ↓
+Extract sk_id_curr from CDC message
+    ↓
+Feast.get_online_features(sk_id_curr=X)
+  - Uses 43 features from feast_metadata.yaml ✅
+  - Fetches from Redis online store
+    ↓
+Model.predict_proba(X) with 43 features ✅
+    ↓
+Publish prediction to logs (event=stream_inference)
+```
+
+---
+
+### Key Files Modified
+
+1. **`services/ml/k8s/training-pipeline/pipeline.py`**
+   - Added feast_metadata.yaml generation after feature selection
+   - Logs metadata to MLflow artifacts
+
+2. **`services/ml/k8s/kserve/bento-builder/configmap.yaml`**
+   - Downloads feast_metadata.yaml from MLflow
+   - Packages it into Bento bundle at `src/bundle/feast_metadata.yaml`
+
+3. **`application/scoring/model_registry.py`**
+   - Loads feast_metadata.yaml from bundle directory
+   - Returns metadata alongside model
+
+4. **`application/scoring/service.py`**
+   - Uses model's features from metadata instead of hardcoded list
+   - Lazy-loads feature list on first prediction
+
+5. **`services/ml/k8s/model-serving/watcher-configmap.yaml`**
+   - Fixed `SCORING_ENABLE_KAFKA` to `"true"`
+   - Configured Kafka bootstrap servers, topic, consumer group
+
+6. **`services/ml/k8s/kserve/kafka-broker-service.yaml`** (NEW)
+   - Service to resolve `broker:29092` DNS name
+   - Endpoints pointing to socat gateway at host:39092
+
+---
+
+### Verification Commands
+
+**Check v13 is deployed with latest code**:
+```bash
+kubectl get inferenceservice -n kserve
+# Should show: credit-risk-v13
+
+kubectl get pods -n kserve -l serving.kserve.io/inferenceservice=credit-risk-v13
+# Should show: Running
+```
+
+**Verify feast_metadata.yaml was loaded**:
+```bash
+kubectl logs -n kserve <v13-predictor-pod> | grep "feast_metadata"
+# Expected:
+# ✓ Loaded feast metadata from /home/bentoml/bento/src/bundle/feast_metadata.yaml: 43 features
+# Using 43 features from model's feast_metadata.yaml
+```
+
+**Verify Kafka consumer is running**:
+```bash
+kubectl logs -n kserve <v13-predictor-pod> | grep "Kafka consumer"
+# Expected:
+# Kafka consumer started: topic=hc.applications.public.loan_applications, group=credit-risk-scoring
+```
+
+**Test end-to-end flow**:
+```bash
+# Submit loan application via Streamlit
+# Check scoring pod logs for prediction
+kubectl logs -n kserve <v13-predictor-pod> --tail=20 | grep "stream_inference"
+
+# Expected output:
+# {'sk_id_curr': 'X', 'probability': 0.XXX, 'decision': 'approve/reject', ...}
+```
+
+**Verify no DNS errors**:
+```bash
+kubectl logs -n kserve <v13-predictor-pod> | grep -i "dns\|NoBrokersAvailable"
+# Should be empty (no errors)
+```
+
+---
+
+### Lessons Learned
+
+1. **Training-Serving Contracts Are Critical**:
+   - Never hardcode feature lists in serving code
+   - Package metadata (feature names, types, counts) with the model
+   - Validate at startup that serving has all required features
+
+2. **Kafka Advertised Listeners in K8s**:
+   - Bootstrap connection ≠ data connection
+   - Kafka metadata response contains advertised listener hostname
+   - K8s needs Service/Endpoints to resolve external hostnames
+   - Can't rely on hostAliases alone when crossing network boundaries
+
+3. **ConfigMap Updates Require Pod Recreation**:
+   - Updating a ConfigMap doesn't automatically update running pods
+   - InferenceServices created before ConfigMap update have stale config
+   - Must delete and recreate pods to pick up new environment variables
+
+4. **Feature Metadata Should Travel With Model**:
+   - Training pipeline → MLflow artifacts → Bento bundle → Serving pod
+   - Single source of truth prevents drift
+   - Makes debugging easier (pod logs show exactly which features are used)
+
+5. **Test The Whole Flow, Not Just Parts**:
+   - Kafka consumer thread starting ≠ consumer working
+   - Must verify actual message consumption and prediction
+   - Check both control plane (pod status) and data plane (actual predictions)
+
+---
+
+### Next Steps
+
+With the serving pipeline now fully working, the next priorities are:
+
+1. **External Data Integration**:
+   - Create Kafka topics: `bureau_raw`, `bureau_balance_raw`, `application_ext_raw`
+   - Move transformation logic from `application/services/external_bureau_service.py` to Flink
+   - Implement Flink jobs for: raw → clean transformation
+   - Update Feast to consume from clean topics
+
+2. **Documentation Updates**:
+   - Update README.md with kafka-broker-service.yaml setup
+   - Document the feast_metadata.yaml contract pattern
+   - Add troubleshooting section for Kafka DNS issues
+
+3. **Monitoring**:
+   - Add metrics for feature loading success/failure
+   - Track prediction latency with 43 vs 26 features
+   - Monitor Kafka consumer lag
+
+---

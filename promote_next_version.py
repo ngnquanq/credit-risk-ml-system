@@ -8,7 +8,7 @@ import mlflow
 from mlflow.tracking import MlflowClient
 
 # Configuration
-MLFLOW_TRACKING_URI = "http://localhost:5002"  # Adjust if different
+MLFLOW_TRACKING_URI = "http://localhost:5001"  # Adjust if different
 MODEL_NAME = "credit_risk_model"
 
 def main():

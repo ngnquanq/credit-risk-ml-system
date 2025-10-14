@@ -11,6 +11,7 @@ import os
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any, Optional, List
 
 try:
@@ -181,8 +182,13 @@ class FeastStreamProcessor:
             logger.error(f"Error processing {source} message: {e}")
 
     def run_consumer_thread(self, topic: str, source: str):
-        """Run Kafka consumer for specific topic in dedicated thread."""
+        """Run Kafka consumer for specific topic in dedicated thread with parallel processing."""
         consumer = None
+        executor = None
+
+        # Configurable worker count (default: 50, or from environment)
+        max_workers = int(os.getenv("FEAST_MAX_WORKERS", 50))
+
         while True:
             try:
                 if consumer is None:
@@ -196,16 +202,29 @@ class FeastStreamProcessor:
                         value_deserializer=lambda x: json.loads(x.decode('utf-8')) if x else {}
                     )
                     logger.info(f"✓ Started {source} consumer for topic: {topic}")
-                
-                # Consume messages
+
+                # Create thread pool for parallel message processing
+                if executor is None:
+                    executor = ThreadPoolExecutor(
+                        max_workers=max_workers,
+                        thread_name_prefix=f"FeastWorker-{source}"
+                    )
+                    cpu_cores = os.cpu_count() or 4
+                    logger.info(f"✓ Created thread pool for {source}: {max_workers} workers ({cpu_cores} CPU cores, {max_workers//cpu_cores}x multiplier)")
+
+                # Consume messages and process in parallel (non-blocking!)
                 for message in consumer:
-                    self.process_kafka_message(message, source)
-                    
+                    # Submit to thread pool - returns immediately without waiting
+                    executor.submit(self.process_kafka_message, message, source)
+
             except Exception as e:
                 logger.error(f"Consumer error for {source}: {e}")
                 if consumer:
                     consumer.close()
                     consumer = None
+                if executor:
+                    executor.shutdown(wait=False)
+                    executor = None
                 time.sleep(5)  # Wait before reconnecting
 
     def start(self):

@@ -7,9 +7,12 @@ services:
     environment:
       - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
       # Ensure PyFlink job sees the same runtime env as TaskManagers
-      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka_broker:29092}
       - CDC_SOURCE_TOPIC=${CDC_TOPIC:-hc.applications.public.loan_applications}
       - SINK_TOPIC_FEATURES=${FEAST_TOPIC_APP_FEATURES:-hc.application_features}
+      # Bureau aggregation topics
+      - RAW_TOPIC_EXT=${RAW_TOPIC_EXT:-hc.application_ext_raw}
+      - SINK_TOPIC_EXT=${SINK_TOPIC_EXT:-hc.application_ext}
     command: jobmanager
     ports:
       - "8085:8081"  # Flink Web UI
@@ -33,26 +36,46 @@ services:
       - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
       - TASK_MANAGER_NUMBER_OF_TASK_SLOTS=2
       # Ensure PyFlink task processes see correct Kafka/topic vars
-      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka_broker:29092}
       - CDC_SOURCE_TOPIC=${CDC_TOPIC:-hc.applications.public.loan_applications}
       - SINK_TOPIC_FEATURES=${FEAST_TOPIC_APP_FEATURES:-hc.application_features}
+      # Bureau aggregation topics
+      - RAW_TOPIC_EXT=${RAW_TOPIC_EXT:-hc.application_ext_raw}
+      - SINK_TOPIC_EXT=${SINK_TOPIC_EXT:-hc.application_ext}
     command: taskmanager
     networks:
       - hc-network
 
-  flink-job:
+  flink-job-pii:
     build:
       context: ../../application/flink
       dockerfile: Dockerfile
-    container_name: flink_job_submitter
+    container_name: flink_job_pii_submitter
     depends_on:
       flink-jobmanager:
         condition: service_healthy
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka_broker:29092}
       - CDC_SOURCE_TOPIC=${CDC_TOPIC_PREFIX:-hc.applications}.public.loan_applications
       - SINK_TOPIC_PII=${SINK_TOPIC_PII:-hc.application_pii}
       - SINK_TOPIC_FEATURES=${FEAST_TOPIC_APP_FEATURES:-hc.application_features}
+    command: ["bash", "-lc", "flink run -m flink-jobmanager:8081 -d -py /opt/app/jobs/cdc_application_etl.py -pyfs /opt/app/jobs"]
+    networks:
+      - hc-network
+
+  flink-job-bureau:
+    build:
+      context: ../../application/flink
+      dockerfile: Dockerfile
+    container_name: flink_job_bureau_submitter
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka_broker:29092}
+      - RAW_TOPIC_EXT=${RAW_TOPIC_EXT:-hc.application_ext_raw}
+      - SINK_TOPIC_EXT=${SINK_TOPIC_EXT:-hc.application_ext}
+    command: ["bash", "-lc", "flink run -m flink-jobmanager:8081 -d -py /opt/app/jobs/bureau_aggregation_etl.py -pyfs /opt/app/jobs"]
     networks:
       - hc-network
 

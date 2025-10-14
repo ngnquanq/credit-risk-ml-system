@@ -1,0 +1,39 @@
+services:
+  # cAdvisor - Container Advisor for Docker metrics
+  # Monitors all Docker containers in hc-network and exposes metrics for Prometheus
+  # Complements kubelet's built-in cAdvisor which only sees K8s pods
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: docker_cadvisor
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    ports:
+      - "8099:8080"  # Expose on 8099 (8080 used by Debezium, 8081 also in use)
+    volumes:
+      # Read-only mounts for container inspection
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+      # Optional: cgroup v2 support (for newer kernels)
+      - /sys/fs/cgroup:/cgroup:ro
+    networks:
+      - hc-network
+    command:
+      - '--housekeeping_interval=10s'           # Collect metrics every 10s (matches Prometheus scrape)
+      - '--docker_only=true'                    # Only monitor Docker containers (skip non-containerized processes)
+      - '--disable_metrics=percpu,sched,tcp,udp,diskIO,disk,network'  # Disable detailed metrics to reduce overhead
+      - '--store_container_labels=false'        # Don't store all labels (reduces cardinality)
+      - '--raw_cgroup_prefix_whitelist='        # Disable raw cgroup monitoring to avoid inotify limits
+    restart: unless-stopped
+    labels:
+      - "monitoring.role=metrics-exporter"
+      - "monitoring.type=cadvisor"
+      - "monitoring.target=docker-containers"
+
+networks:
+  hc-network:
+    external: true
+    name: ${NETWORK_NAME:-hc-network}
