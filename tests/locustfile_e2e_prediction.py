@@ -157,20 +157,14 @@ class PredictionPipelineUser(User):
     customer_ids = []
     db_config = {
         'host': 'localhost',
-        'port': 5434,
+        'port': 6432,  # PgBouncer connection pooler (transaction mode)
         'database': 'operations',
         'user': 'ops_admin',
         'password': 'ops_password'
     }
 
-    # Connection pool - reuse connections instead of creating new ones each time
-    db_connection = None
-
     def on_start(self):
-        """Load customer IDs from CSV and create DB connection."""
-        # Create a persistent connection for this user
-        self.db_connection = psycopg2.connect(**self.db_config)
-
+        """Load customer IDs from CSV (no persistent connection for transaction pooling)."""
         if not PredictionPipelineUser.customer_ids:
             csv_path = Path(__file__).parent.parent / "data" / "application_train.csv"
 
@@ -188,9 +182,8 @@ class PredictionPipelineUser(User):
                 PredictionPipelineUser.customer_ids = [str(i) for i in range(100001, 105001)]
 
     def on_stop(self):
-        """Close database connection."""
-        if self.db_connection:
-            self.db_connection.close()
+        """Cleanup (no persistent connection in transaction mode)."""
+        pass
 
     @task
     def submit_loan_application_to_db(self):
@@ -211,8 +204,9 @@ class PredictionPipelineUser(User):
             employment_years = random.randint(1, 20)
             employment_start_date = date.today() - timedelta(days=employment_years * 365)
 
-            # Reuse existing connection
-            cursor = self.db_connection.cursor()
+            # Open new connection for this transaction (transaction pooling mode)
+            connection = psycopg2.connect(**self.db_config)
+            cursor = connection.cursor()
 
             # Insert loan application
             insert_query = """
@@ -253,7 +247,7 @@ class PredictionPipelineUser(User):
             )
 
             cursor.execute(insert_query, values)
-            self.db_connection.commit()
+            connection.commit()
 
             # Register for prediction monitoring
             if prediction_monitor:
@@ -271,7 +265,9 @@ class PredictionPipelineUser(User):
                 context={}
             )
 
+            # Close connection immediately (transaction pooling)
             cursor.close()
+            connection.close()
 
         except Exception as e:
             latency_ms = (time.time() - start_time) * 1000

@@ -3,6 +3,7 @@ services:
   ops-postgres:
     image: postgres:${POSTGRES_VERSION:-15-alpine}
     container_name: ops_postgres
+    hostname: ops-postgres
     env_file:
       - ./.env.core
     command: [
@@ -35,26 +36,37 @@ services:
       timeout: 10s
       retries: 3
     networks:
-      - hc-network
+      hc-network:
+        ipv4_address: 172.18.0.100
+        aliases:
+          - ops-postgres
+          - postgres
 
   # Connection pooler for high-concurrency scenarios
   ops-pgbouncer:
     image: pgbouncer/pgbouncer:latest
     container_name: ops_pgbouncer
+    hostname: ops-pgbouncer
     env_file:
       - ./.env.core
     environment:
-      DATABASES_HOST: ${OPS_DB_HOST:-ops-postgres}
+      # Environment variables for PgBouncer official image
+      # These will be used by the entrypoint script to generate /etc/pgbouncer/pgbouncer.ini
+      # Using static IP because c-ares in PgBouncer doesn't support Docker internal DNS
+      DATABASES_HOST: 172.18.0.100
       DATABASES_PORT: ${OPS_DB_PORT:-5432}
       DATABASES_USER: ${OPS_DB_USER:-ops_admin}
       DATABASES_PASSWORD: ${OPS_DB_PASSWORD:-ops_password}
       DATABASES_DBNAME: ${OPS_DB_NAME:-operations}
-      POOL_MODE: ${PGBOUNCER_POOL_MODE:-transaction}
-      SERVER_RESET_QUERY: DISCARD ALL
-      MAX_CLIENT_CONN: ${PGBOUNCER_MAX_CLIENT_CONN:-1000}
-      DEFAULT_POOL_SIZE: ${PGBOUNCER_DEFAULT_POOL_SIZE:-25}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 400
+      AUTH_TYPE: md5
+      AUTH_FILE: /etc/pgbouncer/userlist.txt
+    volumes:
+      - ./userlist.txt:/etc/pgbouncer/userlist.txt:ro
     ports:
-      - "${PGBOUNCER_PORT:-6432}:5432"
+      - "${PGBOUNCER_PORT:-6432}:6432"
     depends_on:
       - ops-postgres
     networks:
