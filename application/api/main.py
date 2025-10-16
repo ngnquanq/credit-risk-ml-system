@@ -17,15 +17,14 @@ import uuid
 import json
 
 from core import settings, get_db, init_db, close_db
-from models import (
+from db_models import (
     LoanApplication,
     ApplicationStatusLog,
     LoanApplicationCreate,
     LoanApplicationResponse,
     HealthResponse
 )
-from integration.kafka_consumer import worker as kafka_worker
-from integration.bureau_client import close_bureau_client
+from services.bureau_client import close_bureau_client
 
 from pydantic import Field
 
@@ -36,13 +35,10 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting Home Credit Loan API...")
     await init_db()
-    # Start Kafka consumer for bureau requests if enabled
-    await kafka_worker.start()
     yield
-    # Shutdown  
+    # Shutdown
     logger.info("Shutting down Home Credit Loan API...")
-    # Stop Kafka consumer and close external clients
-    await kafka_worker.stop()
+    # Close external clients
     await close_bureau_client()
     await close_db()
 
@@ -372,13 +368,3 @@ async def get_application_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve application status"
         )
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "application.api.main:app", 
-        host=settings.api_host, 
-        port=settings.api_port,
-        reload=settings.debug
-    )

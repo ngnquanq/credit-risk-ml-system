@@ -257,3 +257,6 @@ test_suite_analysis/
 
 # infrastructure as code becasue we dont use it now
 infrastructure/
+
+# Feast data
+application/feast/data/

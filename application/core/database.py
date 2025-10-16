@@ -20,11 +20,11 @@ from .config import settings
 NOTE: Import paths here should match how the API container is built.
 The API image copies the contents of the application/ folder directly into
 /app (not as a nested 'application' package). Therefore packages are available
-as 'core', 'models', 'api', etc. Importing via 'application.models' will fail
-inside that container. Use top-level 'models' imports instead.
+as 'core', 'db_models', 'api', etc. Importing via 'application.db_models' will fail
+inside that container. Use top-level 'db_models' imports instead.
 """
 
-from application.models.base import Base
+from application.db_models.base import Base
 
 
 # Create async engine
@@ -70,8 +70,8 @@ async def init_db() -> None:
     try:
         async with engine.begin() as conn:
             # Import all models to register with metadata
-            from models import database  # noqa
-            
+            from db_models import database  # noqa
+
             await conn.run_sync(Base.metadata.create_all)
             logger.info("Database tables initialized successfully")
     except Exception as e:
