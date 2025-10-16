@@ -83,7 +83,7 @@ All manifests located in: `/services/ml/k8s/feature-store-kustomize/`
 
 ```bash
 # Deploy everything
-kubectl apply -k /home/nhatquang/home-credit-credit-risk-model-stability/services/ml/k8s/feature-store-kustomize/ --context=mlops
+kubectl apply -k /home/nhatquang/home-credit-credit-risk-model-stability/services/ml/k8s/feature-store/ --context=mlops
 
 # Check status
 kubectl get pods -n feature-registry --context=mlops

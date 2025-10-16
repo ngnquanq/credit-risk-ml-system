@@ -333,16 +333,24 @@ deploymentSpec:
           \  input_example = X_train.iloc[:1]\n        model_info = mlflow.sklearn.log_model(\n\
           \            sk_model=pipe,\n            artifact_path=\"model\",\n    \
           \        input_example=input_example,\n            registered_model_name=register_name,\n\
-          \        )\n\n        feast_metadata = {\n            \"feast_feature_view\"\
-          : feast_feature_view,\n            \"selected_features\": FEATURES,  # All\
-          \ features used in training\n            \"entity_key\": entity_key,\n \
-          \           \"num_features\": len(FEATURES),\n            \"categorical_features\"\
-          : cat_cols,\n            \"numerical_features\": num_cols,\n           \
-          \ \"model_signature\": {\n                \"inputs\": list(X_train.columns),\n\
-          \                \"output\": \"binary_classification\",\n            },\n\
-          \            \"training_date\": pd.Timestamp.now().isoformat(),\n      \
-          \  }\n\n        # Log as YAML artifact\n        with open(\"feast_metadata.yaml\"\
-          , \"w\") as f:\n            yaml.dump(feast_metadata, f, default_flow_style=False)\n\
+          \        )\n\n        # Generate Feast feature references and mapping for\
+          \ serving\n        # Model columns (UPPER_CASE) need to map to Feast feature\
+          \ names (lowercase)\n        feast_feature_refs = \",\".join([f\"{feast_feature_view}:{col.lower()}\"\
+          \ for col in FEATURES])\n        feature_mapping = {col.lower(): col for\
+          \ col in FEATURES}  # feast_name -> model_column\n\n        feast_metadata\
+          \ = {\n            \"selected_features\": FEATURES,  # All features used\
+          \ in training (model column names)\n            \"feast_feature_refs\":\
+          \ feast_feature_refs,  # Comma-separated Feast refs for querying\n     \
+          \       \"feature_mapping\": feature_mapping,  # Map Feast names to model\
+          \ column names\n            \"feast_feature_view\": feast_feature_view,\n\
+          \            \"entity_key\": entity_key,\n            \"num_features\":\
+          \ len(FEATURES),\n            \"categorical_features\": cat_cols,\n    \
+          \        \"numerical_features\": num_cols,\n            \"model_signature\"\
+          : {\n                \"inputs\": list(X_train.columns),\n              \
+          \  \"output\": \"binary_classification\",\n            },\n            \"\
+          training_date\": pd.Timestamp.now().isoformat(),\n        }\n\n        #\
+          \ Log as YAML artifact\n        with open(\"feast_metadata.yaml\", \"w\"\
+          ) as f:\n            yaml.dump(feast_metadata, f, default_flow_style=False)\n\
           \        mlflow.log_artifact(\"feast_metadata.yaml\")\n\n        print(f\"\
           \u2705 Logged feast_metadata.yaml with {len(FEATURES)} features\")\n\n \
           \       # Transition to stage (same as before)\n        if stage:\n    \
