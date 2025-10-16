@@ -251,3 +251,6 @@ services/data/scripts/dwh/.volumes/
 # video related stuffs
 *.mp4
 *.webm
+# Claude Code session artifacts
+managed_context/
+test_suite_analysis/
