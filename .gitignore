@@ -254,3 +254,6 @@ services/data/scripts/dwh/.volumes/
 # Claude Code session artifacts
 managed_context/
 test_suite_analysis/
+
+# infrastructure as code becasue we dont use it now
+infrastructure/
