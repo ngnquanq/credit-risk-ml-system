@@ -4,7 +4,6 @@ import os
 from typing import Optional
 from pydantic import Field, ConfigDict
 from pydantic_settings import BaseSettings
-from feature_registry import get_feast_feature_refs
 
 try:  # Prefer app-wide defaults when available
     from application.core.config import settings as app_settings  # type: ignore
@@ -62,10 +61,10 @@ class ScoringSettings(BaseSettings):
         default=None,
         description="Redis connection string for Feast online store (e.g., redis://feast-redis:6379/0)",
     )
-    # Feast feature refs - AUTO-GENERATED from feature_registry.py (single source of truth)
+    # Feast feature refs - loaded from feast_metadata.yaml at runtime
     feast_feature_refs: Optional[str] = Field(
-        default=get_feast_feature_refs(),
-        description="Comma-separated Feast feature references (auto-generated from feature_registry.py)",
+        default=None,
+        description="Comma-separated Feast feature references (set via env var or loaded from model's feast_metadata.yaml)",
     )
 
     # Kafka integration (optional streaming scoring)

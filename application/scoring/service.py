@@ -29,9 +29,6 @@ ScoreByIdRequest = None  # type: ignore
 as_vector = None  # type: ignore
 postprocess = None  # type: ignore
 configure_logger = None  # type: ignore
-get_model_expected_columns = None  # type: ignore
-get_feast_to_model_mapping = None  # type: ignore
-FEATURE_REGISTRY = None  # type: ignore
 KafkaConsumer = None  # type: ignore
 KafkaProducer = None  # type: ignore
 
@@ -45,7 +42,6 @@ with bentoml.importing():
     from schemas import ScoreRequest as _ScoreRequest, ScoreResponse as _ScoreResponse, ScoreByIdRequest as _ScoreByIdRequest
     from pipeline import as_vector as _as_vector, postprocess as _postprocess
     from logger import configure_logger as _configure_logger
-    from feature_registry import get_model_expected_columns as _get_model_expected_columns, get_feast_to_model_mapping as _get_feast_to_model_mapping, FEATURE_REGISTRY as _FEATURE_REGISTRY
 
     try:
         from kafka import KafkaConsumer as _KafkaConsumer, KafkaProducer as _KafkaProducer
@@ -63,9 +59,6 @@ with bentoml.importing():
     as_vector = _as_vector
     postprocess = _postprocess
     configure_logger = _configure_logger
-    get_model_expected_columns = _get_model_expected_columns
-    get_feast_to_model_mapping = _get_feast_to_model_mapping
-    FEATURE_REGISTRY = _FEATURE_REGISTRY
     KafkaConsumer = _KafkaConsumer
     KafkaProducer = _KafkaProducer
 
@@ -171,14 +164,7 @@ with bentoml.importing():
 
         logger.info(f"Feast lookup for sk_id_curr={req.sk_id_curr}: {res}")
 
-        # Validate against hardcoded registry (legacy validation)
-        validation_issues = FEATURE_REGISTRY.validate_feast_result(res)
-        if validation_issues["missing_required"]:
-            logger.warning(f"Missing required features (registry): {validation_issues['missing_required']}")
-        if validation_issues["unexpected_features"]:
-            logger.info(f"Unexpected features received (registry): {validation_issues['unexpected_features']}")
-
-        # NEW: Validate against model's training features if available
+        # Validate against model's training features
         if MODEL_FEAST_METADATA and MODEL_FEAST_METADATA.get("selected_features"):
             expected_features = set(MODEL_FEAST_METADATA["selected_features"])
             received_features = set(res.keys())
@@ -223,11 +209,16 @@ MODEL_FEAST_METADATA: Optional[Dict[str, Any]] = None  # Feature selection from 
 
 
 def _map_feast_features(feast_result: Dict[str, Any], feature_refs: List[str]) -> Dict[str, Any]:
-    """Map Feast features to ML model column names using centralized registry."""
-    
-    # AUTO-GENERATED mapping from feature_registry.py (single source of truth)
-    feature_mapping = get_feast_to_model_mapping()
-    
+    """Map Feast features to ML model column names.
+
+    Uses feast_metadata.yaml feature_mapping if available, otherwise applies
+    simple snake_case -> UPPER_CASE transformation.
+    """
+    # Get feature mapping from model metadata if available
+    feature_mapping = {}
+    if MODEL_FEAST_METADATA and MODEL_FEAST_METADATA.get("feature_mapping"):
+        feature_mapping = MODEL_FEAST_METADATA["feature_mapping"]
+
     features = {}
     for ref in feature_refs:
         fname = ref.split(":", 1)[-1]  # Strip view prefix
@@ -235,7 +226,7 @@ def _map_feast_features(feast_result: Dict[str, Any], feature_refs: List[str]) -
         if vals:
             val = vals[0]
             if val is not None:
-                # Map to ML model column name
+                # Map to ML model column name (use metadata mapping or uppercase)
                 model_col = feature_mapping.get(fname, fname.upper())
                 try:
                     # Keep strings as strings for categorical features
@@ -245,7 +236,7 @@ def _map_feast_features(feast_result: Dict[str, Any], feature_refs: List[str]) -
                         features[model_col] = float(val)
                 except Exception:
                     features[model_col] = val
-    
+
     return features
 
 
@@ -280,27 +271,26 @@ def _predict_proba_local(X):
     raise RuntimeError("Model does not support prediction")
 
 
-# AUTO-GENERATED MLflow model input schema from feature_registry.py (single source of truth)
+# Model input schema loaded from feast_metadata.yaml (single source of truth)
 # Lazy-loaded to avoid import errors during build
 _EXPECTED_COLUMNS: Optional[List[str]] = None
 
 def _get_expected_columns() -> List[str]:
-    """Get expected columns from model's feast metadata or fallback to feature registry.
+    """Get expected columns from model's feast metadata.
 
-    Priority:
-    1. Use selected_features from MODEL_FEAST_METADATA (loaded from MLflow)
-    2. Fallback to hardcoded feature_registry.py
+    Requires feast_metadata.yaml with 'selected_features' field.
+    Raises RuntimeError if metadata is missing.
     """
     global _EXPECTED_COLUMNS
     if _EXPECTED_COLUMNS is None:
-        # Try to use features from the trained model
         if MODEL_FEAST_METADATA and MODEL_FEAST_METADATA.get("selected_features"):
             _EXPECTED_COLUMNS = MODEL_FEAST_METADATA["selected_features"]
-            logger.info(f"Using {len(_EXPECTED_COLUMNS)} features from model's feast_metadata.yaml")
+            logger.info(f"✓ Using {len(_EXPECTED_COLUMNS)} features from model's feast_metadata.yaml")
         else:
-            # Fallback to hardcoded registry
-            _EXPECTED_COLUMNS = get_model_expected_columns()
-            logger.warning(f"Using {len(_EXPECTED_COLUMNS)} features from hardcoded feature_registry.py (fallback)")
+            raise RuntimeError(
+                "Model must include feast_metadata.yaml with 'selected_features' field. "
+                "This file should be generated during training and uploaded to MLflow as an artifact."
+            )
     return _EXPECTED_COLUMNS
 
 def _as_dataframe_row(features: Dict[str, Any]) -> pd.DataFrame:
@@ -381,12 +371,30 @@ def ensure_model_loaded() -> None:
         MODEL_VERSION = version
         MODEL_FEAST_METADATA = feast_metadata
 
-        # Log feature selection info
-        if feast_metadata:
-            logger.info(f"✓ Model trained with {feast_metadata.get('num_features', 0)} features")
-            logger.info(f"  Selected features: {feast_metadata.get('selected_features', [])[:5]}...")
-        else:
-            logger.warning("⚠ No feast_metadata.yaml found - using feature_registry.py fallback")
+        # Validate and log feature selection info
+        if not feast_metadata:
+            raise RuntimeError(
+                f"Model '{name}' is missing feast_metadata.yaml. "
+                "This file must be generated during training with fields: "
+                "'selected_features', 'feast_feature_refs', 'feature_mapping', 'num_features', 'training_date'. "
+                "See download_model_with_metadata.py for details."
+            )
+
+        if not feast_metadata.get("selected_features"):
+            raise RuntimeError(
+                f"Model '{name}' feast_metadata.yaml is missing 'selected_features' field. "
+                "Update your training pipeline to include this field."
+            )
+
+        logger.info(f"✓ Model trained with {feast_metadata.get('num_features', 0)} features")
+        logger.info(f"  Selected features: {feast_metadata.get('selected_features', [])[:5]}...")
+
+        # Load feast_feature_refs from metadata if not set via env var
+        if not settings.feast_feature_refs and feast_metadata.get("feast_feature_refs"):
+            settings.feast_feature_refs = feast_metadata["feast_feature_refs"]
+            logger.info(f"✓ Loaded {len(feast_metadata['feast_feature_refs'].split(','))} Feast feature refs from feast_metadata.yaml")
+        elif not settings.feast_feature_refs:
+            logger.warning("⚠ No feast_feature_refs found in metadata or env var SCORING_FEAST_FEATURE_REFS")
 
         _initialized = True
 

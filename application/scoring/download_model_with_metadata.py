@@ -92,7 +92,7 @@ def download_model_and_metadata(model_uri: str, output_dir: str) -> None:
 
             except Exception as e:
                 print(f"⚠ Failed to download feast_metadata.yaml: {e}")
-                print("  Scoring will fall back to feature_registry.py")
+                print("  Scoring service requires feast_metadata.yaml - the model will not work without it")
 
     except Exception as e:
         print(f"⚠ Failed to get model metadata: {e}")

@@ -373,9 +373,16 @@ def train_and_register(
             registered_model_name=register_name,
         )
 
+        # Generate Feast feature references and mapping for serving
+        # Model columns (UPPER_CASE) need to map to Feast feature names (lowercase)
+        feast_feature_refs = ",".join([f"{feast_feature_view}:{col.lower()}" for col in FEATURES])
+        feature_mapping = {col.lower(): col for col in FEATURES}  # feast_name -> model_column
+
         feast_metadata = {
+            "selected_features": FEATURES,  # All features used in training (model column names)
+            "feast_feature_refs": feast_feature_refs,  # Comma-separated Feast refs for querying
+            "feature_mapping": feature_mapping,  # Map Feast names to model column names
             "feast_feature_view": feast_feature_view,
-            "selected_features": FEATURES,  # All features used in training
             "entity_key": entity_key,
             "num_features": len(FEATURES),
             "categorical_features": cat_cols,

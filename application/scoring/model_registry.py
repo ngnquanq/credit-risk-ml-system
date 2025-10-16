@@ -162,7 +162,7 @@ def load_model(
             except Exception as e:
                 logger.warning(f"Failed to load feast_metadata.yaml from {metadata_path}: {e}")
         else:
-            logger.warning(f"⚠ No feast_metadata.yaml found at {metadata_path} - using feature_registry.py fallback")
+            logger.warning(f"⚠ No feast_metadata.yaml found at {metadata_path} - model will fail to load in service.py")
 
         return model, name, None, feast_metadata
     raise ValueError("Provide model_path or use MLflow source")
