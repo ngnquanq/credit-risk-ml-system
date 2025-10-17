@@ -1,0 +1,505 @@
+# PIPELINE DEFINITION
+# Name: credit-risk-training-pipeline
+# Inputs:
+#    aws_access_key_id: str [Default: 'minio_user']
+#    aws_secret_access_key: str [Default: 'minio_password']
+#    bucket: str [Default: 'training-data']
+#    entity_key: str [Default: 'SK_ID_CURR']
+#    experiment: str [Default: 'credit-risk']
+#    mlflow_s3_endpoint_url: str [Default: 'http://minio.model-registry.svc.cluster.local:9000']
+#    mlflow_tracking_uri: str [Default: 'http://mlflow.model-registry.svc.cluster.local:80']
+#    object_key: str [Default: 'snapshots/ds=2025-09-19/loan_applications.csv']
+#    ray_address: str [Default: '']
+#    ray_cpus_per_trial: float [Default: 0.5]
+#    ray_gpus_per_trial: float [Default: 0.0]
+#    ray_num_samples: int [Default: 4.0]
+#    register_name: str [Default: 'credit_risk_model']
+#    s3_endpoint: str [Default: 'http://training-minio.training-data.svc.cluster.local:9000']
+#    stage: str [Default: 'Production']
+components:
+  comp-fetch-minio-snapshot:
+    executorLabel: exec-fetch-minio-snapshot
+    inputDefinitions:
+      parameters:
+        aws_access_key_id:
+          parameterType: STRING
+        aws_secret_access_key:
+          parameterType: STRING
+        bucket:
+          parameterType: STRING
+        object_key:
+          parameterType: STRING
+        s3_endpoint:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        output_csv:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-ray-tune-hyperparams:
+    executorLabel: exec-ray-tune-hyperparams
+    inputDefinitions:
+      artifacts:
+        data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        cpus_per_trial:
+          defaultValue: 1.0
+          isOptional: true
+          parameterType: NUMBER_DOUBLE
+        gpus_per_trial:
+          defaultValue: 0.0
+          isOptional: true
+          parameterType: NUMBER_DOUBLE
+        num_samples:
+          defaultValue: 12.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        ray_address:
+          defaultValue: ''
+          isOptional: true
+          parameterType: STRING
+    outputDefinitions:
+      parameters:
+        Output:
+          parameterType: STRING
+  comp-train-and-register:
+    executorLabel: exec-train-and-register
+    inputDefinitions:
+      artifacts:
+        data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        aws_access_key_id:
+          parameterType: STRING
+        aws_secret_access_key:
+          parameterType: STRING
+        best_params_json:
+          parameterType: STRING
+        entity_key:
+          defaultValue: SK_ID_CURR
+          isOptional: true
+          parameterType: STRING
+        experiment:
+          parameterType: STRING
+        mlflow_s3_endpoint_url:
+          parameterType: STRING
+        mlflow_tracking_uri:
+          parameterType: STRING
+        register_name:
+          parameterType: STRING
+        stage:
+          parameterType: STRING
+    outputDefinitions:
+      parameters:
+        Output:
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-fetch-minio-snapshot:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - fetch_minio_snapshot
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'boto3==1.40.26'\
+          \  &&  python3 -m pip install --quiet --no-warn-script-location 'kfp==2.14.3'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef fetch_minio_snapshot(\n    s3_endpoint: str,\n    bucket: str,\n\
+          \    object_key: str,\n    aws_access_key_id: str,\n    aws_secret_access_key:\
+          \ str,\n    output_csv: Output[Dataset],\n):\n    \"\"\"\n    Download a\
+          \ CSV from MinIO/S3 into the provided artifact path.\n    The artifact is\
+          \ then passed to downstream steps.\n    \"\"\"\n    import os\n    import\
+          \ sys\n    import boto3\n    import botocore\n\n    session = boto3.session.Session()\n\
+          \    s3 = session.client(\n        service_name=\"s3\",\n        aws_access_key_id=aws_access_key_id,\n\
+          \        aws_secret_access_key=aws_secret_access_key,\n        endpoint_url=s3_endpoint,\n\
+          \        config=botocore.client.Config(signature_version=\"s3v4\"),\n  \
+          \      verify=False,\n    )\n    local_path = output_csv.path\n    # Ensure\
+          \ parent dir exists\n    os.makedirs(os.path.dirname(local_path), exist_ok=True)\n\
+          \n    # Helpful diagnostics before download\n    print(f\"[fetch_minio_snapshot]\
+          \ endpoint={s3_endpoint} bucket={bucket} key={object_key}\")\n    try:\n\
+          \        # Validate bucket exists\n        s3.head_bucket(Bucket=bucket)\n\
+          \    except Exception as e:\n        print(f\"[fetch_minio_snapshot] head_bucket\
+          \ failed: {e}\", file=sys.stderr)\n        raise\n\n    try:\n        s3.download_file(bucket,\
+          \ object_key, local_path)\n        print(f\"[fetch_minio_snapshot] downloaded\
+          \ to {local_path} ({os.path.getsize(local_path)} bytes)\")\n    except Exception\
+          \ as e:\n        print(f\"[fetch_minio_snapshot] download failed: {e}\"\
+          , file=sys.stderr)\n        # Optional: list bucket keys prefix to aid debugging\n\
+          \        try:\n            prefix = os.path.dirname(object_key).rstrip('/')\n\
+          \            if prefix:\n                resp = s3.list_objects_v2(Bucket=bucket,\
+          \ Prefix=prefix)\n            else:\n                resp = s3.list_objects_v2(Bucket=bucket,\
+          \ MaxKeys=20)\n            keys = [c.get('Key') for c in (resp.get('Contents')\
+          \ or [])]\n            print(f\"[fetch_minio_snapshot] sample keys under\
+          \ '{prefix or bucket}': {keys[:10]}\")\n        except Exception as le:\n\
+          \            print(f\"[fetch_minio_snapshot] listing keys failed too: {le}\"\
+          , file=sys.stderr)\n        raise\n\n"
+        image: python:3.11-slim
+    exec-ray-tune-hyperparams:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - ray_tune_hyperparams
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'pandas==2.2.2'\
+          \ 'scikit-learn==1.5.1' 'xgboost==2.1.0'  &&  python3 -m pip install --quiet\
+          \ --no-warn-script-location 'kfp==2.14.3' '--no-deps' 'typing-extensions>=3.7.4,<5;\
+          \ python_version<\"3.9\"' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef ray_tune_hyperparams(\n    data: Input[Dataset],\n    num_samples:\
+          \ int = 12,\n    cpus_per_trial: float = 1.0,\n    gpus_per_trial: float\
+          \ = 0.0,\n    ray_address: str = \"\",\n) -> str:\n    \"\"\"\n    Distributed\
+          \ (or parallel) hyperparameter tuning using Ray Tune via tune-sklearn.\n\
+          \    - If `ray_address` is provided, connects to an existing Ray cluster\
+          \ (e.g., KubeRay);\n      otherwise starts a local Ray runtime inside the\
+          \ pod and parallelizes across CPUs.\n    Returns best params as JSON.\n\
+          \    \"\"\"\n    import json\n    import os\n    import pandas as pd\n \
+          \   import ray\n    from sklearn.model_selection import train_test_split\n\
+          \    from sklearn.metrics import roc_auc_score\n    from sklearn.compose\
+          \ import ColumnTransformer\n    from sklearn.pipeline import Pipeline\n\
+          \    from sklearn.preprocessing import OrdinalEncoder, FunctionTransformer\n\
+          \    from sklearn.impute import SimpleImputer\n    from xgboost import XGBClassifier\n\
+          \    from ray.tune.schedulers import ASHAScheduler\n\n    # Connect/start\
+          \ Ray\n    if ray_address:\n        ray.init(address=ray_address, ignore_reinit_error=True,\
+          \ namespace=os.getenv(\"RAY_NAMESPACE\", \"kfp\"))\n    else:\n        ray.init(ignore_reinit_error=True)\n\
+          \n    base = dict(\n        subsample=0.8,\n        colsample_bytree=0.8,\n\
+          \        eval_metric=\"logloss\",\n        n_jobs=-1,\n        random_state=42,\n\
+          \    )\n\n    # Define search space\n    from ray import tune\n\n    # Objective\
+          \ function for Ray Tune\n    def train_eval(config):\n        # Load data\
+          \ inside the trainable to avoid capturing large arrays in the closure\n\
+          \        import pandas as pd\n        from sklearn.model_selection import\
+          \ train_test_split\n        from sklearn.metrics import roc_auc_score\n\
+          \        from sklearn.compose import ColumnTransformer\n        from sklearn.pipeline\
+          \ import Pipeline\n        from sklearn.preprocessing import OrdinalEncoder\n\
+          \        from sklearn.impute import SimpleImputer\n        from xgboost\
+          \ import XGBClassifier\n        from ray.air import session\n\n        df\
+          \ = pd.read_csv(data.path, low_memory=False)\n        target_col = \"TARGET\"\
+          \n        if target_col not in df.columns:\n            raise ValueError(\"\
+          TARGET column not found in data\")\n\n        cat_cols = [c for c in df.columns\
+          \ if df[c].dtype == \"object\" and c != target_col]\n        FEATURES =\
+          \ [c for c in df.columns if c != target_col]\n        num_cols = [c for\
+          \ c in FEATURES if c not in cat_cols]\n\n        X = df[FEATURES]\n    \
+          \    y = df[target_col].astype(int)\n        X_train, X_val, y_train, y_val\
+          \ = train_test_split(\n            X, y, test_size=0.2, stratify=y, random_state=42\n\
+          \        )\n\n        num_pipe = Pipeline([(\"impute\", SimpleImputer(strategy=\"\
+          median\"))])\n        cat_pipe = Pipeline([\n            (\"impute\", SimpleImputer(strategy=\"\
+          most_frequent\")),\n            (\"ord\", OrdinalEncoder(handle_unknown=\"\
+          use_encoded_value\", unknown_value=-1)),\n        ])\n        transformers\
+          \ = []\n        if num_cols:\n            transformers.append((\"num\",\
+          \ num_pipe, num_cols))\n        if cat_cols:\n            transformers.append((\"\
+          cat\", cat_pipe, cat_cols))\n        pre = ColumnTransformer(transformers,\
+          \ remainder=\"drop\")\n\n        # Build model with current config\n   \
+          \     params = {\n            **base,\n            \"n_estimators\": int(config.get(\"\
+          n_estimators\", 300)),\n            \"max_depth\": int(config.get(\"max_depth\"\
+          , 4)),\n            \"learning_rate\": float(config.get(\"learning_rate\"\
+          , 0.05)),\n            \"min_child_weight\": int(config.get(\"min_child_weight\"\
+          , 1)),\n            \"gamma\": float(config.get(\"gamma\", 0.0)),\n    \
+          \    }\n        model = Pipeline([(\"pre\", pre), (\"clf\", XGBClassifier(**params))])\n\
+          \        model.fit(X_train, y_train)\n        proba = model.predict_proba(X_val)[:,\
+          \ 1]\n        auc = float(roc_auc_score(y_val, proba))\n        session.report({\"\
+          auc\": auc})\n\n    search_space = {\n        \"n_estimators\": tune.randint(200,\
+          \ 600),\n        \"max_depth\": tune.randint(3, 9),\n        \"learning_rate\"\
+          : tune.loguniform(1e-2, 2e-1),\n        \"min_child_weight\": tune.randint(1,\
+          \ 6),\n        \"gamma\": tune.uniform(0.0, 0.3),\n    }\n\n    trainable\
+          \ = tune.with_resources(train_eval, {\"cpu\": cpus_per_trial, \"gpu\": gpus_per_trial})\n\
+          \    scheduler = ASHAScheduler(max_t=1, grace_period=1, reduction_factor=2)\n\
+          \    tuner = tune.Tuner(\n        trainable,\n        tune_config=tune.TuneConfig(\n\
+          \            metric=\"auc\",\n            mode=\"max\",\n            num_samples=num_samples,\n\
+          \            scheduler=scheduler,\n        ),\n        param_space=search_space,\n\
+          \    )\n    results = tuner.fit()\n    best = results.get_best_result(metric=\"\
+          auc\", mode=\"max\")\n    best_cfg = best.config or {}\n    mapped = {\n\
+          \        \"n_estimators\": int(best_cfg.get(\"n_estimators\", 300)),\n \
+          \       \"max_depth\": int(best_cfg.get(\"max_depth\", 4)),\n        \"\
+          learning_rate\": float(best_cfg.get(\"learning_rate\", 0.05)),\n       \
+          \ \"min_child_weight\": int(best_cfg.get(\"min_child_weight\", 1)),\n  \
+          \      \"gamma\": float(best_cfg.get(\"gamma\", 0.0)),\n    }\n    return\
+          \ json.dumps(mapped)\n\n"
+        image: rayproject/ray:2.31.0-py39
+    exec-train-and-register:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - train_and_register
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'pandas==2.2.2'\
+          \ 'scikit-learn==1.5.1' 'xgboost==2.1.0' 'mlflow==2.14.3' 'pyyaml==6.0.1'\
+          \  &&  python3 -m pip install --quiet --no-warn-script-location 'kfp==2.14.3'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef train_and_register(\n    data: Input[Dataset],\n    best_params_json:\
+          \ str,\n    experiment: str,\n    register_name: str,\n    stage: str,\n\
+          \    mlflow_tracking_uri: str,\n    mlflow_s3_endpoint_url: str,\n    aws_access_key_id:\
+          \ str,\n    aws_secret_access_key: str,\n    entity_key: str = \"SK_ID_CURR\"\
+          ,\n) -> str:\n    \"\"\"\n    Train with provided params and register to\
+          \ MLflow.\n    Logs simplified feast_metadata.yaml (serving discovers feature\
+          \ views dynamically).\n    \"\"\"\n    import os\n    import json\n    import\
+          \ yaml\n    import pandas as pd\n    from sklearn.compose import ColumnTransformer\n\
+          \    from sklearn.impute import SimpleImputer\n    from sklearn.model_selection\
+          \ import train_test_split\n    from sklearn.pipeline import Pipeline\n \
+          \   from sklearn.preprocessing import OrdinalEncoder, FunctionTransformer\n\
+          \    from sklearn.metrics import roc_auc_score\n    from xgboost import\
+          \ XGBClassifier\n    import mlflow\n    import mlflow.sklearn\n\n    os.environ[\"\
+          MLFLOW_TRACKING_URI\"] = mlflow_tracking_uri\n    os.environ[\"MLFLOW_S3_ENDPOINT_URL\"\
+          ] = mlflow_s3_endpoint_url\n    os.environ[\"AWS_ACCESS_KEY_ID\"] = aws_access_key_id\n\
+          \    os.environ[\"AWS_SECRET_ACCESS_KEY\"] = aws_secret_access_key\n\n \
+          \   df = pd.read_csv(data.path, low_memory=False)\n    target_col = \"TARGET\"\
+          \n    if target_col not in df.columns:\n        raise ValueError(\"TARGET\
+          \ column not found in data\")\n\n    # Feature preparation\n    cat_cols\
+          \ = [c for c in df.columns if df[c].dtype == \"object\" and c != target_col]\n\
+          \    FEATURES = [c for c in df.columns if c != target_col]\n    num_cols\
+          \ = [c for c in FEATURES if c not in cat_cols]\n\n    X = df[FEATURES]\n\
+          \    y = df[target_col].astype(int)\n    X_train, X_test, y_train, y_test\
+          \ = train_test_split(\n        X, y, test_size=0.2, random_state=42, stratify=y\n\
+          \    )\n\n    # Build pipeline - convert categorical columns to string before\
+          \ pipeline\n    # This avoids unpicklable FunctionTransformer with custom\
+          \ functions\n    if cat_cols:\n        for col in cat_cols:\n          \
+          \  X_train[col] = X_train[col].astype(str)\n            X_test[col] = X_test[col].astype(str)\n\
+          \n    num_pipe = Pipeline([(\"impute\", SimpleImputer(strategy=\"median\"\
+          ))])\n    cat_pipe = Pipeline([\n        (\"impute\", SimpleImputer(strategy=\"\
+          most_frequent\")),\n        (\"ord\", OrdinalEncoder(handle_unknown=\"use_encoded_value\"\
+          , unknown_value=-1)),\n    ])\n\n    transformers = []\n    if num_cols:\n\
+          \        transformers.append((\"num\", num_pipe, num_cols))\n    if cat_cols:\n\
+          \        transformers.append((\"cat\", cat_pipe, cat_cols))\n    pre = ColumnTransformer(transformers,\
+          \ remainder=\"drop\")\n\n    params = json.loads(best_params_json) if best_params_json\
+          \ else {}\n    base = dict(\n        subsample=0.8,\n        colsample_bytree=0.8,\n\
+          \        eval_metric=\"logloss\",\n        n_jobs=-1,\n        random_state=42,\n\
+          \    )\n    base.update(params)\n    clf = XGBClassifier(**base)\n    pipe\
+          \ = Pipeline([(\"pre\", pre), (\"clf\", clf)])\n\n    pipe.fit(X_train,\
+          \ y_train)\n    proba = pipe.predict_proba(X_test)[:, 1]\n    auc = float(roc_auc_score(y_test,\
+          \ proba))\n\n    mlflow.set_experiment(experiment)\n    with mlflow.start_run()\
+          \ as run:\n        mlflow.log_params(base)\n        mlflow.log_metric(\"\
+          auc\", auc)\n\n        # Original: Log model with input example\n      \
+          \  input_example = X_train.iloc[:1]\n        model_info = mlflow.sklearn.log_model(\n\
+          \            sk_model=pipe,\n            artifact_path=\"model\",\n    \
+          \        input_example=input_example,\n            registered_model_name=register_name,\n\
+          \        )\n\n        # Generate simplified Feast metadata for serving\n\
+          \        # Serving will dynamically discover which Feast views contain these\
+          \ features\n        # Normalize feature names to lowercase to match Feast\
+          \ schema (Kafka messages are lowercase)\n        # NOTE: Entity key (sk_id_curr)\
+          \ is included in selected_features for validation\n        feast_metadata\
+          \ = {\n            \"selected_features\": [f.lower() for f in FEATURES],\
+          \  # Features the model needs (serving discovers which views have them)\n\
+          \            \"entity_key\": entity_key.lower(),  # Entity key for Feast\
+          \ queries\n            \"num_features\": len(FEATURES),\n            \"\
+          categorical_features\": [c.lower() for c in cat_cols],\n            \"numerical_features\"\
+          : [c.lower() for c in num_cols],\n            \"model_signature\": {\n \
+          \               \"inputs\": list(X_train.columns),\n                \"output\"\
+          : \"binary_classification\",\n            },\n            \"training_date\"\
+          : pd.Timestamp.now().isoformat(),\n        }\n\n        # Log as YAML artifact\n\
+          \        with open(\"feast_metadata.yaml\", \"w\") as f:\n            yaml.dump(feast_metadata,\
+          \ f, default_flow_style=False)\n        mlflow.log_artifact(\"feast_metadata.yaml\"\
+          )\n\n        print(f\"\u2705 Logged feast_metadata.yaml with {len(FEATURES)}\
+          \ features\")\n\n        # Transition to stage (same as before)\n      \
+          \  if stage:\n            client = mlflow.tracking.MlflowClient()\n    \
+          \        version = None\n            for v in client.search_model_versions(f\"\
+          name='{register_name}'\"):\n                if v.run_id == run.info.run_id:\n\
+          \                    version = v.version\n                    break\n  \
+          \          if version is not None:\n                client.transition_model_version_stage(\n\
+          \                    name=register_name,\n                    version=str(version),\n\
+          \                    stage=stage,\n                    archive_existing_versions=False,\n\
+          \                )\n        return run.info.run_id\n\n"
+        image: python:3.11-slim
+pipelineInfo:
+  name: credit-risk-training-pipeline
+root:
+  dag:
+    tasks:
+      fetch-minio-snapshot:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-fetch-minio-snapshot
+        inputs:
+          parameters:
+            aws_access_key_id:
+              componentInputParameter: aws_access_key_id
+            aws_secret_access_key:
+              componentInputParameter: aws_secret_access_key
+            bucket:
+              componentInputParameter: bucket
+            object_key:
+              componentInputParameter: object_key
+            s3_endpoint:
+              componentInputParameter: s3_endpoint
+        taskInfo:
+          name: fetch-minio-snapshot
+      ray-tune-hyperparams:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-ray-tune-hyperparams
+        dependentTasks:
+        - fetch-minio-snapshot
+        inputs:
+          artifacts:
+            data:
+              taskOutputArtifact:
+                outputArtifactKey: output_csv
+                producerTask: fetch-minio-snapshot
+          parameters:
+            cpus_per_trial:
+              componentInputParameter: ray_cpus_per_trial
+            gpus_per_trial:
+              componentInputParameter: ray_gpus_per_trial
+            num_samples:
+              componentInputParameter: ray_num_samples
+            ray_address:
+              componentInputParameter: ray_address
+        taskInfo:
+          name: ray-tune-hyperparams
+      train-and-register:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train-and-register
+        dependentTasks:
+        - fetch-minio-snapshot
+        - ray-tune-hyperparams
+        inputs:
+          artifacts:
+            data:
+              taskOutputArtifact:
+                outputArtifactKey: output_csv
+                producerTask: fetch-minio-snapshot
+          parameters:
+            aws_access_key_id:
+              componentInputParameter: aws_access_key_id
+            aws_secret_access_key:
+              componentInputParameter: aws_secret_access_key
+            best_params_json:
+              taskOutputParameter:
+                outputParameterKey: Output
+                producerTask: ray-tune-hyperparams
+            entity_key:
+              componentInputParameter: entity_key
+            experiment:
+              componentInputParameter: experiment
+            mlflow_s3_endpoint_url:
+              componentInputParameter: mlflow_s3_endpoint_url
+            mlflow_tracking_uri:
+              componentInputParameter: mlflow_tracking_uri
+            register_name:
+              componentInputParameter: register_name
+            stage:
+              componentInputParameter: stage
+        taskInfo:
+          name: train-and-register
+  inputDefinitions:
+    parameters:
+      aws_access_key_id:
+        defaultValue: minio_user
+        isOptional: true
+        parameterType: STRING
+      aws_secret_access_key:
+        defaultValue: minio_password
+        isOptional: true
+        parameterType: STRING
+      bucket:
+        defaultValue: training-data
+        isOptional: true
+        parameterType: STRING
+      entity_key:
+        defaultValue: SK_ID_CURR
+        isOptional: true
+        parameterType: STRING
+      experiment:
+        defaultValue: credit-risk
+        isOptional: true
+        parameterType: STRING
+      mlflow_s3_endpoint_url:
+        defaultValue: http://minio.model-registry.svc.cluster.local:9000
+        isOptional: true
+        parameterType: STRING
+      mlflow_tracking_uri:
+        defaultValue: http://mlflow.model-registry.svc.cluster.local:80
+        isOptional: true
+        parameterType: STRING
+      object_key:
+        defaultValue: snapshots/ds=2025-09-19/loan_applications.csv
+        isOptional: true
+        parameterType: STRING
+      ray_address:
+        defaultValue: ''
+        isOptional: true
+        parameterType: STRING
+      ray_cpus_per_trial:
+        defaultValue: 0.5
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+      ray_gpus_per_trial:
+        defaultValue: 0.0
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+      ray_num_samples:
+        defaultValue: 4.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      register_name:
+        defaultValue: credit_risk_model
+        isOptional: true
+        parameterType: STRING
+      s3_endpoint:
+        defaultValue: http://training-minio.training-data.svc.cluster.local:9000
+        isOptional: true
+        parameterType: STRING
+      stage:
+        defaultValue: Production
+        isOptional: true
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.14.3
