@@ -12,7 +12,7 @@
     "dtype": "Int64"
   },
   {
-    "name": "cc_utilization_mean",
+    "name": "cc_u44ilization_mean",
     "dtype": "Float32"
   },
   {

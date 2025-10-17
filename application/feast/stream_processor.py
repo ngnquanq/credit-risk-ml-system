@@ -46,11 +46,20 @@ class FeastStreamProcessor:
         try:
             self.fs = FeatureStore(repo_path=repo_path)
             logger.info(f"✓ Feast FeatureStore initialized from {repo_path}")
-            
+
+            # Force refresh registry to get latest feature views (avoid stale cache)
+            try:
+                self.fs.refresh_registry()
+                logger.info("✓ Registry refreshed from disk")
+            except Exception as refresh_error:
+                logger.warning(f"Could not refresh registry: {refresh_error}")
+
             # Log available feature views for debugging
             try:
                 stream_feature_views = [fv.name for fv in self.fs.list_stream_feature_views()]
                 logger.info(f"Available StreamFeatureViews: {stream_feature_views}")
+                if not stream_feature_views:
+                    logger.error("⚠ No StreamFeatureViews found! feast-apply may not have completed successfully.")
             except Exception as list_error:
                 logger.warning(f"Could not list StreamFeatureViews during init: {list_error}")
 

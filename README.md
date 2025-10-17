@@ -535,6 +535,11 @@ After this, you will see a training_pipeline.yaml file. After that, you can actu
 
 The current setup allow 2 types of model to be on production at the same time, later on if we just want to maintain 1 model, just drain out a request from 1 version, change the stage to not be production. 
 
+##### Spin up feature registry components
+
+##### Spin up monitoring components
+
+##### Spin up logging components 
 
 #### Spin up spark cluster
 Spark cluster enable us to handling big data efficiently, for this application, the current data is not too large (because it's already down-sample from a production setting environment), however, when dealing with production environment, perform model training on approx 100GB or more is normal, which exceed the capacity of just a single machine in most of the companies. Spark help us with this in a distributed manner. Also Spark is well known and have lots of documentation and lots of use case (ML is one of them), therefore I choose spark. 

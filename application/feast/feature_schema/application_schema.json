@@ -1,0 +1,174 @@
+[
+  {
+    "name": "amt_annuity",
+    "type": "Float32"
+  },
+  {
+    "name": "amt_credit",
+    "type": "Float32"
+  },
+  {
+    "name": "amt_goods_price",
+    "type": "String"
+  },
+  {
+    "name": "amt_income_total",
+    "type": "Float32"
+  },
+  {
+    "name": "cnt_children",
+    "type": "Int64"
+  },
+  {
+    "name": "days_birth",
+    "type": "String"
+  },
+  {
+    "name": "days_employed",
+    "type": "String"
+  },
+  {
+    "name": "flag_document_10",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_11",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_12",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_13",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_14",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_15",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_16",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_17",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_18",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_19",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_2",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_20",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_21",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_3",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_4",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_5",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_6",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_7",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_8",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_document_9",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_email",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_emp_phone",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_mobil",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_own_car",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_own_realty",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_phone",
+    "type": "Int64"
+  },
+  {
+    "name": "flag_work_phone",
+    "type": "Int64"
+  },
+  {
+    "name": "name_contract_type",
+    "type": "String"
+  },
+  {
+    "name": "name_education_type",
+    "type": "String"
+  },
+  {
+    "name": "name_family_status",
+    "type": "String"
+  },
+  {
+    "name": "name_housing_type",
+    "type": "String"
+  },
+  {
+    "name": "name_income_type",
+    "type": "String"
+  },
+  {
+    "name": "occupation_type",
+    "type": "String"
+  },
+  {
+    "name": "organization_type",
+    "type": "String"
+  },
+  {
+    "name": "own_car_age",
+    "type": "String"
+  },
+  {
+    "name": "sk_id_curr",
+    "type": "String"
+  }
+]

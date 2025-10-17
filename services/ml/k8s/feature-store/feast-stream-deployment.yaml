@@ -24,11 +24,13 @@ spec:
         - "host.minikube.internal"
         - "broker"  # Kafka advertised listener hostname
         - "kafka"
+      imagePullSecrets:
+      - name: dockerhub-creds
       containers:
       - name: feast-stream
         # Built from application/feast/Dockerfile
         image: ngnquanq/feast-repo:v5
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         workingDir: /work
         command:
         - /bin/sh

@@ -281,12 +281,11 @@ def train_and_register(
     mlflow_s3_endpoint_url: str,
     aws_access_key_id: str,
     aws_secret_access_key: str,
-    feast_feature_view: str = "loan_all_features",
     entity_key: str = "SK_ID_CURR",
 ) -> str:
     """
-    Train with provided params and register to MLflow. 
-    Now also logs Feast feature metadata for serving.
+    Train with provided params and register to MLflow.
+    Logs simplified feast_metadata.yaml (serving discovers feature views dynamically).
     """
     import os
     import json
@@ -373,17 +372,11 @@ def train_and_register(
             registered_model_name=register_name,
         )
 
-        # Generate Feast feature references and mapping for serving
-        # Model columns (UPPER_CASE) need to map to Feast feature names (lowercase)
-        feast_feature_refs = ",".join([f"{feast_feature_view}:{col.lower()}" for col in FEATURES])
-        feature_mapping = {col.lower(): col for col in FEATURES}  # feast_name -> model_column
-
+        # Generate simplified Feast metadata for serving
+        # Serving will dynamically discover which Feast views contain these features
         feast_metadata = {
-            "selected_features": FEATURES,  # All features used in training (model column names)
-            "feast_feature_refs": feast_feature_refs,  # Comma-separated Feast refs for querying
-            "feature_mapping": feature_mapping,  # Map Feast names to model column names
-            "feast_feature_view": feast_feature_view,
-            "entity_key": entity_key,
+            "selected_features": FEATURES,  # Features the model needs (serving discovers which views have them)
+            "entity_key": entity_key,  # Entity key for Feast queries
             "num_features": len(FEATURES),
             "categorical_features": cat_cols,
             "numerical_features": num_cols,
@@ -436,8 +429,6 @@ def training_pipeline(
     ray_num_samples: int = 4,
     ray_cpus_per_trial: float = 0.5,
     ray_gpus_per_trial: float = 0.0,
-    # Feast param
-    feast_feature_view: str = "loan_all_features",
     entity_key: str = "SK_ID_CURR",
 ):
     snap = fetch_minio_snapshot(
@@ -465,6 +456,5 @@ def training_pipeline(
         mlflow_s3_endpoint_url=mlflow_s3_endpoint_url,
         aws_access_key_id=aws_access_key_id,
         aws_secret_access_key=aws_secret_access_key,
-        feast_feature_view=feast_feature_view,
         entity_key=entity_key,
     )

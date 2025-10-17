@@ -389,12 +389,98 @@ def ensure_model_loaded() -> None:
         logger.info(f"✓ Model trained with {feast_metadata.get('num_features', 0)} features")
         logger.info(f"  Selected features: {feast_metadata.get('selected_features', [])[:5]}...")
 
-        # Load feast_feature_refs from metadata if not set via env var
-        if not settings.feast_feature_refs and feast_metadata.get("feast_feature_refs"):
-            settings.feast_feature_refs = feast_metadata["feast_feature_refs"]
-            logger.info(f"✓ Loaded {len(feast_metadata['feast_feature_refs'].split(','))} Feast feature refs from feast_metadata.yaml")
-        elif not settings.feast_feature_refs:
-            logger.warning("⚠ No feast_feature_refs found in metadata or env var SCORING_FEAST_FEATURE_REFS")
+        # Dynamic Feast feature discovery and validation
+        if not settings.feast_feature_refs and settings.feast_enabled:
+            try:
+                from feast import FeatureStore
+
+                logger.info("🔍 Discovering Feast features dynamically from registry...")
+                fs = FeatureStore(repo_path=_resolve_feast_repo_path())
+
+                # Build mapping: feature_name (lowercase) -> (view_name, feast_name)
+                feast_available = {}
+                stream_views = list(fs.list_stream_feature_views())
+
+                for sfv in stream_views:
+                    view_name = sfv.name
+                    for field in sfv.schema:
+                        if field.name != feast_metadata.get("entity_key", "sk_id_curr").lower():
+                            feast_available[field.name] = (view_name, field.name)
+
+                logger.info(f"✓ Found {len(feast_available)} features across {len(stream_views)} StreamFeatureViews")
+                logger.info(f"  Views: {[sfv.name for sfv in stream_views]}")
+
+                # VALIDATION: Check all model features exist in Feast
+                required_features = feast_metadata["selected_features"]
+                missing_features = []
+                feast_feature_refs = []
+                feature_mapping = {}
+
+                for feat in required_features:
+                    feat_lower = feat.lower()
+                    if feat_lower in feast_available:
+                        view_name, feast_name = feast_available[feat_lower]
+                        feast_feature_refs.append(f"{view_name}:{feast_name}")
+                        feature_mapping[feast_name] = feat  # Map Feast name -> model column
+                    else:
+                        missing_features.append(feat)
+
+                if missing_features:
+                    error_msg = (
+                        f"\n{'='*70}\n"
+                        f"❌ STARTUP VALIDATION FAILED\n"
+                        f"{'='*70}\n"
+                        f"Model requires {len(missing_features)} features NOT in Feast registry:\n\n"
+                        f"Missing features:\n"
+                    )
+                    for feat in missing_features[:20]:  # Show first 20
+                        error_msg += f"  • {feat}\n"
+                    if len(missing_features) > 20:
+                        error_msg += f"  ... and {len(missing_features) - 20} more\n"
+
+                    error_msg += (
+                        f"\nModel info:\n"
+                        f"  • Trained on: {feast_metadata.get('training_date', 'unknown')}\n"
+                        f"  • Requires: {len(required_features)} features\n"
+                        f"  • Missing: {len(missing_features)} features\n\n"
+                        f"Feast info:\n"
+                        f"  • Available views: {[sfv.name for sfv in stream_views]}\n"
+                        f"  • Available features: {len(feast_available)}\n\n"
+                        f"ACTION REQUIRED:\n"
+                        f"  1. Update Feast StreamFeatureViews to include missing features\n"
+                        f"  2. Sample Kafka topics to generate schemas:\n"
+                        f"     python application/feast/generate_schemas_from_kafka.py\n"
+                        f"  3. Update feature_views.py to use generated schemas\n"
+                        f"  4. Rebuild Docker image and redeploy Feast:\n"
+                        f"     kubectl apply -k services/ml/k8s/feature-store/\n"
+                        f"  5. Redeploy this service\n"
+                        f"{'='*70}\n"
+                    )
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg)
+
+                # All features found! Cache the mapping
+                settings.feast_feature_refs = ",".join(feast_feature_refs)
+
+                # Store feature mapping in metadata for later use
+                MODEL_FEAST_METADATA["feature_mapping"] = feature_mapping
+                MODEL_FEAST_METADATA["feast_feature_refs"] = settings.feast_feature_refs
+
+                logger.info(f"✅ Startup validation passed: All {len(required_features)} features found in Feast")
+                logger.info(f"   Views used: {set(v for v, _ in feast_available.values() if any(f.lower() in feast_available for f in required_features))}")
+                logger.info(f"   Cached {len(feast_feature_refs)} Feast feature refs")
+
+            except RuntimeError:
+                # Re-raise validation errors
+                raise
+            except Exception as e:
+                logger.error(f"❌ Failed to discover Feast features: {e}")
+                logger.error("   Serving will not work properly without Feast feature refs")
+                raise RuntimeError(f"Feast discovery failed: {e}")
+        elif settings.feast_feature_refs:
+            logger.info(f"✓ Using pre-configured feast_feature_refs from env var ({len(settings.feast_feature_refs.split(','))} features)")
+        else:
+            logger.warning("⚠ Feast disabled or no feature refs configured")
 
         _initialized = True
 
