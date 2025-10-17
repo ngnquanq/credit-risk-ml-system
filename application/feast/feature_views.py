@@ -7,7 +7,6 @@ from feast import KafkaSource, FileSource
 from feast.data_format import JsonFormat
 
 from entities import customer
-from dwh_schema import infer_dwh_fields
 from schema_loaders import infer_application_fields, infer_external_fields, infer_dwh_fields_from_json
 from feast import stream_feature_view
 

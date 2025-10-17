@@ -376,6 +376,7 @@ def train_and_register(
         # Serving will dynamically discover which Feast views contain these features
         # Normalize feature names to lowercase to match Feast schema (Kafka messages are lowercase)
         # NOTE: Entity key (sk_id_curr) is included in selected_features for validation
+        # v23: Rebuilt with service.py fixes in GitHub (case normalization + entity key handling)
         feast_metadata = {
             "selected_features": [f.lower() for f in FEATURES],  # Features the model needs (serving discovers which views have them)
             "entity_key": entity_key.lower(),  # Entity key for Feast queries
@@ -431,7 +432,7 @@ def training_pipeline(
     ray_num_samples: int = 4,
     ray_cpus_per_trial: float = 0.5,
     ray_gpus_per_trial: float = 0.0,
-    entity_key: str = "SK_ID_CURR",
+    entity_key: str = "sk_id_curr",  # Changed to lowercase to invalidate cache
 ):
     snap = fetch_minio_snapshot(
         s3_endpoint=s3_endpoint,
