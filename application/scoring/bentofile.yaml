@@ -4,6 +4,7 @@ labels:
   project: "home-credit-scoring"
 include:
   - "**"
+  - "feast/**"
 python:
   packages:
     - bentoml>=1.1.10
