@@ -33,7 +33,7 @@ images:
     newTag: 7-alpine
   - name: your-registry/feast-repo
     newName: ngnquanq/feast-repo
-    newTag: v4
+    newTag: latest
 
 # Resource name prefix (optional)
 # namePrefix: hc-

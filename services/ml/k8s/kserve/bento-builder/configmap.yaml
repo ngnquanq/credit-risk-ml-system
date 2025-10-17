@@ -33,19 +33,19 @@ data:
         else:
             sh(f"git clone --depth 1 --branch {app_ref} {app_repo} {repo_dir}")
         svc_dir = os.path.join(repo_dir, app_subpath)
-        # Create symlink to Feast repo so bentoml build includes it
-        # Git clones symlinks as symlinks, so we need to remove and recreate with absolute path
+        # Copy Feast repo instead of symlink (BentoML doesn't follow symlinks during include)
         feast_src = os.path.join(repo_dir, "application", "feast")
         feast_dst = os.path.join(svc_dir, "feast")
         if os.path.exists(feast_src):
+            import shutil
             if os.path.islink(feast_dst):
                 os.unlink(feast_dst)
                 print(f"✓ Removed existing symlink at {feast_dst}")
-            if not os.path.exists(feast_dst):
-                os.symlink(feast_src, feast_dst)
-                print(f"✓ Created symlink for Feast repo: {feast_dst} -> {feast_src}")
-            else:
-                print(f"✓ Feast repo already exists at {feast_dst} (not a symlink)")
+            elif os.path.isdir(feast_dst):
+                shutil.rmtree(feast_dst)
+                print(f"✓ Removed existing directory at {feast_dst}")
+            shutil.copytree(feast_src, feast_dst)
+            print(f"✓ Copied Feast repo: {feast_src} -> {feast_dst}")
         else:
             print(f"⚠ Warning: Feast repo not found at {feast_src}")
         print(f"Loading MLflow model: {model_uri}")

@@ -378,6 +378,7 @@ def train_and_register(
         # NOTE: Entity key (sk_id_curr) is included in selected_features for validation
         # v26: Fixed bentofile.yaml to explicitly include feast/ + builder script creates symlink
         # v27: Fixed symlink
+        #v28
         feast_metadata = {
             "selected_features": [f.lower() for f in FEATURES],  # Features the model needs (serving discovers which views have them)
             "entity_key": entity_key.lower(),  # Entity key for Feast queries
