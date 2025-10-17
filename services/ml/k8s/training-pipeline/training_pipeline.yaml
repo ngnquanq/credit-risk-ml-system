@@ -330,15 +330,16 @@ deploymentSpec:
           \        )\n\n        # Generate simplified Feast metadata for serving\n\
           \        # Serving will dynamically discover which Feast views contain these\
           \ features\n        # Normalize feature names to lowercase to match Feast\
-          \ schema (Kafka messages are lowercase)\n        feast_metadata = {\n  \
-          \          \"selected_features\": [f.lower() for f in FEATURES],  # Features\
-          \ the model needs (serving discovers which views have them)\n          \
-          \  \"entity_key\": entity_key.lower(),  # Entity key for Feast queries\n\
-          \            \"num_features\": len(FEATURES),\n            \"categorical_features\"\
-          : [c.lower() for c in cat_cols],\n            \"numerical_features\": [c.lower()\
-          \ for c in num_cols],\n            \"model_signature\": {\n            \
-          \    \"inputs\": list(X_train.columns),\n                \"output\": \"\
-          binary_classification\",\n            },\n            \"training_date\"\
+          \ schema (Kafka messages are lowercase)\n        # NOTE: Entity key (sk_id_curr)\
+          \ is included in selected_features for validation\n        feast_metadata\
+          \ = {\n            \"selected_features\": [f.lower() for f in FEATURES],\
+          \  # Features the model needs (serving discovers which views have them)\n\
+          \            \"entity_key\": entity_key.lower(),  # Entity key for Feast\
+          \ queries\n            \"num_features\": len(FEATURES),\n            \"\
+          categorical_features\": [c.lower() for c in cat_cols],\n            \"numerical_features\"\
+          : [c.lower() for c in num_cols],\n            \"model_signature\": {\n \
+          \               \"inputs\": list(X_train.columns),\n                \"output\"\
+          : \"binary_classification\",\n            },\n            \"training_date\"\
           : pd.Timestamp.now().isoformat(),\n        }\n\n        # Log as YAML artifact\n\
           \        with open(\"feast_metadata.yaml\", \"w\") as f:\n            yaml.dump(feast_metadata,\
           \ f, default_flow_style=False)\n        mlflow.log_artifact(\"feast_metadata.yaml\"\
