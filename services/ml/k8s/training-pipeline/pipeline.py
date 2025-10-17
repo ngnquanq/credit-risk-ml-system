@@ -374,12 +374,13 @@ def train_and_register(
 
         # Generate simplified Feast metadata for serving
         # Serving will dynamically discover which Feast views contain these features
+        # Normalize feature names to lowercase to match Feast schema (Kafka messages are lowercase)
         feast_metadata = {
-            "selected_features": FEATURES,  # Features the model needs (serving discovers which views have them)
-            "entity_key": entity_key,  # Entity key for Feast queries
+            "selected_features": [f.lower() for f in FEATURES],  # Features the model needs (serving discovers which views have them)
+            "entity_key": entity_key.lower(),  # Entity key for Feast queries
             "num_features": len(FEATURES),
-            "categorical_features": cat_cols,
-            "numerical_features": num_cols,
+            "categorical_features": [c.lower() for c in cat_cols],
+            "numerical_features": [c.lower() for c in num_cols],
             "model_signature": {
                 "inputs": list(X_train.columns),
                 "output": "binary_classification",

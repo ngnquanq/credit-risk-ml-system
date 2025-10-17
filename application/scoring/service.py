@@ -404,8 +404,9 @@ def ensure_model_loaded() -> None:
                 for sfv in stream_views:
                     view_name = sfv.name
                     for field in sfv.schema:
-                        if field.name != feast_metadata.get("entity_key", "sk_id_curr").lower():
-                            feast_available[field.name] = (view_name, field.name)
+                        # Include ALL fields (including entity key) in feature discovery
+                        # The entity key is a valid feature that models may use for prediction
+                        feast_available[field.name.lower()] = (view_name, field.name)
 
                 logger.info(f"✓ Found {len(feast_available)} features across {len(stream_views)} StreamFeatureViews")
                 logger.info(f"  Views: {[sfv.name for sfv in stream_views]}")
