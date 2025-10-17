@@ -1,0 +1,114 @@
+import os, subprocess, tempfile, pathlib
+def sh(cmd, cwd=None):
+    print("+", cmd, flush=True)
+    subprocess.check_call(cmd, shell=True, cwd=cwd)
+def main():
+    import mlflow, joblib, boto3
+    tracking_uri = os.environ["MLFLOW_TRACKING_URI"]
+    model_name   = os.environ["MODEL_NAME"]
+    model_uri    = os.environ["MODEL_URI"]
+    version_tag  = os.environ["VERSION_TAG"]
+    app_repo     = os.environ["APP_REPO"]
+    app_ref      = os.environ.get("APP_REF", "main")
+    app_local    = os.environ.get("APP_LOCAL_PATH")
+    app_subpath  = os.environ.get("APP_SUBPATH", "application/scoring")
+    bkt          = os.environ["BENTO_BUCKET"]
+    prefix       = os.environ.get("BENTO_PREFIX", "bentos")
+    region       = os.environ.get("AWS_REGION", "us-east-1")
+    endpoint     = os.environ.get("AWS_S3_ENDPOINT")
+    mlflow.set_tracking_uri(tracking_uri)
+    work = tempfile.mkdtemp(prefix="bento-build-")
+    repo_dir = os.path.join(work, "repo")
+    if app_local and os.path.isdir(app_local):
+        import shutil
+        print(f"Copying local repo from {app_local} -> {repo_dir}")
+        shutil.copytree(app_local, repo_dir, dirs_exist_ok=True)
+    else:
+        sh(f"git clone --depth 1 --branch {app_ref} {app_repo} {repo_dir}")
+    svc_dir = os.path.join(repo_dir, app_subpath)
+
+    # Create symlink to Feast repo so bentoml build includes it
+    # This makes ../feast accessible from application/scoring during build
+    feast_src = os.path.join(repo_dir, "application", "feast")
+    feast_dst = os.path.join(svc_dir, "feast")
+    if os.path.exists(feast_src):
+        if not os.path.exists(feast_dst):
+            os.symlink(feast_src, feast_dst)
+            print(f"✓ Created symlink for Feast repo: {feast_dst} -> {feast_src}")
+        else:
+            print(f"✓ Feast repo already exists at {feast_dst}")
+    else:
+        print(f"⚠ Warning: Feast repo not found at {feast_src}")
+
+    print(f"Loading MLflow model: {model_uri}")
+    try:
+        try:
+            mdl = mlflow.sklearn.load_model(model_uri)
+        except Exception:
+            try:
+                mdl = mlflow.xgboost.load_model(model_uri)
+            except Exception:
+                mdl = mlflow.pyfunc.load_model(model_uri)
+    except Exception as e:
+        raise SystemExit(f"Failed to load model: {e}")
+    bundle_dir = os.path.join(svc_dir, "bundle")
+    pathlib.Path(bundle_dir).mkdir(parents=True, exist_ok=True)
+    model_rel = os.path.join("bundle", "model.joblib")
+    joblib.dump(mdl, os.path.join(svc_dir, model_rel))
+    # Download feast_metadata.yaml from MLflow if available
+    try:
+        import re, yaml, shutil
+        client = mlflow.tracking.MlflowClient()
+        match = re.match(r"models:/([^/]+)/([^/]+)$", model_uri.strip())
+        if match:
+            parsed_name, stage_or_version = match.groups()
+            if stage_or_version.isalpha():
+                versions = client.get_latest_versions(parsed_name, [stage_or_version])
+                if versions:
+                    run_id = versions[0].run_id
+                else:
+                    raise Exception(f"No versions found for {parsed_name}/{stage_or_version}")
+            else:
+                mv = client.get_model_version(parsed_name, stage_or_version)
+                run_id = mv.run_id
+            print(f"Downloading feast_metadata.yaml from run {run_id}")
+            metadata_tmp = client.download_artifacts(run_id, "feast_metadata.yaml", work)
+            metadata_dest = os.path.join(bundle_dir, "feast_metadata.yaml")
+            shutil.copy(metadata_tmp, metadata_dest)
+            with open(metadata_dest) as f:
+                meta = yaml.safe_load(f)
+                print(f"✓ feast_metadata.yaml saved ({meta.get('num_features', 0)} features)")
+    except Exception as e:
+        print(f"⚠ Failed to download feast_metadata.yaml: {e}")
+        print("  Scoring will fall back to feature_registry.py")
+    # Do not change mlflow.env; the runtime will set SCORING_* env vars
+    sh("pip install --no-cache-dir bentoml mlflow boto3 joblib gitpython pyyaml", cwd=repo_dir)
+    sh(f"bentoml build --version {version_tag}", cwd=svc_dir)
+    tag = f"credit_risk_scoring:{version_tag}"
+    # Get Bento path using Python API instead of CLI
+    try:
+        import bentoml
+        bento = bentoml.get(tag)
+        bento_path = str(bento.path)
+        print(f"Found Bento at: {bento_path}")
+    except Exception as e:
+        # Fallback: construct from default BentoML home
+        bentoml_home = pathlib.Path.home() / "bentoml" / "bentos"
+        bento_path = str(bentoml_home / "credit_risk_scoring" / version_tag)
+        if not os.path.exists(bento_path):
+            raise SystemExit(f"Bento not found: {e}")
+        print(f"Using fallback path: {bento_path}")
+    s3 = boto3.session.Session(region_name=region).resource("s3", endpoint_url=endpoint)
+    bucket = s3.Bucket(bkt)
+    uri = f"s3://{bkt}/{prefix}/{model_name}/{version_tag}/"
+    print(f"Uploading to {uri}")
+    import os as _os
+    for root, _, files in _os.walk(bento_path):
+        for fn in files:
+            full = _os.path.join(root, fn)
+            rel = _os.path.relpath(full, bento_path)
+            key = f"{prefix}/{model_name}/{version_tag}/{rel}"
+            bucket.upload_file(full, key)
+    print("DONE:", uri)
+if __name__ == "__main__":
+    main()
