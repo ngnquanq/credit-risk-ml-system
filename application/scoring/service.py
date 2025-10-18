@@ -403,48 +403,30 @@ def ensure_model_loaded() -> None:
 
                 for sfv in stream_views:
                     view_name = sfv.name
-                    logger.info(f"🔍 DEBUG: Processing view '{view_name}' with {len(sfv.schema)} fields")
-                    for i, field in enumerate(sfv.schema):
+                    for field in sfv.schema:
                         # Include ALL fields (including entity key) in feature discovery
                         # The entity key is a valid feature that models may use for prediction
                         field_name_lower = field.name.lower()
                         feast_available[field_name_lower] = (view_name, field.name)
-                        if i < 3:  # Log first 3 fields per view
-                            logger.info(f"   Field {i}: '{field.name}' -> lowercase: '{field_name_lower}' -> dict['{field_name_lower}'] = ('{view_name}', '{field.name}')")
 
                 logger.info(f"✓ Found {len(feast_available)} features across {len(stream_views)} StreamFeatureViews")
                 logger.info(f"  Views: {[sfv.name for sfv in stream_views]}")
-                logger.info(f"🔍 DEBUG: First 10 feast_available keys: {list(feast_available.keys())[:10]}")
 
                 # VALIDATION: Check all model features exist in Feast
                 required_features = feast_metadata["selected_features"]
-                logger.info(f"🔍 DEBUG: Model requires {len(required_features)} features")
-                logger.info(f"🔍 DEBUG: First 10 required features: {required_features[:10]}")
-                logger.info(f"🔍 DEBUG: Types of first 3 required features: {[type(f).__name__ for f in required_features[:3]]}")
 
                 missing_features = []
                 feast_feature_refs = []
                 feature_mapping = {}
 
-                for i, feat in enumerate(required_features):
+                for feat in required_features:
                     feat_lower = feat.lower()
-                    is_found = feat_lower in feast_available
-
-                    if i < 5:  # Log first 5 lookups in detail
-                        logger.info(f"🔍 DEBUG: Lookup {i}: feat='{feat}' -> feat_lower='{feat_lower}' -> in dict? {is_found}")
-                        if not is_found:
-                            # Show similar keys
-                            similar = [k for k in feast_available.keys() if feat_lower[:5] in k or k[:5] in feat_lower][:3]
-                            logger.info(f"   Similar keys in dict: {similar}")
-
-                    if is_found:
+                    if feat_lower in feast_available:
                         view_name, feast_name = feast_available[feat_lower]
                         feast_feature_refs.append(f"{view_name}:{feast_name}")
                         feature_mapping[feast_name] = feat  # Map Feast name -> model column
                     else:
                         missing_features.append(feat)
-
-                logger.info(f"🔍 DEBUG: Validation result: {len(required_features) - len(missing_features)} found, {len(missing_features)} missing")
 
                 if missing_features:
                     error_msg = (
