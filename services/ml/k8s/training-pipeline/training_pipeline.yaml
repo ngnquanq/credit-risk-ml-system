@@ -323,18 +323,10 @@ deploymentSpec:
           \ y_train)\n    proba = pipe.predict_proba(X_test)[:, 1]\n    auc = float(roc_auc_score(y_test,\
           \ proba))\n\n    mlflow.set_experiment(experiment)\n    with mlflow.start_run()\
           \ as run:\n        mlflow.log_params(base)\n        mlflow.log_metric(\"\
-          auc\", auc)\n\n        # Original: Log model with input example\n      \
-          \  input_example = X_train.iloc[:1]\n        model_info = mlflow.sklearn.log_model(\n\
-          \            sk_model=pipe,\n            artifact_path=\"model\",\n    \
-          \        input_example=input_example,\n            registered_model_name=register_name,\n\
-          \        )\n\n        # Generate simplified Feast metadata for serving\n\
-          \        # Serving will dynamically discover which Feast views contain these\
-          \ features\n        # Normalize feature names to lowercase to match Feast\
-          \ schema (Kafka messages are lowercase)\n        # NOTE: Entity key (sk_id_curr)\
-          \ is included in selected_features for validation\n        # v26: Fixed\
-          \ bentofile.yaml to explicitly include feast/ + builder script creates symlink\n\
-          \        # v27: Fixed symlink\n        #v28\n        # v29\n        # v30\n\
-          \        # v31\n        feast_metadata = {\n            \"selected_features\"\
+          auc\", auc)\n\n        input_example = X_train.iloc[:1]\n        model_info\
+          \ = mlflow.sklearn.log_model(\n            sk_model=pipe,\n            artifact_path=\"\
+          model\",\n            input_example=input_example,\n            registered_model_name=register_name,\n\
+          \        )\n        feast_metadata = {\n            \"selected_features\"\
           : [f.lower() for f in FEATURES],  # Features the model needs (serving discovers\
           \ which views have them)\n            \"entity_key\": entity_key.lower(),\
           \  # Entity key for Feast queries\n            \"num_features\": len(FEATURES),\n\
