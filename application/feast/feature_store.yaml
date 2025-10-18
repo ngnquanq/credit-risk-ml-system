@@ -1,5 +1,5 @@
 project: hc
-registry: data/registry.db
+registry: s3://feast-registry/feature_repo/registry.db
 provider: local
 online_store:
   type: redis

@@ -16,7 +16,8 @@ RUN pip install --no-cache-dir \
     'pandas==1.5.3' \
     'kafka-python==2.0.2' \
     'loguru==0.7.2' \
-    'clickhouse-connect==0.7.17'
+    'clickhouse-connect==0.7.17' \
+    'boto3>=1.28.0'
 
 WORKDIR /work
 

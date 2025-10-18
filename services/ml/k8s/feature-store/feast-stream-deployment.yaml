@@ -11,11 +11,15 @@ spec:
   selector:
     matchLabels:
       app: feast-stream
+      project: home-credit
+      tier: ml-platform
   template:
     metadata:
       labels:
         app: feast-stream
         component: feature-store
+        project: home-credit
+        tier: ml-platform
     spec:
       # Add host alias so Kafka broker hostname resolves to gateway
       hostAliases:
@@ -29,7 +33,7 @@ spec:
       containers:
       - name: feast-stream
         # Built from application/feast/Dockerfile
-        image: ngnquanq/feast-repo:v10
+        image: ngnquanq/feast-repo:v12
         imagePullPolicy: Always
         workingDir: /work
         command:
@@ -41,12 +45,23 @@ spec:
         envFrom:
         - configMapRef:
             name: feast-config
+        env:
+        - name: FEAST_REGISTRY_URI
+          value: s3://feast-registry/feature_repo/registry.db
+        - name: AWS_ACCESS_KEY_ID
+          value: minio_user
+        - name: AWS_SECRET_ACCESS_KEY
+          value: minio_password
+        - name: AWS_DEFAULT_REGION
+          value: us-east-1
+        - name: AWS_S3_ENDPOINT
+          value: http://serving-minio.model-serving.svc.cluster.local:9000
+        - name: FEAST_S3_ENDPOINT_URL
+          value: http://serving-minio.model-serving.svc.cluster.local:9000
         volumeMounts:
         - name: feast-store-config
           mountPath: /work/feature_store.yaml
           subPath: feature_store.yaml
-        - name: feast-registry
-          mountPath: /work/data
         resources:
           requests:
             memory: "512Mi"
@@ -67,6 +82,3 @@ spec:
       - name: feast-store-config
         configMap:
           name: feast-store-config
-      - name: feast-registry
-        persistentVolumeClaim:
-          claimName: feast-registry

@@ -379,6 +379,7 @@ def train_and_register(
         # v26: Fixed bentofile.yaml to explicitly include feast/ + builder script creates symlink
         # v27: Fixed symlink
         #v28
+        # v29
         feast_metadata = {
             "selected_features": [f.lower() for f in FEATURES],  # Features the model needs (serving discovers which views have them)
             "entity_key": entity_key.lower(),  # Entity key for Feast queries
@@ -442,7 +443,7 @@ def training_pipeline(
         object_key=object_key,
         aws_access_key_id=aws_access_key_id,
         aws_secret_access_key=aws_secret_access_key,
-    )
+    ).set_caching_options(False)
     # Parallel/distributed tuning via Ray (connect to an external cluster by setting `ray_address` in UI)
     tune = ray_tune_hyperparams(
         data=snap.outputs["output_csv"],
@@ -450,7 +451,7 @@ def training_pipeline(
         cpus_per_trial=ray_cpus_per_trial,
         gpus_per_trial=ray_gpus_per_trial,
         ray_address=ray_address,
-    )
+    ).set_caching_options(False)
     train_register = train_and_register(
         data=snap.outputs["output_csv"],
         best_params_json=tune.output,
@@ -462,4 +463,4 @@ def training_pipeline(
         aws_access_key_id=aws_access_key_id,
         aws_secret_access_key=aws_secret_access_key,
         entity_key=entity_key,
-    )
+    ).set_caching_options(False)
