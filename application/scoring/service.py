@@ -312,10 +312,18 @@ def _resolve_feast_repo_path() -> str:
     2) If inline config is enabled and registry/redis envs are present, generate a
        minimal feature_store.yaml in a temp dir and use that.
     3) Otherwise, raise a clear configuration error.
+
+    Also ensures the feast repo is in sys.path so Python modules can be imported.
     """
     try:
         repo = settings.feast_repo_path
         if repo and os.path.exists(os.path.join(repo, "feature_store.yaml")):
+            # Add feast repo to sys.path so Feast can import feature_views.py, entities.py, etc.
+            import sys
+            abs_repo = os.path.abspath(repo)
+            if abs_repo not in sys.path:
+                sys.path.insert(0, abs_repo)
+                logger.debug(f"Added {abs_repo} to sys.path for Feast imports")
             return repo
     except Exception:
         pass

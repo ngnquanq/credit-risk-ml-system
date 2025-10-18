@@ -334,10 +334,10 @@ deploymentSpec:
           \ is included in selected_features for validation\n        # v26: Fixed\
           \ bentofile.yaml to explicitly include feast/ + builder script creates symlink\n\
           \        # v27: Fixed symlink\n        #v28\n        # v29\n        # v30\n\
-          \        feast_metadata = {\n            \"selected_features\": [f.lower()\
-          \ for f in FEATURES],  # Features the model needs (serving discovers which\
-          \ views have them)\n            \"entity_key\": entity_key.lower(),  # Entity\
-          \ key for Feast queries\n            \"num_features\": len(FEATURES),\n\
+          \        # v31\n        feast_metadata = {\n            \"selected_features\"\
+          : [f.lower() for f in FEATURES],  # Features the model needs (serving discovers\
+          \ which views have them)\n            \"entity_key\": entity_key.lower(),\
+          \  # Entity key for Feast queries\n            \"num_features\": len(FEATURES),\n\
           \            \"categorical_features\": [c.lower() for c in cat_cols],\n\
           \            \"numerical_features\": [c.lower() for c in num_cols],\n  \
           \          \"model_signature\": {\n                \"inputs\": list(X_train.columns),\n\

@@ -381,6 +381,7 @@ def train_and_register(
         #v28
         # v29
         # v30
+        # v31
         feast_metadata = {
             "selected_features": [f.lower() for f in FEATURES],  # Features the model needs (serving discovers which views have them)
             "entity_key": entity_key.lower(),  # Entity key for Feast queries
