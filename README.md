@@ -61,9 +61,182 @@ The solution must directly support the business objective by:
 
 # Dataset
 
+This dataset is from kaggle, provided by home credit. You can download the data here via this [link](https://www.kaggle.com/competitions/home-credit-default-risk).
+
+The dataset is very rich, around 3GB in total (you can find another version that is bigger also from home credit on kaggle as well). 
+
+There will be 2 main sources of data in my opinion:
+
+1. External data: Those that you can get from external sources, i.e CIC or any third party that's already calculate your credit score. 
+2. Internal data: Including your previous loan, your spending behavior, etc ...
+
+![Data Model](datamodeling.png)
+
+For a more in-dept detail of this dataset, I suggest you go and take a look of it. It took me a while to truly grasp what is the dataset about and how these are related to each other. 
+
+**Note**: When you download the data from Kaggle, it also have a data dictionary file as well. Make sure to take a look at this to have a high level overview of what these files are doing and the content of it. 
+
 # Repository Structure
 
 # High-level System Architecture 
+
+## Machine Spec
+### Minimum Recommended Specifications
+The following specifications are based on the development/testing environment:
+
+**Hardware:**
+- **CPU**: 12+ cores (24 threads) - AMD Ryzen 9 9900X or equivalent
+- **RAM**: 32 GB minimum (for running full stack with K8s + Docker Compose)
+- **Storage**:
+  - 500 GB NVMe SSD (for OS and containers)
+  - 1 TB+ additional storage (for data, model artifacts, logs)
+  - Fast disk I/O recommended for database workloads
+
+**Software:**
+- **OS**: Ubuntu 24.04 LTS or compatible Linux distribution
+- **Kernel**: 6.14+ (for Docker and K8s compatibility)
+- **Docker**: 24.0+
+- **Minikube**: 1.32+
+- **Kubernetes**: 1.28+
+
+### Resource Allocation for Services
+When running the full stack:
+- **Docker containers**: ~20-25 GB RAM usage
+- **Minikube cluster**: 10-20 GB RAM, 10 CPUs (configurable)
+- **Disk space**:
+  - Docker images/containers: ~30-50 GB
+  - Data warehouse (ClickHouse): ~50-100 GB
+  - Model artifacts: ~10-20 GB
+  - Logs and temporary files: ~20 GB
+
+**Note**: For production deployments, scale resources based on data volume and request
+throughput. Later on we will have some load test to see if our application can handle things at the same time or not. Therefore strong machine can benefit a little bit. 
+
+## Overall Architecture
+Here is what the system architecture look like on a high level. 
+![System Architecture](systemarch.png)
+
+More precisely: 
+- In this system, we use Lambda Architecture (combining batch processing with real-time streaming) with Medallion Architecture as our data design pattern 
+- There are 2 distinct environment in this system: Docker compose (mostly for data platform) and Kubernetes (mostly for ML platform). 
+- This is a data driven design that aim to help approve loan in near-real time (less than 5 sec) with high sla. 
+
+### Architecture Layers
+
+#### 1. **Application Layer** (Docker Compose)
+- **User-facing services**: NGINX → Streamlit frontends → FastAPI backends
+- **Operational database**: PostgreSQL with PgBouncer for connection pooling
+- **File storage**: MinIO for customer documents and model artifacts
+
+#### 2. **Event-Driven Streaming** (Kafka Ecosystem)
+- **CDC pipeline**: Debezium captures PostgreSQL changes → Kafka topics
+- **Stream processing**: Apache Flink for real-time feature computation
+- **Schema management**: Confluent Schema Registry for data contracts
+
+#### 3. **Data Platform** (Batch & Analytical)
+- **Operational database**: Postgres and MinIO (Bronze)
+- **Data warehouse** and **Data mart**: ClickHouse (silver, gold)
+- **Batch processing**: Apache Spark for large-scale feature engineering, model training.
+- **Orchestration**: Apache Airflow scheduling dbt transformations and ETL jobs
+- **Visualization**: Apache Superset for BI developer and DA to create dashboard. 
+- **Feature Storage**: Using Redis as online store for fast data retrieval.
+
+#### 4. **Feature Store** (Feast)
+- **Offline store**: Historical features from ClickHouse (training datasets)
+- **Online store**: Real-time features in Redis (sub-100ms serving)
+- **Materialization**: Automated sync Kafka → Redis for fresh features
+
+#### 5. **ML Training Platform** (Kubernetes)
+- **Pipeline orchestration**: Kubeflow Pipelines for reproducible experiments
+- **Distributed training**: Ray cluster for hyperparameter tuning
+- **Model registry**: MLflow tracking experiments, versioning models
+- **Automation**: MLflow watcher triggers builds on Production promotions
+
+#### 6. **ML Serving Platform** (Kubernetes + KServe)
+- **Model packaging**: BentoML bundles (model + Feast metadata)
+- **Deployment**: KServe InferenceServices with canary/blue-green strategies
+- **Serving flow**: Kafka event → Feast features → Model prediction → Response
+- **Validation**: Startup checks ensure feature registry alignment
+
+#### 7. **Observability Layer** (ELK + Promethus-Grafana)
+- 
+
+### Key Design Patterns
+
+1. **Event-Driven Architecture**: CDC + Kafka ensures eventual consistency across
+systems
+2. **Hybrid Deployment**: Docker Compose (data platform) + Kubernetes (ML platform)
+3. **Feature-Model Contract**: `feast_metadata.yaml` prevents train-serve skew
+4. **Automated MLOps**: Watchers + Jobs eliminate manual deployment steps
+5. **Separation of Concerns**: Distinct networks/namespaces for security and isolation
+
+## Data Flow for Serving Pods
+Here is how the data flow from the moment a user submit a loan request to when the decision of that loan is made. 
+
+![Data Flow](dataflow.png)
+
+For a more detail version, it will be this: 
+
+1. The user submit a loan request
+2. All the information about the loan will go to the operational database (postgres)
+3. CDC that connect operational database (postgres) and event bus (kafka) will capture this new request, create a message and push into the event bus under the topic `hc.applications.public.loan_applications` with the `KEY=SK_ID_CURR`
+4. Given that new message, here are what gonna happen at the same time: 
+    - A Flink job consume that message and perform PII masking. This Flink job will push into the event bus under the topic `hc.application_features`
+    - A python job will query from the external sources (bureau data), write the data to the topic `hc.application_ext_raw`, another Flink job will consume message from topic, do some aggregation and then produce to the topic `hc.application_ext`. The reason we split into 2 topic is because later on, we will sync the original data from external sources into our data warehouse for model training so that our model get external data as well (hint: external data contribute a lot to the model's performance)
+    - Another python job will query from the data mart (internal data), write the data to the topic `hc.application_dwh`.
+5. All of those 3 topics that I mentioned be consume by a python service called feast consumer. Since this is just concatenate these fields together, a simple python script can do this. The combined data will be pushed into an online storage (redis) for the serving pod to use. 
+6. During the aggregation, the serving pod (or scoring worker) will consume the raw event, and then query from redis to get the features it need.
+
+**Note 1**: It is absolutely the case that the scoring worker will consume the message before the data is ready in feast redis. Therefore we do have a retry strategy for this, that is we will try 15 times, the time gap between each time is 300ms. This will ensure that eventually, the model can perform prediction. 
+
+**Note 2**: It is also the case that the customer has no external data because they simply not lend money before or something like that. Some customer also doesn't have the internal data because they are new customer. The way we handle these situations is by replace the missing value with 0 or +inf or something like that, this is truly depends on the characteristics of the data. 
+
+
+## From Training to Serving Pipeline
+
+Here is what the training and serving pattern look like:
+
+![Training-Serving pattern](train2serve.png)
+
+For this to work, every component must be ready before new model are registered. 
+
+In short, here are the scope split by role:
+
+- Data Scientist:
+  1. Perform feature engineering.
+  2. Perform modeling. 
+  3. Perform hyper-parameter tuning and finalize the training
+  4. Keep track of everything and then push to mlflow (model-registry namespace) these information:
+      - The model (weights and its metadata and related things like the encoder etc)
+      - The feature list (feature that was used to train the model)
+  5. Inform the auditter that the model has been submit
+
+- Auditter:
+  1. Validate the model with their own data or against any business rule that they hold.
+  2. Promote the model to "Production" (if the model pass the test) 
+
+- The mlflow-watcher (this is a cluster deployment pod):
+  1. A model promotion watcher (poll from mlflow every 10 sec) will detect if there is a change to "Production". 
+  2. Trigger a build job that will do the following things: 
+      1. Clone the model serving code. 
+      2. Create a bentoml bundle (contain the model and the feature metadata). 
+      3. Load those bundle into an object storage in model-serving namespace.
+
+- The serving-watcher (this is a cluster deployment pod):
+  1. A deployment that poll into the object storage every 10 sec and detect if there is a new bundle appear. 
+  2. If there is new bundle detected, it will start to deploy an InferenceService (kserve custom resource definition) using that bundle. 
+
+- The serving pod (this is an InferenceService):
+  1. During warm-up, it will check to see if the feature registered in feast and the feature that was used to train the model are the same. if not the same, it won't deploy, hence it can't receive request.
+  2. If all feature are there, it will deploy, consume predict request from kafka and query for data from online store (redis).
+
+**Notice**: During feast deployment, we will sync the feast registry into the object storage in model-serving namespace. The reason why we are doing this instead of using PVC is for easier to audit (each InferenceService version got their own feature registry). 
+
+
+
+
+- Engineer:
+
 
 # Application Port Allocation
 
@@ -113,7 +286,7 @@ We need to create network so that our services can communicate to each other
 docker network create hc-network
 ```
 The result will look like this: 
-![Create network component](step1.create_network.png)
+![Create network component](/assets/READMEimg/step1.create_network.png)
 
 This network will be share among services, this step is **crucial** because it allow the DNS of our services to be resolve and can be reach out durring message transfer
 
@@ -142,7 +315,7 @@ Just to be clear:
     - 1 OLTP database (postgres) for storing day over day operational actions in the company. 
     - 1 PG Bouncer as a pooling layer in case there are multiple requests. 
 
-![The core services are up and running](Step2.result.png)
+![The core services are up and running](/assets/READMEimg/Step2.result.png)
 
 ### Spin up Data Platform
 There are multiple things to work here, therefore stick with me.
@@ -161,7 +334,7 @@ For the CDC, there will be a helper connector that help connect Debezium to post
 
 For the Kafka, we will use zookeper for managing kafka cluster, schema registry to handle schema evolution, kafka ui from provectus labs for easier debugging process.
 
-![Debezium and Kafka components up successfully](step3.create_kafka_cdc.png)
+![Debezium and Kafka components up successfully](/assets/READMEimg/step3.create_kafka_cdc.png)
 
 After everything is up, we need to create kafka topics, by running this following command: 
 
@@ -171,11 +344,11 @@ python ./services/data/scripts/kafka/create_topics.py
 
 If navigate to kafka ui, we will see that there are some topics that has been created
 
-![Created Kafka topics](Step4.created_kafka_topics.png)
+![Created Kafka topics](/assets/READMEimg/Step4.created_kafka_topics.png)
 
 Additionally, if we check on debezium ui, we will also see that the Postgres connector is also created.
 
-![Created Debezium connection](Step4.created_debezium_connection.png)
+![Created Debezium connection](/assets/READMEimg/Step4.created_debezium_connection.png)
 
 #### Spin up DWH, Data Mart and External Data.
 In real life scenario, there are some data that we can not store in our datawarehouse or our operational database, because we basically dont have that kind of information and either are our customers. Therefore we need data from external sources, a dedicated third-party company that gather all the data and do some kind of transformation. And in that case, often we will need to get the data via some API being provided. 
@@ -191,7 +364,7 @@ docker compose --env-file ./services/core/.env.core \
 
 Then, wait until all the container are started:
 
-![DWH containers](Step5.DWH_started.png)
+![DWH containers](/assets/READMEimg/Step5.DWH_started.png)
 
 After that, we need to parse in some data. For simplicity, instead of create 2 different dwh (1 is the company's internal dwh and 1 is the bureau's external dwh), I will just merge it into 1 data warehouse with different naming convention. 
 
@@ -216,7 +389,7 @@ dbt run --project-dir . --profiles-dir . --target gold
 
 After the transformation, it will output to be something like this:
 
-![The DBT Results](Step5.DBT_results.png)
+![The DBT Results](/assets/READMEimg/Step5.DBT_results.png)
 
 If you notice, you will see that these are under the data mart database with the prefix mart_. These will be run daily, thanks to the power of clickhouse, the transformation step will be very quick. 
 
@@ -228,7 +401,7 @@ docker compose --env-file ./services/data/.env.data \
     up -d
 ```
 
-![Bring up query service](Step6.query-services.png)
+![Bring up query service](/assets/READMEimg/Step6.query-services.png)
 
 **Note**: The query services here are written in python for the aggregation, based on historical data, these aggregation are fast and lightweight, however later on when we receive more and more request, these aggregation could become our bottleneck. The solution to this is maybe written code in another language/library that is faster, could be cython or maybe sth else. 
 
@@ -271,7 +444,7 @@ docker compose --env-file ./services/ml/.env.ml \
 ```
 After running, we will see that mlflow is up and running
 
-![Bring up mlflow](mlflow_ups.png)
+![Bring up mlflow](/assets/READMEimg/mlflow_ups.png)
 
 For simplicity of the demo, we will try and train a simple model first, then we will store it into mlflow's minio, and later on load it and use the scoring service with it. 
 
@@ -289,7 +462,7 @@ python application/training/train_register.py \
 ```
 
 After you run that script, you should see the following logs:
-![MLFlow train logs](mlflow_logs.png)
+![MLFlow train logs](/assets/READMEimg/mlflow_logs.png)
 
 **Important**: When training models, the Kubeflow pipeline automatically saves `feast_metadata.yaml` alongside the model in MLflow. This file contains:
 - Feature selection (which features the model was trained on)
@@ -561,7 +734,7 @@ Run the following code to spin up airflow:
 docker compose -f ./services/ops/docker-compose.orchestration.yml up -d
 ```
 
-![Airflow Components Up](createAirflow.png)
+![Airflow Components Up](/assets/READMEimg/createAirflow.png)
 
 
 For more detail, access the localhost:9055, the username/password is airflow/airflow, just like the following. 

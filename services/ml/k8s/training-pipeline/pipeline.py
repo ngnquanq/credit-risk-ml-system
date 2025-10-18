@@ -382,7 +382,7 @@ def train_and_register(
             },
             "training_date": pd.Timestamp.now().isoformat(),
         }
-
+        # v32
         # Log as YAML artifact
         with open("feast_metadata.yaml", "w") as f:
             yaml.dump(feast_metadata, f, default_flow_style=False)
@@ -422,8 +422,8 @@ def training_pipeline(
     stage: str = "Production",
     # Ray tuning parameters (exposed in UI)
     ray_address: str = "",  # run locally by default for faster POC
-    ray_num_samples: int = 4,
-    ray_cpus_per_trial: float = 0.5,
+    ray_num_samples: int = 1,  # Reduced from 4 for faster training
+    ray_cpus_per_trial: float = 1,
     ray_gpus_per_trial: float = 0.0,
     entity_key: str = "sk_id_curr",  # Changed to lowercase to invalidate cache
 ):
