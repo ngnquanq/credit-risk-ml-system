@@ -40,10 +40,10 @@ class ScoringSettings(BaseSettings):
         default=None, description="Comma-separated feature order"
     )
 
-    # Feast integration 
+    # Feast integration
     feast_enabled: bool = Field(default=True, description="Enable Feast online retrieval")
     feast_repo_path: str = Field(
-        default=os.path.abspath(os.path.join(os.path.dirname(__file__), "feast")),
+        default=os.path.abspath(os.path.join(os.path.dirname(__file__), "feast_repo")),
         description="Path to Feast repo for FeatureStore (absolute path to avoid working directory issues)"
     )
     # Optional inline Feast config (use when you don't ship the repo)

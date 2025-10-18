@@ -34,8 +34,9 @@ data:
             sh(f"git clone --depth 1 --branch {app_ref} {app_repo} {repo_dir}")
         svc_dir = os.path.join(repo_dir, app_subpath)
         # Copy Feast repo instead of symlink (BentoML doesn't follow symlinks during include)
-        feast_src = os.path.join(repo_dir, "application", "feast")
-        feast_dst = os.path.join(svc_dir, "feast")
+        # Using feast_repo to avoid Python namespace collision with feast package
+        feast_src = os.path.join(repo_dir, "application", "feast_repo")
+        feast_dst = os.path.join(svc_dir, "feast_repo")
         if os.path.exists(feast_src):
             import shutil
             if os.path.islink(feast_dst):
