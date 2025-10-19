@@ -155,11 +155,11 @@ More precisely:
 #### 6. **ML Serving Platform** (Kubernetes + KServe)
 - **Model packaging**: BentoML bundles (model + Feast metadata)
 - **Deployment**: KServe InferenceServices with canary/blue-green strategies
-- **Serving flow**: Kafka event → Feast features → Model prediction → Response
 - **Validation**: Startup checks ensure feature registry alignment
 
 #### 7. **Observability Layer** (ELK + Promethus-Grafana)
-- 
+- **Logging**: Filebeat for log collection, Elastic Search for storage, Kibana for visualization. 
+- **Monitoring**: Cadvisor for metrics collection (container-level resources), Prometheus for scrapes and store time-series metrics. Grafana for visualize with prebuilt dashboards. 
 
 ### Key Design Patterns
 
@@ -169,6 +169,10 @@ systems
 3. **Feature-Model Contract**: `feast_metadata.yaml` prevents train-serve skew
 4. **Automated MLOps**: Watchers + Jobs eliminate manual deployment steps
 5. **Separation of Concerns**: Distinct networks/namespaces for security and isolation
+6. **Lambda Architecture**: Combines batch processing (Spark/ClickHouse) with real-time
+streaming (Kafka/Flink) for balanced accuracy and latency
+7. **Medallion Architecture**: 3-tier data refinement (Bronze: raw operational data;
+Silver: validated warehouse; Gold: business-ready data marts)
 
 ## Data Flow for Serving Pods
 Here is how the data flow from the moment a user submit a loan request to when the decision of that loan is made. 
@@ -186,6 +190,7 @@ For a more detail version, it will be this:
     - Another python job will query from the data mart (internal data), write the data to the topic `hc.application_dwh`.
 5. All of those 3 topics that I mentioned be consume by a python service called feast consumer. Since this is just concatenate these fields together, a simple python script can do this. The combined data will be pushed into an online storage (redis) for the serving pod to use. 
 6. During the aggregation, the serving pod (or scoring worker) will consume the raw event, and then query from redis to get the features it need.
+7. After inference, the serving pod will write back to kafka under the topic `hc.scoring`. In future, there will be other services that consume this topic, it could be the notification services or something like that. 
 
 **Note 1**: It is absolutely the case that the scoring worker will consume the message before the data is ready in feast redis. Therefore we do have a retry strategy for this, that is we will try 15 times, the time gap between each time is 300ms. This will ensure that eventually, the model can perform prediction. 
 
@@ -232,11 +237,16 @@ In short, here are the scope split by role:
 
 **Notice**: During feast deployment, we will sync the feast registry into the object storage in model-serving namespace. The reason why we are doing this instead of using PVC is for easier to audit (each InferenceService version got their own feature registry). 
 
+## Logging and Monitoring Flow
+Here is what the logging and monitoring flow look like. 
 
+![Logging and Monitoring](/assets/READMEimg/LoggingandMonitoring.png)
 
+In depth, here is what it look like:
 
-- Engineer:
+- For logging: 
 
+    1. For docker components, we have docker daemon to capture any stderr or stdout. These logs will be stored in JSON format at `/var/lib/docker/container/ ... /*.log`. Filebeat container has volume mount to these folder, it also uses autodiscovery to find all containers in hc-network and tails each container's log file. 
 
 # Application Port Allocation
 
