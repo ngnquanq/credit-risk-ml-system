@@ -78,6 +78,122 @@ For a more in-dept detail of this dataset, I suggest you go and take a look of i
 
 # Repository Structure
 
+# Deployment Readiness
+
+## Current Status: Development & POC Environment
+
+This setup is designed for:
+- ✅ Local development and testing
+- ✅ ML experimentation and model training
+- ✅ Proof-of-concept demonstrations
+- ✅ Learning and understanding the full ML platform architecture
+
+## Production Deployment
+
+The **application code, ML pipelines, and data engineering logic** are production-ready.
+
+However, the **infrastructure deployment** requires modifications for production use:
+
+### For On-Premise Production
+
+To deploy this system in an on-premise production environment, you'll need:
+
+**Infrastructure Upgrades:**
+- Replace Minikube with production Kubernetes cluster (kubeadm, k3s, OpenShift, or Rancher)
+- Migrate Docker Compose services to Kubernetes operators:
+  - Kafka → Strimzi Operator (3+ broker cluster with HA)
+  - PostgreSQL → CloudNativePG or Zalando Postgres Operator (with replication)
+  - Redis → Redis Operator (Sentinel or Cluster mode)
+  - ClickHouse → ClickHouse Operator
+  - Airflow → Apache Airflow on Kubernetes (Helm chart)
+
+**High Availability & Reliability:**
+- Multi-node Kubernetes cluster (3+ control plane nodes, multiple worker nodes)
+- Service replication and anti-affinity rules
+- Network-attached storage (NFS, Ceph, Longhorn) for persistent volumes
+- Automated backup and disaster recovery procedures
+
+**Security Hardening:**
+- TLS/mTLS encryption for all service communication
+- Kubernetes Network Policies to restrict pod-to-pod traffic
+- Secrets management (HashiCorp Vault, Sealed Secrets)
+- RBAC configuration for Kubernetes access control
+- Container image scanning and vulnerability management
+
+**Networking:**
+- Replace socat with production-grade solutions:
+  - Option 1: Deploy all services in Kubernetes (eliminates Docker↔K8s networking)
+  - Option 2: Use MetalLB in BGP mode with production-grade routers
+  - Option 3: External load balancers (HAProxy, F5, hardware LB)
+- Ingress controllers for external API access
+- Service mesh (optional: Istio, Linkerd) for advanced traffic management
+
+### For Cloud Production (AWS/Azure/GCP)
+
+The current Docker Compose + Minikube architecture is **not suitable for cloud deployment**. For cloud environments, you'll need to redesign the infrastructure:
+
+**Kubernetes Migration:**
+- Use managed Kubernetes services (Amazon EKS, Azure AKS, Google GKE)
+- ML platform components (Kubeflow, MLflow, KServe, Feast) deploy to managed K8s
+- Remove Minikube-specific configurations
+
+**Replace Docker Compose with Cloud-Native Services:**
+- **Kafka** → Amazon MSK, Azure Event Hubs, Google Cloud Pub/Sub, or Confluent Cloud
+- **PostgreSQL** → Amazon RDS, Azure Database for PostgreSQL, Google Cloud SQL
+- **Redis** → Amazon ElastiCache, Azure Cache for Redis, Google Cloud Memorystore
+- **ClickHouse** → ClickHouse Cloud or self-managed on EC2/GCE/Azure VMs
+- **MinIO** → Amazon S3, Azure Blob Storage, Google Cloud Storage (native)
+- **Airflow** → Amazon MWAA, Google Cloud Composer, or Astronomer
+
+**Networking Simplification:**
+- All services in same VPC/VNet
+- Kubernetes Service discovery for internal communication (no socat/MetalLB hacks needed)
+- Cloud-native load balancers (ALB/NLB, Azure Load Balancer, GCP Load Balancer)
+- API Gateway for external access
+- IAM roles and service accounts for authentication
+- Private endpoints for managed services (no public internet exposure)
+
+**Cloud-Native Features:**
+- Auto-scaling (horizontal pod autoscaling, cluster autoscaling)
+- Managed backups and point-in-time recovery
+- Multi-region deployment for disaster recovery
+- Cloud monitoring integration (CloudWatch, Azure Monitor, Cloud Monitoring)
+- Infrastructure as Code (Terraform, CloudFormation, Pulumi)
+
+### Why Current Setup Won't Work in Cloud
+
+**Minikube-specific dependencies:**
+- `host.minikube.internal` hostname doesn't exist in EKS/GKE/AKS
+- Minikube tunnel and local networking assumptions fail in cloud VPCs
+
+**Docker Compose limitations:**
+- No high availability or fault tolerance
+- Single-node deployment (not distributed)
+- Incompatible with cloud networking (VPC, security groups, subnets)
+
+**socat networking:**
+- Relies on host network mode (problematic in cloud container services)
+- Doesn't work across VPC boundaries or availability zones
+- Single point of failure
+
+**MetalLB Layer 2 mode:**
+- Assumes single subnet with ARP broadcast
+- Cloud networks use Layer 3 routing across availability zones
+- Managed Kubernetes services provide native LoadBalancer support
+
+### Summary
+
+| Environment | Current Setup | What's Needed |
+|-------------|---------------|---------------|
+| **Local Dev** | ✅ Ready to use | None - works as-is |
+| **On-Premise** | ⚠️ POC ready | Infrastructure hardening (see above) |
+| **Cloud** | ❌ Requires redesign | Architecture migration (see above) |
+
+For detailed migration guides and cloud-specific deployment instructions, refer to the following resources:
+- On-premise production deployment: See `docs/ONPREM_DEPLOYMENT.md` (planned)
+- Cloud migration guide: See `docs/CLOUD_MIGRATION.md` (planned)
+- Kubernetes operator configurations: See `services/k8s/production/` (planned)
+
 # High-level System Architecture 
 
 ## Machine Spec
@@ -236,6 +352,50 @@ In short, here are the scope split by role:
   2. If all feature are there, it will deploy, consume predict request from kafka and query for data from online store (redis).
 
 **Notice**: During feast deployment, we will sync the feast registry into the object storage in model-serving namespace. The reason why we are doing this instead of using PVC is for easier to audit (each InferenceService version got their own feature registry). 
+
+## Cross-platform netwokring
+Previously when doing this project, I use 100% docker compose, therefore there is no problem with networking. But solely rely on docker is not good especially when serving machine learning model. I decide to use kubernetes for the ML workload. Here is when the cross-platform networking challenge occurs. More specifically: 
+
+- Docker: bridge networks 
+- Kubernetes: CNI
+
+During the development, I try to connect the docker network with minikube network, this work, but not best practice. Therefore I decide to pivot things, using socat as a TCP relay/proxy to bridge docker and k8s traffic. At the same time, I also use MetalLB to provide LoadBalancer IP for k8s services so they can be reached from outside the cluster. 
+
+- Socat: communicate from Docker to Kubernetes
+- MetalLB: communicate from Kubernetes to Docker
+
+On a high level, the networking will be like this: 
+
+<Pending>
+
+**Note**: This setup can not be run on cloud without major change, here are 2 pattern you can try:
+1. Migrate everything to k8s (GKE on GCP or EKS on Azure, etc):
+    - Pros: 
+        - Networking more simple (can just use DNS, no need socat or metalLB hacks, can even try Istio for advanced routing).
+        - Cloud-native, portable.
+        - Easier to mange, build CI/CD pipeline. 
+
+    - Cons: 
+        - Refactoring all the docker compose (tired work) into k8s manifest or helm charts. 
+        - More complex initial setup with high learning curve. 
+
+2. Keep docker compose and kubernetes, but with VPC peering:
+    - Pros: 
+        - Minimal code change
+        - Can reuse existing docker compose config
+    - Cons:
+        - More complex networking (VPC peering, Sec group, NAT gateway, etc).
+        - Manage a lot of things. 
+        - Data Platform build with docker compoes is hard to scale. 
+
+3. Hybrid with managed services from cloud providers:
+    - Pros:
+        - Keep logic as it is, simpler networking. 
+        - Cloud-native with auto-scaling from cloud provider. 
+        - More reliable with built-in monitoring. 
+    - Cons: 
+        - Vendor lock for sure 
+        - Very expensive
 
 ## Logging and Monitoring Flow
 Here is what the logging and monitoring flow look like. 
