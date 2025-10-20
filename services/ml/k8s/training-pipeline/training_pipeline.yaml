@@ -335,8 +335,8 @@ deploymentSpec:
           \          \"model_signature\": {\n                \"inputs\": list(X_train.columns),\n\
           \                \"output\": \"binary_classification\",\n            },\n\
           \            \"training_date\": pd.Timestamp.now().isoformat(),\n      \
-          \  }\n        # v32\n        # Log as YAML artifact\n        with open(\"\
-          feast_metadata.yaml\", \"w\") as f:\n            yaml.dump(feast_metadata,\
+          \  }\n        # v32\n        # v34\n        # Log as YAML artifact\n   \
+          \     with open(\"feast_metadata.yaml\", \"w\") as f:\n            yaml.dump(feast_metadata,\
           \ f, default_flow_style=False)\n        mlflow.log_artifact(\"feast_metadata.yaml\"\
           )\n\n        print(f\"\u2705 Logged feast_metadata.yaml with {len(FEATURES)}\
           \ features\")\n\n        # Transition to stage (same as before)\n      \

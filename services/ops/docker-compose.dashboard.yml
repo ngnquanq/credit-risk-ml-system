@@ -8,7 +8,6 @@ x-superset-volumes:
 networks:
   hc-network:
     external: true
-    name: ${NETWORK_NAME:-hc-network}
 
 services:
   redis:
@@ -26,6 +25,8 @@ services:
     image: postgres:${POSTGRES_VERSION:-15}
     container_name: superset_db
     restart: unless-stopped
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - db_home:/var/lib/postgresql/data
       - ./docker/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
@@ -49,7 +50,7 @@ services:
     environment:
       SUPERSET_LOG_LEVEL: "${SUPERSET_LOG_LEVEL:-info}"
       # Install extra DB drivers at container start (official Superset supports this)
-      PIP_ADDITIONAL_REQUIREMENTS: "clickhouse-connect==0.8.18"
+      PIP_ADDITIONAL_REQUIREMENTS: "clickhouse-connect==0.8.18 psycopg2-binary"
     networks:
       - hc-network
 
@@ -71,7 +72,7 @@ services:
     environment:
       SUPERSET_LOAD_EXAMPLES: "${SUPERSET_LOAD_EXAMPLES:-yes}"
       SUPERSET_LOG_LEVEL: "${SUPERSET_LOG_LEVEL:-info}"
-      PIP_ADDITIONAL_REQUIREMENTS: "clickhouse-connect==0.8.18"
+      PIP_ADDITIONAL_REQUIREMENTS: "clickhouse-connect==0.8.18 psycopg2-binary"
     networks:
       - hc-network
 
@@ -95,7 +96,7 @@ services:
         ]
     environment:
       SUPERSET_LOG_LEVEL: "${SUPERSET_LOG_LEVEL:-info}"
-      PIP_ADDITIONAL_REQUIREMENTS: "clickhouse-connect==0.8.18"
+      PIP_ADDITIONAL_REQUIREMENTS: "clickhouse-connect==0.8.18 psycopg2-binary"
     networks:
       - hc-network
 

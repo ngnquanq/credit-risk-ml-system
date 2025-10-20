@@ -184,7 +184,7 @@ def create_or_update_inferenceservice(version: str) -> bool:
                             {"name": "SCORING_FEAST_ENABLED", "value": "true"},
                             {"name": "SCORING_FEAST_REDIS_URL", "value": "feast-redis.feature-registry.svc.cluster.local:6379"},
                             {"name": "SCORING_FEAST_REGISTRY_URI", "value": "s3://feast-registry/feature_repo/registry.db"},
-                            {"name": "SCORING_FEAST_PROJECT", "value": "hc_k8s"},
+                            {"name": "SCORING_FEAST_PROJECT", "value": "hc"},
                             {"name": "SCORING_FEAST_PROVIDER", "value": "local"},
                             {"name": "SCORING_FEAST_INLINE_CONFIG_ENABLED", "value": "true"},
                             {"name": "FEAST_S3_ENDPOINT_URL", "value": "http://serving-minio.model-serving.svc.cluster.local:9000"},

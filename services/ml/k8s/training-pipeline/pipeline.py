@@ -383,6 +383,7 @@ def train_and_register(
             "training_date": pd.Timestamp.now().isoformat(),
         }
         # v32
+        # v34
         # Log as YAML artifact
         with open("feast_metadata.yaml", "w") as f:
             yaml.dump(feast_metadata, f, default_flow_style=False)

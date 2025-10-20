@@ -16,7 +16,7 @@ data:
         model_uri    = os.environ["MODEL_URI"]
         version_tag  = os.environ["VERSION_TAG"]
         app_repo     = os.environ["APP_REPO"]
-        app_ref      = os.environ.get("APP_REF", "main")
+        app_ref      = os.environ.get("APP_REF", "feature/ml-model-v0.0")  # Use feature branch with sys.path fix
         app_local    = os.environ.get("APP_LOCAL_PATH")
         app_subpath  = os.environ.get("APP_SUBPATH", "application/scoring")
         bkt          = os.environ["BENTO_BUCKET"]
