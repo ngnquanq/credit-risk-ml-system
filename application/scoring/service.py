@@ -81,8 +81,20 @@ with bentoml.importing():
                 settings.loan_application_topic,
                 settings.kafka_bootstrap_servers,
             )
-        except Exception:
-            pass
+            logger.info("🔧 DEBUG: ========== FEAST CONFIGURATION ==========")
+            logger.info(f"🔧 DEBUG: feast_enabled = {settings.feast_enabled}")
+            logger.info(f"🔧 DEBUG: feast_repo_path = '{settings.feast_repo_path}'")
+            logger.info(f"🔧 DEBUG: feast_inline_config_enabled = {settings.feast_inline_config_enabled}")
+            logger.info(f"🔧 DEBUG: feast_project = '{settings.feast_project}'")
+            logger.info(f"🔧 DEBUG: feast_provider = '{settings.feast_provider}'")
+            logger.info(f"🔧 DEBUG: feast_registry_uri = '{settings.feast_registry_uri}'")
+            logger.info(f"🔧 DEBUG: feast_redis_url = '{settings.feast_redis_url}'")
+            logger.info(f"🔧 DEBUG: feast_feature_refs = '{settings.feast_feature_refs}'")
+            logger.info(f"🔧 DEBUG: __file__ = '{__file__}'")
+            logger.info(f"🔧 DEBUG: os.path.dirname(__file__) = '{os.path.dirname(__file__)}'")
+            logger.info("🔧 DEBUG: ============================================")
+        except Exception as e:
+            logger.error(f"🔧 DEBUG: Error logging configuration: {e}")
         ensure_model_loaded()
 
     @app.get("/healthz")
@@ -315,21 +327,64 @@ def _resolve_feast_repo_path() -> str:
 
     Also ensures the feast repo is in sys.path so Python modules can be imported.
     """
+    logger.info("🔧 DEBUG: Starting _resolve_feast_repo_path()")
+    logger.info(f"🔧 DEBUG: settings.feast_repo_path = '{settings.feast_repo_path}'")
+    logger.info(f"🔧 DEBUG: Current working directory = '{os.getcwd()}'")
+
     try:
         repo = settings.feast_repo_path
-        if repo and os.path.exists(os.path.join(repo, "feature_store.yaml")):
-            # Add feast repo to sys.path so Feast can import feature_views.py, entities.py, etc.
-            import sys
-            abs_repo = os.path.abspath(repo)
-            if abs_repo not in sys.path:
-                sys.path.insert(0, abs_repo)
-                logger.debug(f"Added {abs_repo} to sys.path for Feast imports")
-            return repo
-    except Exception:
-        pass
+        logger.info(f"🔧 DEBUG: repo variable = '{repo}'")
+
+        if repo:
+            # Check what's in the repo directory
+            if os.path.exists(repo):
+                logger.info(f"🔧 DEBUG: repo directory EXISTS at '{repo}'")
+                try:
+                    contents = os.listdir(repo)
+                    logger.info(f"🔧 DEBUG: repo directory contents: {contents}")
+                except Exception as e:
+                    logger.error(f"🔧 DEBUG: Failed to list repo contents: {e}")
+            else:
+                logger.error(f"🔧 DEBUG: repo directory DOES NOT EXIST at '{repo}'")
+
+            feature_store_path = os.path.join(repo, "feature_store.yaml")
+            logger.info(f"🔧 DEBUG: Checking for feature_store.yaml at: '{feature_store_path}'")
+
+            if os.path.exists(feature_store_path):
+                logger.info(f"🔧 DEBUG: feature_store.yaml EXISTS at '{feature_store_path}'")
+
+                # Add feast repo to sys.path so Feast can import feature_views.py, entities.py, etc.
+                import sys
+                logger.info(f"🔧 DEBUG: sys.path BEFORE modification: {sys.path[:3]}")
+
+                abs_repo = os.path.abspath(repo)
+                logger.info(f"🔧 DEBUG: abs_repo = '{abs_repo}'")
+
+                if abs_repo not in sys.path:
+                    sys.path.insert(0, abs_repo)
+                    logger.info(f"🔧 DEBUG: Added {abs_repo} to sys.path for Feast imports")
+                    logger.info(f"🔧 DEBUG: sys.path AFTER modification: {sys.path[:3]}")
+                else:
+                    logger.info(f"🔧 DEBUG: {abs_repo} already in sys.path")
+
+                logger.info(f"🔧 DEBUG: Returning repo path: '{repo}'")
+                return repo
+            else:
+                logger.error(f"🔧 DEBUG: feature_store.yaml DOES NOT EXIST at '{feature_store_path}'")
+        else:
+            logger.error("🔧 DEBUG: repo is None or empty")
+
+    except Exception as e:
+        logger.error(f"🔧 DEBUG: Exception in first try block: {e}", exc_info=True)
+
+    logger.info("🔧 DEBUG: Falling back to inline config generation")
+    logger.info(f"🔧 DEBUG: feast_inline_config_enabled = {settings.feast_inline_config_enabled}")
+    logger.info(f"🔧 DEBUG: feast_registry_uri = '{settings.feast_registry_uri}'")
+    logger.info(f"🔧 DEBUG: feast_redis_url = '{settings.feast_redis_url}'")
 
     if settings.feast_inline_config_enabled and settings.feast_registry_uri and settings.feast_redis_url:
         tmpdir = tempfile.mkdtemp(prefix="feast-config-")
+        logger.info(f"🔧 DEBUG: Created temp dir for inline config: '{tmpdir}'")
         yaml_text = (
             f"project: {settings.feast_project}\n"
             f"registry: {settings.feast_registry_uri}\n"
@@ -343,7 +398,10 @@ def _resolve_feast_repo_path() -> str:
         with open(path, "w", encoding="utf-8") as f:
             f.write(yaml_text)
         logger.info(f"Generated inline Feast config at {path}")
+        logger.info(f"🔧 DEBUG: Returning tmpdir: '{tmpdir}'")
         return tmpdir
+    else:
+        logger.error("🔧 DEBUG: Inline config NOT enabled or missing registry/redis URIs")
 
     raise bentoml.exceptions.BentoMLException(
         "Feast config not found. Provide SCORING_FEAST_REPO_PATH with feature_store.yaml, "
@@ -403,14 +461,24 @@ def ensure_model_loaded() -> None:
                 from feast import FeatureStore
 
                 logger.info("🔍 Discovering Feast features dynamically from registry...")
-                fs = FeatureStore(repo_path=_resolve_feast_repo_path())
+                logger.info("🔧 DEBUG: About to call _resolve_feast_repo_path()")
+
+                resolved_path = _resolve_feast_repo_path()
+                logger.info(f"🔧 DEBUG: _resolve_feast_repo_path() returned: '{resolved_path}'")
+
+                logger.info(f"🔧 DEBUG: Creating FeatureStore with repo_path='{resolved_path}'")
+                fs = FeatureStore(repo_path=resolved_path)
+                logger.info("🔧 DEBUG: FeatureStore created successfully")
 
                 # Build mapping: feature_name (lowercase) -> (view_name, feast_name)
                 feast_available = {}
+                logger.info("🔧 DEBUG: Calling fs.list_stream_feature_views()")
                 stream_views = list(fs.list_stream_feature_views())
+                logger.info(f"🔧 DEBUG: Got {len(stream_views)} StreamFeatureViews")
 
                 for sfv in stream_views:
                     view_name = sfv.name
+                    logger.info(f"🔧 DEBUG: Processing view '{view_name}' with {len(sfv.schema)} fields")
                     for field in sfv.schema:
                         # Include ALL fields (including entity key) in feature discovery
                         # The entity key is a valid feature that models may use for prediction
@@ -419,6 +487,7 @@ def ensure_model_loaded() -> None:
 
                 logger.info(f"✓ Found {len(feast_available)} features across {len(stream_views)} StreamFeatureViews")
                 logger.info(f"  Views: {[sfv.name for sfv in stream_views]}")
+                logger.info(f"🔧 DEBUG: Sample features (first 10): {list(feast_available.keys())[:10]}")
 
                 # VALIDATION: Check all model features exist in Feast
                 required_features = feast_metadata["selected_features"]
