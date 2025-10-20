@@ -693,6 +693,9 @@ def _run_kafka_consumer():  # pragma: no cover
 
                 # Build DataFrame with all expected columns (consistent with REST endpoint)
                 X_df = _as_dataframe_row(features)
+                logger.info(f"🔧 DEBUG: features dict keys: {list(features.keys())[:10]}...")
+                logger.info(f"🔧 DEBUG: X_df columns: {list(X_df.columns)[:10]}...")
+                logger.info(f"🔧 DEBUG: X_df shape: {X_df.shape}")
                 raw = _predict_proba_local(X_df)
                 logger.info("Kafka model data transform: " + str(X_df.to_dict(orient="records")))
                 prob = float(raw[0]) if hasattr(raw, "__len__") else float(raw)

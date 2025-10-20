@@ -574,6 +574,7 @@ minikube start -p mlops --kubernetes-version=v1.28.3 --driver=docker \
     --cpus=10 --memory=20000 --disk-size=100g --addons=ingress,metallb
 ```
 
+### Create training data storage
 
 For the first component, it is the data storage layer, there are 2 main reason why we should dedicate an storage layer for the training pipeline:
 - Versioning purpose: we store things in a minio bucket, seperate by time stamp, therefore we know what are the feature we use to train the model. 
