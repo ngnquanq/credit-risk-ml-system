@@ -290,17 +290,29 @@ _EXPECTED_COLUMNS: Optional[List[str]] = None
 def _get_expected_columns() -> List[str]:
     """Get expected columns from model's feast metadata.
 
-    Requires feast_metadata.yaml with 'selected_features' field.
+    Uses model_signature.inputs (uppercase) for column names to match model expectations.
+    Falls back to selected_features (lowercase) if model_signature is not available.
     Raises RuntimeError if metadata is missing.
     """
     global _EXPECTED_COLUMNS
     if _EXPECTED_COLUMNS is None:
-        if MODEL_FEAST_METADATA and MODEL_FEAST_METADATA.get("selected_features"):
-            _EXPECTED_COLUMNS = MODEL_FEAST_METADATA["selected_features"]
-            logger.info(f"✓ Using {len(_EXPECTED_COLUMNS)} features from model's feast_metadata.yaml")
+        if MODEL_FEAST_METADATA:
+            # Prefer uppercase model_signature.inputs to match sklearn model expectations
+            if MODEL_FEAST_METADATA.get("model_signature", {}).get("inputs"):
+                _EXPECTED_COLUMNS = MODEL_FEAST_METADATA["model_signature"]["inputs"]
+                logger.info(f"✓ Using {len(_EXPECTED_COLUMNS)} UPPERCASE features from model_signature.inputs")
+            elif MODEL_FEAST_METADATA.get("selected_features"):
+                # Fallback: uppercase the selected_features
+                _EXPECTED_COLUMNS = [f.upper() for f in MODEL_FEAST_METADATA["selected_features"]]
+                logger.info(f"✓ Using {len(_EXPECTED_COLUMNS)} uppercased features from selected_features")
+            else:
+                raise RuntimeError(
+                    "Model must include feast_metadata.yaml with 'model_signature.inputs' or 'selected_features' field. "
+                    "This file should be generated during training and uploaded to MLflow as an artifact."
+                )
         else:
             raise RuntimeError(
-                "Model must include feast_metadata.yaml with 'selected_features' field. "
+                "Model must include feast_metadata.yaml with 'model_signature.inputs' or 'selected_features' field. "
                 "This file should be generated during training and uploaded to MLflow as an artifact."
             )
     return _EXPECTED_COLUMNS

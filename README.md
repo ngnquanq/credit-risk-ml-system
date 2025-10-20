@@ -612,6 +612,8 @@ INNER JOIN application_mart.mart_application_train AS t \
 ON a.SK_ID_CURR = t.SK_ID_CURR"
 ```
 
+### Create Kubeflow pipeline
+
 For the second components in the cluster, it's kubeflow pipeline for the training job, it support scheduling, parameterized run and rollback. In order to run this, execute the command below:
 ```shell
 export PIPELINE_VERSION=2.14.0
@@ -634,6 +636,8 @@ What this is doing behind the scene is that:
 2. Perform some basic data transformation for ML such as encoding, normalization, etc. 
 3. Based on that training feature, perform hyperparameter tuning. 
 4. With the best set of hyperparameter, it perform training and registry to the mlflow (registry both the data processing pipeline, the model and the feature that it use to train).
+
+### Create model registry
 
 For the third component, we need the model storage, same as what we did with docker compose, we need mlflow for model registry, postgres and minio for model storage. To run this:
 
@@ -687,6 +691,8 @@ kubectl -n model-registry apply \
 kubectl -n model-registry rollout status deploy/mlflow-watcher
 ```
 
+### Create model-serving 
+
 We need to install Kserve
 
 ```shell
@@ -737,22 +743,6 @@ kubectl apply -f registry-deployment.yaml
 kubectl apply -f watcher-rbac.yaml
 kubectl apply -f watcher-configmap.yaml
 kubectl apply -f watcher-deployment.yaml
-```
-
-<Some picture here>
-
-After that, you need to get an API token for later use, for example I just created one: d3719ch36grc73an8b70 
-
-After that we may need to authenticate with yatai 
-
-The serving plane chart create a webhook and expect cert manager ti mint is TLS cert. We need to install cert-manager first, the rerun the install. 
-
-```shell
-# Create namespace 
-kubectl create ns cert-manager
-helm upgrade --install cert-manager services/ml/k8s/cert-manager -n cert-manager \
-    -f services/ml/k8s/cert-manager/values.override.yaml
-
 ```
 
 For the sixth components, it is the ray related components (notice that the first time run is quite slow, therefore be patient, it should be the case that the head is still creating while worker is init):
