@@ -3,5 +3,5 @@ registry: s3://feast-registry/feature_repo/registry.db
 provider: local
 online_store:
   type: redis
-  connection_string: feast_redis:6379
+  connection_string: feast-redis.feature-registry.svc.cluster.local:6379
 entity_key_serialization_version: 2
