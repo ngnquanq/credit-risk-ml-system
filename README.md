@@ -783,6 +783,30 @@ After that, you can do port-forwarding and access to the Grafana dashboard to se
 ![Insert Monitoring Gif here]()
 
 ### Create logging components 
+For this logging components, we use the EFK stack (Elastic Search - Filebeat - Kibana) for centralized logging. ElasticSearch is the log storage, Kibana is the log visualization and search UI, you can even build some dashboard with this (the approach is very similar to using Superset or Grafana) and finally we deploy filebeat as daemonset to collect pod logs
+
+To run this, simply run: 
+
+```shell
+# Create logigng namespace
+kubectl create ns logging
+
+# Install elastic search
+cd services/ml/k8s/logging/elastic-stack
+
+helm upgrade --install elasticsearch ./elasticsearch -n logging -f \
+  elasticsearch-values.custom.yaml
+
+# After elastic Search is up and running, start to install kibana
+helm install kibana ./kibana -n logging -f kibana-values.custom.yaml --no-hooks
+
+# After Kibana is up and running, run filebeat
+helm install filebeat ./filebeat -n logging -f filebeat-values.custom.yaml
+
+```
+After that, you can do port-forwarding and access to the Kibana dashboard to see both dashboard for data platform and machine learning platform. 
+
+![Insert Logging Gif here]()
 
 #### Spin up spark cluster
 Spark cluster enable us to handling big data efficiently, for this application, the current data is not too large (because it's already down-sample from a production setting environment), however, when dealing with production environment, perform model training on approx 100GB or more is normal, which exceed the capacity of just a single machine in most of the companies. Spark help us with this in a distributed manner. Also Spark is well known and have lots of documentation and lots of use case (ML is one of them), therefore I choose spark. 
@@ -811,59 +835,8 @@ For more detail, access the localhost:9055, the username/password is airflow/air
 
 ![](/assets/upRunAirflow.gif)
 
-#### Spin up logging components
-
-
-#### Spin up tracing components
-
-
-#### Spin up BI components
-
-
-## Troubleshooting
-
-### Feature Mismatch Error: "columns are missing"
-
-**Symptom**: Scoring service logs show:
-```
-ERROR: columns are missing: {'FLAG_OWN_REALTY', 'FLAG_DOCUMENT_7', ...}
-```
-
-**Cause**: The model was trained on more features than Feast is providing.
-
-**Solution**: The system now automatically handles this through `feast_metadata.yaml`:
-
-1. **During training** (Kubeflow pipeline):
-   - Saves `feast_metadata.yaml` with the exact feature list used
-   - Uploaded to MLflow alongside the model
-
-2. **During deployment** (bento-build Job):
-   - Downloads both model AND `feast_metadata.yaml` from MLflow
-   - Packages both into the Bento bundle
-
-3. **During serving** (scoring pods):
-   - Loads model from `bundle/model.joblib`
-   - Loads features from `bundle/feast_metadata.yaml`
-   - Uses the **actual training features**, not hardcoded defaults
-
-**Verification**:
-```bash
-# Check if feast_metadata.yaml was downloaded during build
-kubectl logs -n kserve <bento-build-pod-name> | grep feast_metadata
-
-# Expected output:
-# ✓ feast_metadata.yaml saved (58 features)
-
-# Check if scoring pod loaded it
-kubectl logs -n kserve <predictor-pod-name> | grep "feast_metadata\|features"
-
-# Expected output:
-# ✓ Loaded feast metadata from bundle/feast_metadata.yaml: 58 features
-# Using 58 features from model's feast_metadata.yaml
-```
-
-**If the error persists**:
-1. Ensure your Kubeflow training pipeline includes the `feast_metadata.yaml` logging step
-2. Verify the ConfigMap was updated: `kubectl get configmap bento-builder-script -n kserve -o yaml | grep feast_metadata`
-3. Rebuild the Bento by promoting a new model version to trigger mlflow-watcher
-
+# Future Development
+1. Definitely to prepare the infrastructure to be production ready, I could deploy this using managed services from cloud provider or maybe migrate the whole things to run with K8s and bring that cluster onto cloud. 
+2. Define more business rule, I know that these application often integrate some rule-based as well. 
+3. Authentication and Authorization as the security layer. 
+4. Dedicate some time to build meaningful dashboard (Kibana, Grafana and Superset)
