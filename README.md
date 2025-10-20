@@ -625,6 +625,20 @@ kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform
 
 You can find a more detail version of the installation [here](https://www.kubeflow.org/docs/components/pipelines/operator-guides/installation/). After that you can do port-forwarding, access the UI, create the pipeline and submit a `training_pipeline.yaml`. Here is an example. 
 
+Since we are doing hyper-param tuning with Ray, we must spin Ray cluster up (notice that the first time run is quite slow, therefore be patient, it should be the case that the head is still creating while worker is init):
+
+```shell
+# Create ns
+kubectl create ns ray 
+
+# Start the ray operator
+helm upgrade --install kuberay-operator ./services/ml/k8s/kuberay-operator \
+    -n ray -f services/ml/k8s/kuberay-operator/values.yaml
+
+# Start the ray cluster
+ kubectl apply -f services/ml/k8s/kuberay-operator/raycluster.yaml
+```
+The current ray cluster setting is with 1 Master and 2 Workers, these will help with the distributed hyperparameter tuning and model training. Now we are full equipment for the training process. But first, we need to create a training pipeline script (written in yaml) so that later on we can submit this to kubeflow pipeline so that it do the tuning, training and registering for us. 
 
 This is the path to that `training_pipeline.yaml`: services/ml/k8s/training-pipeline/training_pipeline.yaml
 
@@ -745,34 +759,30 @@ kubectl apply -f watcher-configmap.yaml
 kubectl apply -f watcher-deployment.yaml
 ```
 
-For the sixth components, it is the ray related components (notice that the first time run is quite slow, therefore be patient, it should be the case that the head is still creating while worker is init):
+### Create monitoring components
+For the monitoring, we will use the prometheus-grafana stack. With prometheus for storing time series data about metrics (CPU util, Usage Memory, RAM, etc ...), Grafana will serve as a visualization tool for Platform Engineer, we use node-exporter for host-level metrics and cAdvisor on data platform and machine learning platform for container-level metrics. 
+
+To setup this, simply run: 
 
 ```shell
-# Create ns
-kubectl create ns ray 
+# Create namespace
+kubectl create namespace monitoring
 
-# Start the ray operator
-helm upgrade --install kuberay-operator ./services/ml/k8s/kuberay-operator \
-    -n ray -f services/ml/k8s/kuberay-operator/values.yaml
+# Install kube-prometheus-stack with custom values
+cd services/ml/k8s/monitoring
+helm upgrade --install kube-prometheus-stack ./kube-prometheus-stack \
+-n monitoring \
+-f kube-prometheus-stack/values.custom.yaml
 
-# Start the ray cluster
- kubectl apply -f services/ml/k8s/kuberay-operator/raycluster.yaml
+# Deploy cAdvisor ServiceMonitor (to scrape Docker metrics)
+kubectl apply -f kube-prometheus-stack/docker-cadvisor-servicemonitor.yaml
+
 ```
-The current ray cluster setting is with 1 Master and 2 Workers, these will help with the distributed hyperparameter tuning and model training. Now we are full equipment for the training process. But first, we need to create a training pipeline script (written in yaml) so that later on we can submit this to kubeflow pipeline so that it do the tuning, training and registering for us. 
+After that, you can do port-forwarding and access to the Grafana dashboard to see both dashboard for data platform and machine learning platform. 
 
-```shell
-python services/ml/k8s/training-pipeline/compile_pipeline.py
-```
-After this, you will see a training_pipeline.yaml file. After that, you can actually just submit that on KFP and run with predetermined parameters and everything is ok. 
+![Insert Monitoring Gif here]()
 
-
-The current setup allow 2 types of model to be on production at the same time, later on if we just want to maintain 1 model, just drain out a request from 1 version, change the stage to not be production. 
-
-##### Spin up feature registry components
-
-##### Spin up monitoring components
-
-##### Spin up logging components 
+### Create logging components 
 
 #### Spin up spark cluster
 Spark cluster enable us to handling big data efficiently, for this application, the current data is not too large (because it's already down-sample from a production setting environment), however, when dealing with production environment, perform model training on approx 100GB or more is normal, which exceed the capacity of just a single machine in most of the companies. Spark help us with this in a distributed manner. Also Spark is well known and have lots of documentation and lots of use case (ML is one of them), therefore I choose spark. 
