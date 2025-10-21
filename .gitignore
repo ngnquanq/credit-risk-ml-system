@@ -9,9 +9,13 @@ __pycache__/
 # C extensions
 *.so
 
-# Model weight 
+# Model weight
 *.ckpt
 *.pkl
+
+# Model bundles (generated during build)
+bundle/
+application/scoring/bundle/
 
 # Distribution / packaging
 .Python

@@ -394,6 +394,7 @@ The current Docker Compose + Minikube architecture is **not suitable for cloud d
 - Infrastructure as Code (Terraform, CloudFormation, Pulumi)
 
 
+# Achievement of Current Architecture
 
 
 # Guide to Install and Run Code
