@@ -233,7 +233,12 @@ def _map_feast_features(feast_result: Dict[str, Any], feature_refs: List[str]) -
             val = vals[0]
             if val is not None:
                 # Map to ML model column name (use metadata mapping or uppercase)
-                model_col = feature_mapping.get(fname, fname.upper())
+                # IMPORTANT: If using metadata mapping, ensure it's uppercased
+                if fname in feature_mapping:
+                    model_col = feature_mapping[fname].upper()
+                else:
+                    model_col = fname.upper()
+
                 mapped_columns.append(f"{fname}->{model_col}")
                 try:
                     # Keep strings as strings for categorical features
