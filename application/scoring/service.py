@@ -218,11 +218,14 @@ def _map_feast_features(feast_result: Dict[str, Any], feature_refs: List[str]) -
     feature_mapping = {}
     if MODEL_FEAST_METADATA and MODEL_FEAST_METADATA.get("feature_mapping"):
         feature_mapping = MODEL_FEAST_METADATA["feature_mapping"]
-        logger.debug(f"Using feature_mapping with {len(feature_mapping)} entries")
+        logger.info(f"✓ Using feature_mapping with {len(feature_mapping)} entries")
     else:
-        logger.warning("MODEL_FEAST_METADATA or feature_mapping not available, using uppercase fallback")
+        logger.warning("⚠️ MODEL_FEAST_METADATA or feature_mapping not available, using uppercase fallback")
 
     features = {}
+    mapped_columns = []
+    unmapped_refs = []
+
     for ref in feature_refs:
         fname = ref.split(":", 1)[-1]  # Strip view prefix
         vals = feast_result.get(ref) or feast_result.get(fname)
@@ -231,7 +234,7 @@ def _map_feast_features(feast_result: Dict[str, Any], feature_refs: List[str]) -
             if val is not None:
                 # Map to ML model column name (use metadata mapping or uppercase)
                 model_col = feature_mapping.get(fname, fname.upper())
-                logger.debug(f"Mapping feast feature '{fname}' -> model column '{model_col}' (value: {val})")
+                mapped_columns.append(f"{fname}->{model_col}")
                 try:
                     # Keep strings as strings for categorical features
                     if isinstance(val, str):
@@ -241,9 +244,21 @@ def _map_feast_features(feast_result: Dict[str, Any], feature_refs: List[str]) -
                 except Exception:
                     features[model_col] = val
         else:
-            logger.debug(f"No value found for feature ref '{ref}' (fname='{fname}')")
+            unmapped_refs.append(fname)
 
     logger.info(f"_map_feast_features: mapped {len(features)} features from {len(feature_refs)} refs")
+    if len(features) < len(feature_refs):
+        logger.warning(f"⚠️ Missing {len(feature_refs) - len(features)} features: {unmapped_refs[:5]}")
+
+    # Log first 5 mapped columns to verify naming
+    if mapped_columns:
+        logger.info(f"Sample mappings: {mapped_columns[:5]}")
+
+    # Log first 3 actual feature values with column names
+    if features:
+        sample_features = dict(list(features.items())[:3])
+        logger.info(f"Sample feature values: {sample_features}")
+
     return features
 
 
@@ -320,6 +335,22 @@ def _as_dataframe_row(features: Dict[str, Any]) -> pd.DataFrame:
     """
     cols = _get_expected_columns()
     row = {col: features.get(col, None) for col in cols}
+
+    # Log mismatches between provided features and expected columns
+    provided_keys = set(features.keys())
+    expected_keys = set(cols)
+    missing_in_provided = expected_keys - provided_keys
+    extra_in_provided = provided_keys - expected_keys
+
+    if missing_in_provided:
+        logger.warning(f"⚠️ Features dict missing {len(missing_in_provided)} expected columns (first 5): {list(missing_in_provided)[:5]}")
+    if extra_in_provided:
+        logger.warning(f"⚠️ Features dict has {len(extra_in_provided)} unexpected columns (first 5): {list(extra_in_provided)[:5]}")
+
+    # Count how many features actually have values
+    non_none_count = sum(1 for v in row.values() if v is not None)
+    logger.info(f"DataFrame row: {non_none_count}/{len(cols)} columns have non-None values")
+
     return pd.DataFrame([row], columns=cols)
 
 
