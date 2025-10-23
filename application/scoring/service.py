@@ -532,8 +532,12 @@ def ensure_model_loaded() -> None:
                 # All features found! Cache the mapping
                 settings.feast_feature_refs = ",".join(feast_feature_refs)
 
-                # Store feature mapping in metadata for later use
-                MODEL_FEAST_METADATA["feature_mapping"] = feature_mapping
+                # Store feature mapping in metadata for later use (don't overwrite if exists)
+                if "feature_mapping" not in MODEL_FEAST_METADATA:
+                    MODEL_FEAST_METADATA["feature_mapping"] = feature_mapping
+                    logger.info(f"   Stored dynamically generated feature_mapping ({len(feature_mapping)} entries)")
+                else:
+                    logger.info(f"   Preserving existing feature_mapping from feast_metadata.yaml")
                 MODEL_FEAST_METADATA["feast_feature_refs"] = settings.feast_feature_refs
 
                 logger.info(f"✅ Startup validation passed: All {len(required_features)} features found in Feast")
