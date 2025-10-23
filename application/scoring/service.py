@@ -649,9 +649,23 @@ def _run_kafka_consumer():  # pragma: no cover
                                 logger.info(f"No data for sk_id_curr={sk_id} on attempt {attempt}/{max_attempts}, retrying in {current_delay_ms:.0f}ms...")
                                 time.sleep(current_delay_ms / 1000.0)
                             else:
-                                logger.warning(f"No feature data found for sk_id_curr={sk_id} after {max_attempts} attempts. Skipping prediction.")
+                                logger.warning(f"No feature data found for sk_id_curr={sk_id} after {max_attempts} attempts. Sending under-review.")
 
                         if not has_customer_data and settings.require_customer_data:
+                            # Send under-review message to scoring topic
+                            result = {
+                                "sk_id_curr": sk_id or payload.get("sk_id_curr"),
+                                "probability": None,
+                                "decision": "under-review",
+                                "threshold": settings.prediction_threshold,
+                                "model": MODEL_NAME,
+                                "version": MODEL_VERSION,
+                                "ts": datetime.utcnow().isoformat() + "Z",
+                                "reason": "feature_data_unavailable"
+                            }
+                            logger.bind(event="stream_inference_under_review").warning(result)
+                            if producer and settings.scoring_output_topic:
+                                producer.send(settings.scoring_output_topic, key=sk_id or None, value=result)
                             continue
 
                     except Exception as e:

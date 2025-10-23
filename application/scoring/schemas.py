@@ -18,8 +18,9 @@ class ScoreByIdRequest(BaseModel):
 
 class ScoreResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, protected_namespaces=())
-    probability: float
+    probability: Optional[float] = None
     decision: str
     threshold: float
     model_name: str
     model_version: Optional[str] = None
+    reason: Optional[str] = None

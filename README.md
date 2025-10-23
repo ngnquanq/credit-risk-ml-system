@@ -402,22 +402,22 @@ This section documents the performance benchmarks and capabilities of the produc
 
 ### Load Test Configuration
 - **Test Type**: End-to-end prediction pipeline
-- **Duration**: [TO_BE_FILLED] minutes
-- **Concurrent Users**: [TO_BE_FILLED]
-- **Spawn Rate**: [TO_BE_FILLED] users/second
-- **Test Date**: [TO_BE_FILLED]
+- **Duration**: 5 minutes
+- **Concurrent Users**: 50 users
+- **Spawn Rate**: 10 users/second
+- **Test Date**: 2025-10-23
 
 ### Pipeline Latency
 Performance from loan application submission to prediction output:
 
 | Metric | Value | Description |
 |--------|-------|-------------|
-| **P50 (Median)** | [TO_BE_FILLED]s | 50% of predictions completed within this time |
-| **P95** | [TO_BE_FILLED]s | 95% of predictions completed within this time (SLA target) |
-| **P99** | [TO_BE_FILLED]s | 99% of predictions completed within this time |
-| **Average** | [TO_BE_FILLED]s | Mean prediction latency |
-| **Min** | [TO_BE_FILLED]s | Fastest prediction |
-| **Max** | [TO_BE_FILLED]s | Slowest prediction |
+| **P50 (Median)** | 10.0s | 50% of predictions completed within this time |
+| **P95** | 125s | 95% of predictions completed within this time (SLA target) |
+| **P99** | 135s | 99% of predictions completed within this time |
+| **Average** | 39.8s | Mean prediction latency |
+| **Min** | 1.8s | Fastest prediction |
+| **Max** | 146s | Slowest prediction |
 
 ### Throughput Capacity
 | Metric | Value | Description |
@@ -1030,4 +1030,15 @@ For more detail, access the localhost:9055, the username/password is airflow/air
 2. Define more business rule, I know that these application often integrate some rule-based as well. 
 3. Authentication and Authorization as the security layer. 
 4. Dedicate some time to build meaningful dashboard (Kibana, Grafana and Superset)
-5. Some components are handling both read and write at the same time (i.e our data warehouse). One approach could be to implement database replication (master-slave approach), we will write to the master database and read from the slave database. Clickhouse already have a guidance on how to do this here in this [link](https://clickhouse.com/docs/engines/table-engines/mergetree-family/replication). If we go further, 
+5. Some components are handling both read and write at the same time (i.e our data warehouse). One approach could be to implement database replication (master-slave approach), we will write to the master database and read from the slave database. Clickhouse already have a guidance on how to do this here in this [link](https://clickhouse.com/docs/engines/table-engines/mergetree-family/replication). If we go further,
+
+# Performance Bottlenecks
+
+Current E2E latency: 3.7s at low load, degrades to 100s at 100 RPS due to throughput limitations.
+
+Primary bottlenecks:
+1. Scoring service: Single-threaded Kafka consumer processes 10 msg/sec. Requires horizontal scaling.
+2. External bureau service: Single instance with sequential ClickHouse queries limits to 15 msg/sec. Scale to multiple instances.
+3. Flink bureau aggregation: 8 task slots with complex 60+ feature computation. Increase parallelism to 16-32 slots.
+
+Queueing delays dominate at high load. Horizontal scaling required across all consumer components for production throughput. 

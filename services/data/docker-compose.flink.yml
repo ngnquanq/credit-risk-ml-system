@@ -34,7 +34,7 @@ services:
         condition: service_healthy
     environment:
       - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
-      - TASK_MANAGER_NUMBER_OF_TASK_SLOTS=2
+      - TASK_MANAGER_NUMBER_OF_TASK_SLOTS=8
       # Ensure PyFlink task processes see correct Kafka/topic vars
       - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka_broker:29092}
       - CDC_SOURCE_TOPIC=${CDC_TOPIC:-hc.applications.public.loan_applications}

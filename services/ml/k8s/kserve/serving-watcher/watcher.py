@@ -165,6 +165,8 @@ def create_or_update_inferenceservice(version: str) -> bool:
             },
             "spec": {
                 "predictor": {
+                    "minReplicas": 4,
+                    "maxReplicas": 4,
                     "hostAliases": [{
                         "ip": "192.168.49.1",
                         "hostnames": ["host.minikube.internal", "broker", "kafka"]
@@ -207,7 +209,7 @@ def create_or_update_inferenceservice(version: str) -> bool:
                                 "memory": "1Gi"
                             },
                             "limits": {
-                                "cpu": "2",
+                                "cpu": "24",
                                 "memory": "2Gi"
                             }
                         }
