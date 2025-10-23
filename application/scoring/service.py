@@ -218,6 +218,9 @@ def _map_feast_features(feast_result: Dict[str, Any], feature_refs: List[str]) -
     feature_mapping = {}
     if MODEL_FEAST_METADATA and MODEL_FEAST_METADATA.get("feature_mapping"):
         feature_mapping = MODEL_FEAST_METADATA["feature_mapping"]
+        logger.debug(f"Using feature_mapping with {len(feature_mapping)} entries")
+    else:
+        logger.warning("MODEL_FEAST_METADATA or feature_mapping not available, using uppercase fallback")
 
     features = {}
     for ref in feature_refs:
@@ -228,6 +231,7 @@ def _map_feast_features(feast_result: Dict[str, Any], feature_refs: List[str]) -
             if val is not None:
                 # Map to ML model column name (use metadata mapping or uppercase)
                 model_col = feature_mapping.get(fname, fname.upper())
+                logger.debug(f"Mapping feast feature '{fname}' -> model column '{model_col}' (value: {val})")
                 try:
                     # Keep strings as strings for categorical features
                     if isinstance(val, str):
@@ -236,7 +240,10 @@ def _map_feast_features(feast_result: Dict[str, Any], feature_refs: List[str]) -
                         features[model_col] = float(val)
                 except Exception:
                     features[model_col] = val
+        else:
+            logger.debug(f"No value found for feature ref '{ref}' (fname='{fname}')")
 
+    logger.info(f"_map_feast_features: mapped {len(features)} features from {len(feature_refs)} refs")
     return features
 
 

@@ -428,6 +428,7 @@ kserve:
           runAsNonRoot: true
   security:
     autoMountServiceAccountToken: true
+  # This value should be reselected based on the Grafana resouces at p50 and p95
   inferenceservice:
     resources:
       limits:
