@@ -39,6 +39,7 @@ services:
         socat TCP-LISTEN:31901,reuseaddr,fork TCP:$${MINIKUBE_IP}:30901 &
         socat TCP-LISTEN:36379,reuseaddr,fork TCP:172.17.0.1:6379 &
         socat TCP-LISTEN:39092,reuseaddr,fork TCP:$${KAFKA_BROKER_IP}:29092 &
+        socat TCP-LISTEN:29092,reuseaddr,fork TCP:$${KAFKA_BROKER_IP}:29092 &
         socat TCP-LISTEN:39200,reuseaddr,fork TCP:$${MINIKUBE_IP}:30920 &
         socat TCP-LISTEN:30317,reuseaddr,fork TCP:$${MINIKUBE_IP}:30317 &
 
@@ -47,6 +48,7 @@ services:
         echo "  Docker:31901 -> Minikube($${MINIKUBE_IP}):30901 (minio-console)"
         echo '  Host:36379 -> Docker:6379 (Feast Redis - K8s can connect)'
         echo "  Host:39092 -> Docker:$${KAFKA_BROKER_IP}:29092 (Kafka bootstrap - K8s can connect)"
+        echo "  Host:29092 -> Docker:$${KAFKA_BROKER_IP}:29092 (Kafka advertised broker - K8s can connect)"
         echo "  Docker:39200 -> Minikube($${MINIKUBE_IP}):30920 (Elasticsearch - Docker can push logs)"
         echo "  Host:30317 -> Minikube($${MINIKUBE_IP}):30317 (Jaeger OTLP - Docker can send traces)"
         wait
