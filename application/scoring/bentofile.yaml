@@ -6,6 +6,7 @@ include:
   - "**"
   - "feast_repo/**"
 python:
+  use_uv: false
   packages:
     - bentoml>=1.1.10
     - fastapi>=0.110
