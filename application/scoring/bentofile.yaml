@@ -5,6 +5,7 @@ labels:
 include:
   - "**"
   - "feast_repo/**"
+  - "../tracing/**"
 python:
   packages:
     - bentoml>=1.1.10
