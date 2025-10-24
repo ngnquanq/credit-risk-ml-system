@@ -49,6 +49,21 @@ data:
             print(f"✓ Copied Feast repo: {feast_src} -> {feast_dst}")
         else:
             print(f"⚠ Warning: Feast repo not found at {feast_src}")
+        # Copy tracing module (same pattern as feast_repo)
+        tracing_src = os.path.join(repo_dir, "application", "tracing")
+        tracing_dst = os.path.join(svc_dir, "tracing")
+        if os.path.exists(tracing_src):
+            import shutil
+            if os.path.islink(tracing_dst):
+                os.unlink(tracing_dst)
+                print(f"✓ Removed existing symlink at {tracing_dst}")
+            elif os.path.isdir(tracing_dst):
+                shutil.rmtree(tracing_dst)
+                print(f"✓ Removed existing directory at {tracing_dst}")
+            shutil.copytree(tracing_src, tracing_dst)
+            print(f"✓ Copied tracing module: {tracing_src} -> {tracing_dst}")
+        else:
+            print(f"⚠ Warning: tracing module not found at {tracing_src}")
         print(f"Loading MLflow model: {model_uri}")
         try:
             try:
