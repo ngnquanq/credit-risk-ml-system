@@ -202,6 +202,7 @@ def create_or_update_inferenceservice(version: str) -> bool:
                             {"name": "SCORING_FEAST_RETRY_MAX_ATTEMPTS", "value": "15"},
                             {"name": "SCORING_FEAST_RETRY_DELAY_MS", "value": "300"},
                             {"name": "SCORING_FEAST_RETRY_BACKOFF_MULTIPLIER", "value": "1.0"},
+                            {"name": "OTEL_EXPORTER_OTLP_ENDPOINT", "value": "host.minikube.internal:30317"},
                         ],
                         "resources": {
                             "requests": {

@@ -48,21 +48,22 @@ services:
     hostname: ops-pgbouncer
     env_file:
       - ./.env.core
-    environment:
-      # Environment variables for PgBouncer official image
-      # These will be used by the entrypoint script to generate /etc/pgbouncer/pgbouncer.ini
-      # Using static IP because c-ares in PgBouncer doesn't support Docker internal DNS
-      DATABASES_HOST: ops-postgres
-      DATABASES_PORT: ${OPS_DB_PORT:-5432}
-      DATABASES_USER: ${OPS_DB_USER:-ops_admin}
-      DATABASES_PASSWORD: ${OPS_DB_PASSWORD:-ops_password}
-      DATABASES_DBNAME: ${OPS_DB_NAME:-operations}
-      POOL_MODE: transaction
-      MAX_CLIENT_CONN: 1000
-      DEFAULT_POOL_SIZE: 400
-      AUTH_TYPE: md5
-      AUTH_FILE: /etc/pgbouncer/userlist.txt
+    # Using wrapper script to resolve hostname to IP (c-ares doesn't support Docker DNS)
+    entrypoint: ["/pgbouncer-entrypoint.sh"]
+    # environment:
+      # DATABASES_HOST: ops-postgres
+      # DATABASES_PORT: ${OPS_DB_PORT:-5432}
+      # DATABASES_USER: ${OPS_DB_USER:-ops_admin}
+      # DATABASES_PASSWORD: ${OPS_DB_PASSWORD:-ops_password}
+      # DATABASES_DBNAME: ${OPS_DB_NAME:-operations}
+      # POOL_MODE: transaction
+      # MAX_CLIENT_CONN: 1000
+      # DEFAULT_POOL_SIZE: 400
+      # AUTH_TYPE: md5
+      # AUTH_FILE: /etc/pgbouncer/userlist.txt
     volumes:
+      - ./pgbouncer-entrypoint.sh:/pgbouncer-entrypoint.sh:ro
+      - ./pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini
       - ./userlist.txt:/etc/pgbouncer/userlist.txt:ro
     ports:
       - "${PGBOUNCER_PORT:-6432}:6432"
