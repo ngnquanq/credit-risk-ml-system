@@ -30,8 +30,19 @@ services:
           exit 1
         fi
 
+        # Auto-detect Kafka broker IP if not provided
+        if [ -z "$${KAFKA_BROKER_IP}" ] || [ "$${KAFKA_BROKER_IP}" = "172.18.0.19" ]; then
+          echo "Auto-detecting Kafka broker IP..."
+          KAFKA_BROKER_IP=$$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' kafka_broker 2>/dev/null)
+          if [ -z "$${KAFKA_BROKER_IP}" ]; then
+            echo "ERROR: Could not detect Kafka broker IP. Is Kafka running?"
+            exit 1
+          fi
+          echo "✓ Auto-detected Kafka broker IP: $${KAFKA_BROKER_IP}"
+        fi
+
         echo "✓ Detected Minikube IP: $${MINIKUBE_IP}"
-        echo "Using Kafka broker IP: $${KAFKA_BROKER_IP}"
+        echo "✓ Using Kafka broker IP: $${KAFKA_BROKER_IP}"
         echo ""
 
         # Start socat relays with detected IP
