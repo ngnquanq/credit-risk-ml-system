@@ -159,9 +159,10 @@ More precisely:
 - **Deployment**: KServe InferenceServices with canary/blue-green strategies
 - **Validation**: Startup checks ensure feature registry alignment
 
-#### 7. **Observability Layer** (ELK + Promethus-Grafana)
+#### 7. **Observability Layer** (ELK + Promethus-Grafana + Jaeger)
 - **Logging**: Filebeat for log collection, Elastic Search for storage, Kibana for visualization. 
 - **Monitoring**: Cadvisor for metrics collection (container-level resources), Prometheus for scrapes and store time-series metrics. Grafana for visualize with prebuilt dashboards. 
+- **Tracing**: Deploy Jaeger with all-in-one mode, we will have the collector to store spans in memory and an UI to visualize this (to avoid overhead, we just sampling 10% of all the requests). 
 
 ### Key Design Patterns
 
@@ -591,7 +592,11 @@ Potential improvements to increase throughput and reduce latency:
 ## Create network
 We need to create network so that our services can communicate to each other
 ```shell
+# Original
 docker network create hc-network
+# Or maybe we can
+docker network create --subnet=172.18.0.0/16 hc-network
+
 ```
 The result will look like this: 
 ![Create network component](/assets/READMEimg/step1.create_network.png)
@@ -761,7 +766,13 @@ Starting by running the K8s cluster:
 ```shell
 # Due to resources constraint, here are the spec that I use, feel free to change it
 minikube start -p mlops --kubernetes-version=v1.28.3 --driver=docker \
-    --cpus=10 --memory=20000 --disk-size=100g --addons=ingress,metallb
+    --cpus=20 --memory=10000 --disk-size=100g --addons=ingress,metallb
+```
+
+### Create socat layer
+
+```shell
+docker compose -f services/ops/docker-compose.gateway.yml up -d
 ```
 
 ### Create training data storage
@@ -779,28 +790,18 @@ helm upgrade --install training-minio ./services/ml/k8s/training-data-storage -n
     -f services/ml/k8s/training-data-storage/minio.values.yaml
 ```
 
-**Notice**: The current problem we have is that we need clickhouse container to write files to minio (clickhouse is on docker network). One strategy that we can use is to expose MinIO with service type LoadBalancer so it has an external IP and MetalLB announces that IP (layer 2) so traffic to external-IP:9000(9000 is minio port) reaches the MinIO services. Trade off here is that it require minikube tunnel. Therefore, start a new terminal:
-
-```shell
-minikube tunnel -p mlops
-```
-
-On another terminal, apply the config map for metallb:
-
-```shell
-kubectl apply -f services/ml/k8s/training-data-storage/metallb/configmap.yaml
-```
-
 After this, everything should be up and run correctly, you can just test it by execute into the clickhouse container and run this so that it load data: 
 
 ```shell
 docker exec clickhouse_dwh clickhouse-client -q "SET s3_truncate_on_insert=1; \
-INSERT INTO FUNCTION s3('http://172.18.0.1:31900/training-data/snapshots/ds=2025-09-19/loan_applications.csv','minio_user','minio_password','CSVWithNames') \
+INSERT INTO FUNCTION s3('http://172.18.0.1:31900/training-data/snapshots/ds=2025-09-19/loan_applications.csv','minioadmin','minioadmin','CSVWithNames') \
 SELECT a.*, t.TARGET \
 FROM application_mart.mart_application AS a \
 INNER JOIN application_mart.mart_application_train AS t \
 ON a.SK_ID_CURR = t.SK_ID_CURR"
 ```
+
+!<INSERT HERE>
 
 ### Create Kubeflow pipeline
 
@@ -813,7 +814,9 @@ kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.
 kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref=$PIPELINE_VERSION"
 ```
 
-You can find a more detail version of the installation [here](https://www.kubeflow.org/docs/components/pipelines/operator-guides/installation/). After that you can do port-forwarding, access the UI, create the pipeline and submit a `training_pipeline.yaml`. Here is an example. 
+You can find a more detail version of the installation [here](https://www.kubeflow.org/docs/components/pipelines/operator-guides/installation/). After that you can do port-forwarding, access the UI, create the pipeline and submit a `training_pipeline.yaml`. 
+
+**Notice**: The first time install kubeflow pipeline will take a while because the docker images are really heavy.
 
 Since we are doing hyper-param tuning with Ray, we must spin Ray cluster up (notice that the first time run is quite slow, therefore be patient, it should be the case that the head is still creating while worker is init):
 
@@ -828,18 +831,7 @@ helm upgrade --install kuberay-operator ./services/ml/k8s/kuberay-operator \
 # Start the ray cluster
  kubectl apply -f services/ml/k8s/kuberay-operator/raycluster.yaml
 ```
-The current ray cluster setting is with 1 Master and 2 Workers, these will help with the distributed hyperparameter tuning and model training. Now we are full equipment for the training process. But first, we need to create a training pipeline script (written in yaml) so that later on we can submit this to kubeflow pipeline so that it do the tuning, training and registering for us. 
-
-This is the path to that `training_pipeline.yaml`: services/ml/k8s/training-pipeline/training_pipeline.yaml
-
-This path is actually an combiled version of the services/ml/k8s/training-pipeline/pipeline.py
-
-
-What this is doing behind the scene is that: 
-1. Read the data in the data storage component (minIO)
-2. Perform some basic data transformation for ML such as encoding, normalization, etc. 
-3. Based on that training feature, perform hyperparameter tuning. 
-4. With the best set of hyperparameter, it perform training and registry to the mlflow (registry both the data processing pipeline, the model and the feature that it use to train).
+The current ray cluster setting is with 1 Master and 2 Workers, these will help with the distributed hyperparameter tuning and model training. Now we are full equipment for the training process.
 
 ### Create model registry
 
@@ -859,7 +851,51 @@ helm upgrade --install minio services/ml/k8s/model-registry/minio -n model-regis
       
 ```
 
-Later on, when navigate to mlflow, we will see the new model is created. Now is the fun part, we will create a watcher pod, what it do is essentially to create new serving pod in case we promote a new model:
+But first, we need to create a training pipeline script (written in yaml) so that later on we can submit this to kubeflow pipeline so that it do the tuning, training and registering for us. 
+
+This is the path to that `training_pipeline.yaml`: services/ml/k8s/training-pipeline/training_pipeline.yaml
+
+This path is actually an combiled version of the services/ml/k8s/training-pipeline/pipeline.py
+
+
+What this is doing behind the scene is that: 
+1. Read the data in the data storage component (minIO)
+2. Perform some basic data transformation for ML such as encoding, normalization, etc. 
+3. Based on that training feature, perform hyperparameter tuning. 
+4. With the best set of hyperparameter, it perform training and registry to the mlflow (registry both the data processing pipeline, the model and the feature that it use to train).
+
+Here are how we create and submit our training pipeline onto kubeflow:
+
+!<Insert here>
+
+You will see that kubeflow is actually create some pod to run the job, each pod correspond to one component in our pipeline. Later on, when navigate to mlflow, we will see the new model is created. Here is what it's look like: 
+
+!<Insert here>
+
+### Create model-serving 
+
+We need to install Kserve
+
+```shell
+# 1. Create RBAC resources (ServiceAccount, Role, RoleBinding)
+kubectl create ns kserve
+kubectl apply -f services/ml/k8s/kserve/cert-manager.yaml
+kubectl apply -f services/ml/k8s/kserve/standard-install.yaml
+
+# 2. Install kserve
+cd services/ml/k8s/kserve/kserve-crd
+helm install kserve-crd . -n kserve
+
+# 3. Wait until everything is ready and run the below
+cd ../kserve-main
+helm install kserve . -n kserve
+
+# 4. Deploy bento-builder config map
+kubectl apply -f services/ml/k8s/kserve/bento-builder/configmap.yaml
+```
+### Create mlflow-watcher
+
+Now is the fun part, we will create a watcher pod, what it do is essentially to create new serving pod in case we promote a new model:
 
 **How the model deployment pipeline works:**
 1. **MLflow watcher** polls MLflow for new model versions promoted to Production/Staging
@@ -882,6 +918,7 @@ Later on, when navigate to mlflow, we will see the new model is created. Now is 
 To deploy this watcher pod, simply run:
 
 ```shell
+# 1. Create rbac since this will work cross-namespace
 kubectl apply -f services/ml/k8s/mlflow-watcher/rbac.yaml
 
 # 2. Deploy MLflow watcher components
@@ -893,29 +930,10 @@ kubectl -n model-registry apply \
 
 # 3. Wait for deployment to be ready
 kubectl -n model-registry rollout status deploy/mlflow-watcher
+
 ```
 
-### Create model-serving 
-
-We need to install Kserve
-
-```shell
-# 1. Create RBAC resources (ServiceAccount, Role, RoleBinding)
-kubectl create ns kserve
-kubectl apply -f services/ml/k8s/kserve/cert-manager.yaml
-kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
-
-# 2. Install kserve
-cd services/ml/k8s/kserve/kserve-crd
-helm install kserve-crd . -n kserve
-
-# Install KServe controller
-cd ../kserve-main
-helm install kserve . -n kserve
-```
-
-
-For the fifth components, it is the serving services. We will use bentoml and yatai as our main model serving services because bentoml is easy to use and yatai make it easy to integrate it to current k8s flow that we have. Run these command line: 
+### Create model-serving components
 
 ```shell
 # Create namespace
@@ -947,6 +965,16 @@ kubectl apply -f registry-deployment.yaml
 kubectl apply -f watcher-rbac.yaml
 kubectl apply -f watcher-configmap.yaml
 kubectl apply -f watcher-deployment.yaml
+```
+
+### Create feature registry components
+
+For the feature registry components, we will use feast as our feature registry and redis as our online store. This allow inference service to retrieve data fast. 
+
+```shell
+kubectl create ns feature-registry
+
+kubectl apply -k ./services/ml/k8s/feature-store/
 ```
 
 ### Create monitoring components

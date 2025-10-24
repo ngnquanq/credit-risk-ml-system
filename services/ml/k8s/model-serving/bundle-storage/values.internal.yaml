@@ -7,8 +7,8 @@ auth:
   useSecret: true
   forceNewKeys: true
 
-# Create bentoml-bundles bucket on init
-defaultBuckets: "bentoml-bundles"
+# Create bentoml-bundles and feast-registry buckets on init
+defaultBuckets: "bentoml-bundles,feast-registry"
 
 service:
   type: ClusterIP  # Internal only - serving pods access directly

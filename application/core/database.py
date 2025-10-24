@@ -24,7 +24,7 @@ as 'core', 'db_models', 'api', etc. Importing via 'application.db_models' will f
 inside that container. Use top-level 'db_models' imports instead.
 """
 
-from application.db_models.base import Base
+from db_models.base import Base
 
 
 # Create async engine

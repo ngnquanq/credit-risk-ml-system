@@ -24,8 +24,14 @@ from typing import Any, Dict, Optional
 
 from confluent_kafka import Consumer, Producer
 from loguru import logger
+from opentelemetry import trace
+from opentelemetry.propagate import extract, inject
 
-from application.services.bureau_client import fetch_bureau_by_loan_id, fetch_external_scores
+from services.bureau_client import fetch_bureau_by_loan_id, fetch_external_scores
+from tracing import setup_tracing
+
+# Initialize tracer
+tracer = setup_tracing("external-bureau-service", sampling_rate=0.1)
 
 
 class ExternalBureauService:
@@ -162,18 +168,34 @@ class ExternalBureauService:
                         logger.warning("Could not extract sk_id_curr from CDC message")
                         continue
 
-                    # Fetch raw bureau data from ClickHouse
-                    raw_data = await self.fetch_and_prepare_raw_data(sk_id_curr)
+                    # Extract trace context from Kafka headers
+                    headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v
+                                   for k, v in (msg.headers() or [])}
+                    parent_context = extract(headers_dict)
 
-                    # Publish raw data to hc.application_ext_raw (for Flink aggregation)
-                    if raw_data:
-                        self.producer.produce(
-                            topic=self.raw_topic,
-                            key=str(sk_id_curr).encode('utf-8'),
-                            value=json.dumps(raw_data).encode('utf-8'),
-                            callback=self._delivery_callback
-                        )
-                        self.producer.poll(0)  # Non-blocking poll
+                    # Start span with parent context
+                    with tracer.start_as_current_span("external_bureau_process", context=parent_context) as span:
+                        span.set_attribute("sk_id_curr", sk_id_curr)
+
+                        # Fetch raw bureau data from ClickHouse
+                        raw_data = await self.fetch_and_prepare_raw_data(sk_id_curr)
+
+                        # Publish raw data to hc.application_ext_raw (for Flink aggregation)
+                        if raw_data:
+                            # Inject trace context into headers
+                            trace_headers = {}
+                            inject(trace_headers)
+                            kafka_headers = [(k, v.encode('utf-8') if isinstance(v, str) else v)
+                                           for k, v in trace_headers.items()]
+
+                            self.producer.produce(
+                                topic=self.raw_topic,
+                                key=str(sk_id_curr).encode('utf-8'),
+                                value=json.dumps(raw_data).encode('utf-8'),
+                                headers=kafka_headers,
+                                callback=self._delivery_callback
+                            )
+                            self.producer.poll(0)  # Non-blocking poll
 
                 except json.JSONDecodeError as e:
                     logger.error(f"Failed to parse CDC message: {e}")

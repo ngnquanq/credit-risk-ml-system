@@ -70,8 +70,9 @@ services:
   # API Service Instance 1
   api-service-1:
     build:
-      context: ../../application
-      dockerfile: Dockerfile
+      context: ../../
+      dockerfile: application/Dockerfile
+
     container_name: hc_api_service_1
     env_file:
       - ./.env.core
@@ -114,8 +115,8 @@ services:
   # API Service Instance 2
   api-service-2:
     build:
-      context: ../../application
-      dockerfile: Dockerfile
+      context: ../../
+      dockerfile: application/Dockerfile
     container_name: hc_api_service_2
     env_file:
       - ./.env.core

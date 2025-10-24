@@ -12,7 +12,7 @@ import asyncio
 from loguru import logger
 import clickhouse_connect
 
-from application.core.config import settings
+from core.config import settings
 
 
 _ch_client = None

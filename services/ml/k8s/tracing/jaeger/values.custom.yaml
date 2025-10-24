@@ -1,0 +1,51 @@
+# Custom Jaeger configuration for Home Credit Credit Risk System
+# Deployment: all-in-one mode with memory storage (development/testing)
+# Purpose: Distributed tracing for bottleneck detection
+
+# Disable Cassandra (we use memory storage)
+provisionDataStore:
+  cassandra: false
+  elasticsearch: false
+  kafka: false
+
+# Enable all-in-one deployment (single pod with collector + query UI)
+allInOne:
+  enabled: true
+  replicas: 1
+
+  image:
+    pullPolicy: IfNotPresent
+
+  # Resource limits for single-node deployment
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+  # Sampling configuration (10% sampling to reduce overhead)
+  samplingConfig: |-
+    {
+      "default_strategy": {
+        "type": "probabilistic",
+        "param": 0.1
+      }
+    }
+
+# Use memory storage (ephemeral - restarts clear traces)
+storage:
+  type: memory
+
+# Disable agent (not needed in all-in-one mode)
+agent:
+  enabled: false
+
+# Disable separate collector (all-in-one handles this)
+collector:
+  enabled: false
+
+# Disable separate query (all-in-one handles this)
+query:
+  enabled: false

@@ -8,24 +8,47 @@ services:
     network_mode: host  # Access both Docker and Minikube networks
     environment:
       - KAFKA_BROKER_IP=${KAFKA_BROKER_IP:-172.18.0.19}  # Override via env or default
+      - MINIKUBE_PROFILE=${MINIKUBE_PROFILE:-mlops}  # Minikube profile name
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Access to Docker socket for minikube IP detection
     entrypoint: /bin/sh
     command:
       - -c
       - |
         echo 'K8s Gateway Bridge starting (host network mode)...'
-        echo "Using Kafka broker IP: $${KAFKA_BROKER_IP}"
 
-        socat TCP-LISTEN:31900,reuseaddr,fork TCP:192.168.49.2:30900 &
-        socat TCP-LISTEN:31901,reuseaddr,fork TCP:192.168.49.2:30901 &
+        # Install docker CLI to query minikube IP
+        apk add --no-cache docker-cli >/dev/null 2>&1
+
+        # Detect Minikube IP dynamically
+        echo "Detecting Minikube IP for profile: $${MINIKUBE_PROFILE}..."
+        MINIKUBE_IP=$$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $${MINIKUBE_PROFILE} 2>/dev/null)
+
+        if [ -z "$${MINIKUBE_IP}" ]; then
+          echo "ERROR: Could not detect Minikube IP. Is the cluster running?"
+          echo "Expected container name: $${MINIKUBE_PROFILE}"
+          exit 1
+        fi
+
+        echo "✓ Detected Minikube IP: $${MINIKUBE_IP}"
+        echo "Using Kafka broker IP: $${KAFKA_BROKER_IP}"
+        echo ""
+
+        # Start socat relays with detected IP
+        socat TCP-LISTEN:31900,reuseaddr,fork TCP:$${MINIKUBE_IP}:30900 &
+        socat TCP-LISTEN:31901,reuseaddr,fork TCP:$${MINIKUBE_IP}:30901 &
         socat TCP-LISTEN:36379,reuseaddr,fork TCP:172.17.0.1:6379 &
         socat TCP-LISTEN:39092,reuseaddr,fork TCP:$${KAFKA_BROKER_IP}:29092 &
-        socat TCP-LISTEN:39200,reuseaddr,fork TCP:192.168.49.2:30920 &
-        echo 'Gateway ready'
-        echo '  Docker:31900 -> Minikube:30900 (training-minio S3)'
-        echo '  Docker:31901 -> Minikube:30901 (minio-console)'
+        socat TCP-LISTEN:39200,reuseaddr,fork TCP:$${MINIKUBE_IP}:30920 &
+        socat TCP-LISTEN:30317,reuseaddr,fork TCP:$${MINIKUBE_IP}:30317 &
+
+        echo '✓ Gateway ready - Port forwarding active:'
+        echo "  Docker:31900 -> Minikube($${MINIKUBE_IP}):30900 (training-minio S3)"
+        echo "  Docker:31901 -> Minikube($${MINIKUBE_IP}):30901 (minio-console)"
         echo '  Host:36379 -> Docker:6379 (Feast Redis - K8s can connect)'
         echo "  Host:39092 -> Docker:$${KAFKA_BROKER_IP}:29092 (Kafka bootstrap - K8s can connect)"
-        echo '  Docker:39200 -> Minikube:30920 (Elasticsearch - Docker can push logs)'
+        echo "  Docker:39200 -> Minikube($${MINIKUBE_IP}):30920 (Elasticsearch - Docker can push logs)"
+        echo "  Host:30317 -> Minikube($${MINIKUBE_IP}):30317 (Jaeger OTLP - Docker can send traces)"
         wait
     restart: unless-stopped
 

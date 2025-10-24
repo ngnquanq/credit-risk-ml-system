@@ -1,6 +1,6 @@
 auth:
-  rootUser: "minio_user"         # change for real deployments
-  rootPassword: "minio_password" # change for real deployments
+  rootUser: "minioadmin"         # change for real deployments
+  rootPassword: "minioadmin" # change for real deployments
   usePasswordFiles: true
   useSecret: true
 

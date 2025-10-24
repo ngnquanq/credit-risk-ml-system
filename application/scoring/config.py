@@ -70,7 +70,7 @@ class ScoringSettings(BaseSettings):
     # Kafka integration (optional streaming scoring)
     enable_kafka: bool = Field(default=True, description="Enable Kafka consumer for loan applications")
     kafka_bootstrap_servers: str = Field(
-        default="broker:29092", description="Kafka bootstrap servers"
+        default="host.minikube.internal:39092", description="Kafka bootstrap servers"
     )
     loan_application_topic: str = Field(
         default="hc.applications.public.loan_applications", description="Kafka topic with loan application events"

@@ -22,9 +22,15 @@ from typing import Any, Dict, Optional
 
 from confluent_kafka import Consumer, Producer
 from loguru import logger
+from opentelemetry import trace
+from opentelemetry.propagate import extract, inject
 
-from application.core.config import settings
-from application.services.dwh_client_ch import fetch_all_by_sk_id_curr, get_table_columns, MART_TABLES
+from core.config import settings
+from services.dwh_client_ch import fetch_all_by_sk_id_curr, get_table_columns, MART_TABLES
+from tracing import setup_tracing
+
+# Initialize tracer
+tracer = setup_tracing("dwh-features-service", sampling_rate=0.1)
 
 
 class DWHFeaturesService:
@@ -144,23 +150,39 @@ class DWHFeaturesService:
                 try:
                     cdc_data = json.loads(msg.value().decode('utf-8'))
                     sk_id_curr = self._extract_sk_id_curr_from_cdc(cdc_data)
-                    
+
                     if not sk_id_curr:
                         logger.warning("Could not extract sk_id_curr from CDC message")
                         continue
-                    
-                    # Process DWH features
-                    dwh_features = await self.process_loan_application(sk_id_curr)
-                    
-                    if dwh_features:
-                        # Publish to DWH features topic
-                        self.producer.produce(
-                            topic=self.sink_topic,
-                            key=str(sk_id_curr).encode('utf-8'),
-                            value=json.dumps(dwh_features).encode('utf-8'),
-                            callback=self._delivery_callback
-                        )
-                        self.producer.poll(0)
+
+                    # Extract trace context
+                    headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v
+                                   for k, v in (msg.headers() or [])}
+                    parent_context = extract(headers_dict)
+
+                    # Start span with parent context
+                    with tracer.start_as_current_span("dwh_features_process", context=parent_context) as span:
+                        span.set_attribute("sk_id_curr", sk_id_curr)
+
+                        # Process DWH features
+                        dwh_features = await self.process_loan_application(sk_id_curr)
+
+                        if dwh_features:
+                            # Inject trace context
+                            trace_headers = {}
+                            inject(trace_headers)
+                            kafka_headers = [(k, v.encode('utf-8') if isinstance(v, str) else v)
+                                           for k, v in trace_headers.items()]
+
+                            # Publish to DWH features topic
+                            self.producer.produce(
+                                topic=self.sink_topic,
+                                key=str(sk_id_curr).encode('utf-8'),
+                                value=json.dumps(dwh_features).encode('utf-8'),
+                                headers=kafka_headers,
+                                callback=self._delivery_callback
+                            )
+                            self.producer.poll(0)
                     
                 except json.JSONDecodeError as e:
                     logger.error(f"Failed to parse CDC message: {e}")

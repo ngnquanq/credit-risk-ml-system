@@ -5,15 +5,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-
 # Copy minimal service requirements and install
 COPY ./application/services/requirements-service.txt /app/requirements.txt
 RUN python -m pip install -r /app/requirements.txt
 
-# Copy application code
-COPY application/ /app/application/
+# Copy application code directly to /app (not nested)
+COPY application/ /app/
 
-ENV PYTHONPATH=/app/
+ENV PYTHONPATH=/app
 
 # Default command can be overridden by compose
-CMD ["python", "application/services/external_bureau_service.py"]
+CMD ["python", "services/external_bureau_service.py"]

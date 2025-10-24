@@ -37,7 +37,6 @@ services:
       retries: 3
     networks:
       hc-network:
-        ipv4_address: 172.18.0.100
         aliases:
           - ops-postgres
           - postgres
@@ -53,7 +52,7 @@ services:
       # Environment variables for PgBouncer official image
       # These will be used by the entrypoint script to generate /etc/pgbouncer/pgbouncer.ini
       # Using static IP because c-ares in PgBouncer doesn't support Docker internal DNS
-      DATABASES_HOST: 172.18.0.100
+      DATABASES_HOST: ops-postgres
       DATABASES_PORT: ${OPS_DB_PORT:-5432}
       DATABASES_USER: ${OPS_DB_USER:-ops_admin}
       DATABASES_PASSWORD: ${OPS_DB_PASSWORD:-ops_password}

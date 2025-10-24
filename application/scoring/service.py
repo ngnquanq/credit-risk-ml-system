@@ -45,9 +45,16 @@ with bentoml.importing():
 
     try:
         from kafka import KafkaConsumer as _KafkaConsumer, KafkaProducer as _KafkaProducer
+        from opentelemetry import trace as _trace
+        from opentelemetry.propagate import extract as _extract, inject as _inject
+        from tracing import setup_tracing as _setup_tracing
     except Exception:  # pragma: no cover
         _KafkaConsumer = None  # type: ignore
         _KafkaProducer = None  # type: ignore
+        _trace = None  # type: ignore
+        _extract = None  # type: ignore
+        _inject = None  # type: ignore
+        _setup_tracing = None  # type: ignore
 
     # Assign to module globals so they're accessible outside this block
     logger = _logger
@@ -61,6 +68,16 @@ with bentoml.importing():
     configure_logger = _configure_logger
     KafkaConsumer = _KafkaConsumer
     KafkaProducer = _KafkaProducer
+    trace = _trace
+    extract = _extract
+    inject = _inject
+    setup_tracing = _setup_tracing
+
+    # Initialize tracing if available
+    if setup_tracing:
+        tracer = setup_tracing("scoring-service", sampling_rate=0.1)
+    else:
+        tracer = None
 
     # Configure logging (defaults from core, overridable via SCORING_*)
     configure_logger(settings.log_level, settings.log_format)
@@ -592,7 +609,20 @@ def _run_kafka_consumer():  # pragma: no cover
             f"Kafka consumer started: topic={settings.loan_application_topic}, group={settings.kafka_group_id}"
         )
         for msg in consumer:
+            # Extract trace context from Kafka headers
+            parent_context = None
+            if extract and msg.headers:
+                headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v
+                               for k, v in (msg.headers or [])}
+                parent_context = extract(headers_dict)
+
+            # Start span for this message (if tracing enabled)
+            span_context = tracer.start_as_current_span("scoring_inference", context=parent_context) if tracer else None
+
             try:
+                if span_context:
+                    span_context.__enter__()
+
                 payload = msg.value or {}
                 # Support both plain and Debezium envelopes (message value)
                 sk_id = str(payload.get("sk_id_curr") or payload.get("customer_id") or "").strip()
@@ -695,6 +725,10 @@ def _run_kafka_consumer():  # pragma: no cover
                     producer.send(settings.scoring_output_topic, key=sk_id or None, value=result)
             except Exception as e:
                 logger.error(f"Error processing Kafka message: {e}")
+            finally:
+                # Exit span context if it was started
+                if span_context:
+                    span_context.__exit__(None, None, None)
     except Exception as e:
         logger.error(f"Kafka consumer failed to start: {e}")
 

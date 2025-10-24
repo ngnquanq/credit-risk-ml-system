@@ -28,6 +28,14 @@ from services.bureau_client import close_bureau_client
 
 from pydantic import Field
 
+# Tracing
+from opentelemetry import trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from tracing import setup_tracing
+
+# Initialize tracing
+tracer = setup_tracing("api-service", sampling_rate=0.1)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -61,6 +69,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Auto-instrument FastAPI with tracing
+FastAPIInstrumentor.instrument_app(app)
 
 # Initialize MinIO client for document uploads (from settings)
 minio_client = Minio(
@@ -224,7 +235,12 @@ async def create_loan_application(
         if not customer_id:
             raise HTTPException(status_code=400, detail="Customer ID is required")
         logger.info(f"Creating loan application with ID: {customer_id}")
-        
+
+        # Add to trace for searchability
+        current_span = trace.get_current_span()
+        current_span.set_attribute("sk_id_curr", customer_id)
+        current_span.set_attribute("loan.amount", float(application_data.amt_credit))
+
         # Handle document IDs
         doc_fields = {}
         if application_data.document_ids:

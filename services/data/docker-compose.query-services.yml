@@ -4,7 +4,7 @@ services:
       context: ../..
       dockerfile: application/services/Dockerfile
     container_name: external_bureau_sink
-    command: ["python", "application/services/external_bureau_service.py"]
+    command: ["python", "services/external_bureau_service.py"]
     env_file:
       - ./.env.data
     environment:
@@ -26,7 +26,7 @@ services:
       context: ../..
       dockerfile: application/services/Dockerfile
     container_name: dwh_features_reader
-    command: ["python", "application/services/dwh_features_service.py"]
+    command: ["python", "services/dwh_features_service.py"]
     env_file:
       - ./.env.data
     environment:
