@@ -46,15 +46,15 @@ with bentoml.importing():
     try:
         from kafka import KafkaConsumer as _KafkaConsumer, KafkaProducer as _KafkaProducer
         from opentelemetry import trace as _trace
-        from opentelemetry.propagate import extract as _extract, inject as _inject
-        from tracing import setup_tracing as _setup_tracing
+        from opentelemetry.propagate import inject as _inject
+        from tracing import setup_tracing as _setup_tracing, extract_or_create_trace_context as _extract_or_create
     except Exception:  # pragma: no cover
         _KafkaConsumer = None  # type: ignore
         _KafkaProducer = None  # type: ignore
         _trace = None  # type: ignore
-        _extract = None  # type: ignore
         _inject = None  # type: ignore
         _setup_tracing = None  # type: ignore
+        _extract_or_create = None  # type: ignore
 
     # Assign to module globals so they're accessible outside this block
     logger = _logger
@@ -69,7 +69,7 @@ with bentoml.importing():
     KafkaConsumer = _KafkaConsumer
     KafkaProducer = _KafkaProducer
     trace = _trace
-    extract = _extract
+    extract_or_create_trace_context = _extract_or_create
     inject = _inject
     setup_tracing = _setup_tracing
 
@@ -609,22 +609,10 @@ def _run_kafka_consumer():  # pragma: no cover
             f"Kafka consumer started: topic={settings.loan_application_topic}, group={settings.kafka_group_id}"
         )
         for msg in consumer:
-            # Extract trace context from Kafka headers
-            parent_context = None
-            if extract and msg.headers:
-                headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v
-                               for k, v in (msg.headers or [])}
-                parent_context = extract(headers_dict)
-
-            # Start span for this message (if tracing enabled)
-            span_context = tracer.start_as_current_span("scoring_inference", context=parent_context) if tracer else None
-
             try:
-                if span_context:
-                    span_context.__enter__()
-
                 payload = msg.value or {}
-                # Support both plain and Debezium envelopes (message value)
+
+                # Extract SK_ID_CURR first (needed for deterministic tracing)
                 sk_id = str(payload.get("sk_id_curr") or payload.get("customer_id") or "").strip()
                 if not sk_id:
                     sk_id = (_extract_sk_id_curr_from_cdc(payload) or "").strip()
@@ -640,6 +628,21 @@ def _run_kafka_consumer():  # pragma: no cover
                     except Exception:
                         # non-JSON key; ignore
                         pass
+
+                # Extract or create deterministic trace context based on SK_ID_CURR
+                parent_context = None
+                span_context = None
+                if extract_or_create_trace_context and sk_id and msg.headers:
+                    headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v
+                                   for k, v in (msg.headers or [])}
+                    parent_context = extract_or_create_trace_context(headers_dict, sk_id)
+                    # Start span with unified trace context
+                    span_context = tracer.start_as_current_span("scoring_inference", context=parent_context) if tracer else None
+                    if span_context:
+                        span_context.__enter__()
+                        # Set SK_ID_CURR as span attribute for searchability
+                        trace.get_current_span().set_attribute("sk_id_curr", sk_id)
+
                 features: Dict[str, Any] | None = payload.get("features")
 
                 # Fetch features from Feast if configured and sk_id present

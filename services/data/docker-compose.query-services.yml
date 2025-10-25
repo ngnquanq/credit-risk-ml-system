@@ -18,6 +18,10 @@ services:
       - APP_CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
       - APP_CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-}
       - APP_CLICKHOUSE_DB_EXTERNAL=${CLICKHOUSE_DB_EXTERNAL:-application_external}
+      # OpenTelemetry tracing - routed through k8s-gateway socat relay
+      - OTEL_EXPORTER_OTLP_ENDPOINT=gateway-host:30317
+    extra_hosts:
+      - "gateway-host:host-gateway"
     networks:
       - hc-network
 
@@ -40,6 +44,10 @@ services:
       - APP_CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
       - APP_CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-}
       - APP_CLICKHOUSE_DB_DWH=${CLICKHOUSE_DB_DWH:-application_mart}
+      # OpenTelemetry tracing - routed through k8s-gateway socat relay
+      - OTEL_EXPORTER_OTLP_ENDPOINT=gateway-host:30317
+    extra_hosts:
+      - "gateway-host:host-gateway"
     networks:
       - hc-network
 

@@ -25,10 +25,10 @@ from typing import Any, Dict, Optional
 from confluent_kafka import Consumer, Producer
 from loguru import logger
 from opentelemetry import trace
-from opentelemetry.propagate import extract, inject
+from opentelemetry.propagate import inject
 
 from services.bureau_client import fetch_bureau_by_loan_id, fetch_external_scores
-from tracing import setup_tracing
+from tracing import setup_tracing, extract_or_create_trace_context
 
 # Initialize tracer
 tracer = setup_tracing("external-bureau-service", sampling_rate=0.1)
@@ -168,12 +168,12 @@ class ExternalBureauService:
                         logger.warning("Could not extract sk_id_curr from CDC message")
                         continue
 
-                    # Extract trace context from Kafka headers
+                    # Extract or create deterministic trace context based on SK_ID_CURR
                     headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v
                                    for k, v in (msg.headers() or [])}
-                    parent_context = extract(headers_dict)
+                    parent_context = extract_or_create_trace_context(headers_dict, sk_id_curr)
 
-                    # Start span with parent context
+                    # Start span with parent context (unified trace per SK_ID_CURR)
                     with tracer.start_as_current_span("external_bureau_process", context=parent_context) as span:
                         span.set_attribute("sk_id_curr", sk_id_curr)
 
