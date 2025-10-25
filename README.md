@@ -8,8 +8,6 @@
 - **Customer retention** – minimize rejection of good customers and reduce churn
 - **Risk-adjusted revenue growth** – enable differentiated pricing for different risk tiers
 
-*(All entities are fictional—“Alpha Lending” is a placeholder.)*
-
 ## About the application
 This application is for lending money, fully automated decision, i.e the machine will do all the calculation and decide whether you are worthy with the money or not.
 
@@ -45,19 +43,30 @@ The solution must directly support the business objective by:
 ### Data Science Team
 - **Data integration**: Consolidate application, bureau, previous credit, and repayment datasets into a single analytical view.  
 - **Feature engineering**: Derive risk indicators (e.g., debt-to-income ratios, missed payment counts, external risk scores).  
-- **Model development**: Train and validate predictive models (e.g., gradient boosting) with ROC-AUC as the primary evaluation metric.  
-- **Interpretability**: Provide probability scores and explanations (e.g., SHAP values) to ensure business usability.  
-- **Deployment readiness**: Deliver APIs or batch scoring pipelines that can be embedded into operational systems.  
+- **Model development**: Train and validate predictive models (e.g., gradient boosting) with AUC as primary metrics
+- **Create training pipeline**: Define training pipeline and registry model and its artifact to model registry
+
+### MLE Team
+- **Build automation pipeline**: Automation pipeline from when the model is approved to go to production. 
+- **Ensure feature availability**: Not all features use to train are reflect on production, the team make sure it's there
+- **Troubleshoot bottleneck**: Track for queue up issues, i,e message produce too fast will end up in queue => reduce UX :(
 
 ### Business Team
-- **Define acceptance thresholds**: Work with DS team to set default-probability cutoffs that balance growth vs. risk.  
+- **Define acceptance thresholds**: Work with DS team to set default-probability cutoffs that balance growth vs. risk.  (i.e 0.3 in this case)
 - **Policy alignment**: Adapt credit approval rules and pricing strategies based on model outputs.  
 - **Operational integration**: Train loan officers on interpreting model results and using them in decision-making.  
 - **Monitoring & feedback**: Establish KPIs to continuously track impact (default rates, approval rates, revenue changes).  
 
 ## Result
 
-*To be determined after deployment and monitoring phase.*
+The application is now handle these things:
+- **Can handle 500 RPS** while still maintain SLA (the result is within the application day)
+- **High performance ML model** with 70% AUC 
+- **Fully automation** from bringing model in staging to production, also automation 100%, i.e credit officer no need to define by hand. 
+- **Easy to scale**, by far there is no bottle neck in the ML platform, however a majro scale up can be work with the data platform, i.e indexing for faster retrieval, use multi-thread approach for kafka etc,. to name a few. 
+
+
+But still, there are few things that it lacks of. We will discuss this later at the end. 
 
 # Dataset
 
@@ -81,18 +90,13 @@ For a more in-dept detail of this dataset, I suggest you go and take a look of i
 
 
 # High-level System Architecture 
-
 ## Machine Spec
 ### Minimum Recommended Specifications
 The following specifications are based on the development/testing environment:
 
 **Hardware:**
 - **CPU**: 12+ cores (24 threads) - AMD Ryzen 9 9900X or equivalent
-- **RAM**: 32 GB minimum (for running full stack with K8s + Docker Compose)
-- **Storage**:
-  - 500 GB NVMe SSD (for OS and containers)
-  - 1 TB+ additional storage (for data, model artifacts, logs)
-  - Fast disk I/O recommended for database workloads
+- **RAM**: Around 32 GB (for running full stack with K8s + Docker Compose) (more is better tho)
 
 **Software:**
 - **OS**: Ubuntu 24.04 LTS or compatible Linux distribution
@@ -104,12 +108,7 @@ The following specifications are based on the development/testing environment:
 ### Resource Allocation for Services
 When running the full stack:
 - **Docker containers**: ~20-25 GB RAM usage
-- **Minikube cluster**: 10-20 GB RAM, 10 CPUs (configurable)
-- **Disk space**:
-  - Docker images/containers: ~30-50 GB
-  - Data warehouse (ClickHouse): ~50-100 GB
-  - Model artifacts: ~10-20 GB
-  - Logs and temporary files: ~20 GB
+- **Minikube cluster**: 20 GB RAM max 
 
 **Note**: For production deployments, scale resources based on data volume and request
 throughput. Later on we will have some load test to see if our application can handle things at the same time or not. Therefore strong machine can benefit a little bit. 
@@ -395,196 +394,19 @@ The current Docker Compose + Minikube architecture is **not suitable for cloud d
 - Infrastructure as Code (Terraform, CloudFormation, Pulumi)
 
 
-# Achievement of Current Architecture
+# Results of Current Architecture
 
 This section documents the performance benchmarks and capabilities of the production ML platform, demonstrating the system's ability to handle real-world credit risk assessment workloads at scale.
 
-## 📊 End-to-End Performance Metrics
+## Assumptions
 
-### Load Test Configuration
-- **Test Type**: End-to-end prediction pipeline
-- **Duration**: 5 minutes
-- **Concurrent Users**: 50 users
-- **Spawn Rate**: 10 users/second
-- **Test Date**: 2025-10-23
+Based on my research on reddit, quora, and other platforms about how personal loan was handle and how long does it took, here are the assumptions that I make so that the architecture must follow: 
 
-### Pipeline Latency
-Performance from loan application submission to prediction output:
+- **Processing time is expected to be within 1 day** from the moment the customer submit their loan application. Some institutions got a longer processing time, could be because they are not fully automated, i.e 70% of the steps are make by the machine, the rest 30% is by loan officiers.  
 
-| Metric | Value | Description |
-|--------|-------|-------------|
-| **P50 (Median)** | 10.0s | 50% of predictions completed within this time |
-| **P95** | 125s | 95% of predictions completed within this time (SLA target) |
-| **P99** | 135s | 99% of predictions completed within this time |
-| **Average** | 39.8s | Mean prediction latency |
-| **Min** | 1.8s | Fastest prediction |
-| **Max** | 146s | Slowest prediction |
+## Perform load test and stress test
 
-### Throughput Capacity
-| Metric | Value | Description |
-|--------|-------|-------------|
-| **Sustained RPS** | [TO_BE_FILLED] req/s | Requests per second the system handles continuously |
-| **Total Requests** | [TO_BE_FILLED] | Total loan applications processed during test |
-| **Success Rate** | [TO_BE_FILLED]% | Percentage of successful predictions |
-| **Failure Rate** | [TO_BE_FILLED]% | Percentage of failed predictions |
-
-### Component Breakdown
-End-to-end latency breakdown by pipeline stage:
-
-```
-Customer Request
-    ↓
-PostgreSQL INSERT                    ~50ms    (Database write)
-    ↓
-Debezium CDC                        ~100ms   (Change data capture)
-    ↓
-Kafka: loan_applications             ~50ms   (Message queue)
-    ↓
-External Bureau Service             ~200ms   (ClickHouse query for bureau data)
-    ↓
-Kafka: application_ext_raw           ~50ms   (Message queue)
-    ↓
-Apache Flink Processing            ~500ms   (Feature engineering: 60+ features)
-    ↓
-Kafka: application_ext              ~100ms   (Message queue)
-    ↓
-Feast Stream Materializer          ~200ms   (Write to Redis)
-    ↓
-Redis Feature Store                 ~10ms   (Feature lookup)
-    ↓
-KServe Predictor (LightGBM)         ~50ms   (Model inference)
-    ↓
-Kafka: scoring                      ~50ms   (Message queue)
-    ↓
-PREDICTION OUTPUT ✓
-─────────────────────────────────────────────
-Total Pipeline Latency:         ~1.4-3.0s   (Near real-time)
-```
-
-## 🎯 Architecture Achievements
-
-### Real-Time ML Pipeline
-- ✅ **Near real-time predictions**: Sub-3-second P95 latency from submission to prediction
-- ✅ **Event-driven architecture**: Fully asynchronous processing using Kafka (9 topics)
-- ✅ **Distributed feature engineering**: Apache Flink processing 60+ bureau features in parallel
-- ✅ **Low-latency feature serving**: Feast + Redis delivering features in <10ms
-
-### Scalability & Reliability
-- ✅ **High throughput**: Sustained [TO_BE_FILLED]+ RPS with [TO_BE_FILLED]% success rate
-- ✅ **Kubernetes orchestration**: Auto-scaling pods based on CPU/memory metrics
-- ✅ **Fault tolerance**: Kafka message retention + Flink checkpointing for failure recovery
-- ✅ **Connection pooling**: PgBouncer handling 500+ concurrent database connections
-
-### Data Platform
-- ✅ **Change Data Capture**: Debezium streaming changes from PostgreSQL to Kafka in ~100ms
-- ✅ **Multi-database architecture**:
-  - Operational DB (PostgreSQL): Transactional data
-  - Analytics DB (ClickHouse): 58M+ bureau records
-  - Feature Store (Redis): Real-time feature serving
-- ✅ **Data lineage**: Full traceability from raw data → features → predictions
-
-### ML Operations (MLOps)
-- ✅ **Model registry**: MLflow tracking 12+ model versions with metadata
-- ✅ **Automated deployment**: KServe InferenceService with automatic rollout
-- ✅ **A/B testing support**: Traffic splitting between model versions
-- ✅ **Model monitoring**: Prediction logging to Kafka for drift detection
-
-### Observability
-- ✅ **Metrics**: Prometheus + Grafana dashboards for system health
-- ✅ **Logging**: ELK stack (Elasticsearch, Logstash, Kibana) for centralized logs
-- ✅ **Tracing**: Structured logging with request IDs for end-to-end tracking
-- ✅ **Alerting**: [TO_BE_CONFIGURED] alerts for SLA violations
-
-## 📈 System Capacity
-
-### Current Configuration
-| Component | Specification | Capacity |
-|-----------|---------------|----------|
-| **PostgreSQL** | 500 max connections (via PgBouncer) | ~1000 TPS |
-| **Kafka** | 9 topics, 3 partitions each | ~10,000 msg/s |
-| **Flink** | 2 task managers, parallelism=4 | ~100 events/s |
-| **Redis** | Single instance, 2GB memory | ~50,000 ops/s |
-| **KServe Predictor** | [TO_BE_FILLED] replicas, [TO_BE_FILLED] CPU/replica | [TO_BE_FILLED] RPS |
-
-### Scaling Potential
-Based on current architecture, the system can scale to:
-
-- **Vertical Scaling**: Increase resource limits for Flink/Redis/PostgreSQL
-- **Horizontal Scaling**: Add more KServe predictor replicas (linear scaling)
-- **Kafka Partitioning**: Increase partitions for higher parallelism
-- **Flink Parallelism**: Add task managers to process more events concurrently
-
-**Estimated Maximum Capacity**: [TO_BE_ESTIMATED] RPS with additional resources
-
-## 🏆 Resume-Ready Metrics
-
-> **Architected and deployed a production-grade ML platform processing [TO_BE_FILLED]+ loan applications per second with P95 end-to-end latency of [TO_BE_FILLED] seconds**, leveraging Apache Flink for distributed feature engineering (60+ features), Feast/Redis for sub-10ms feature retrieval, and KServe for model serving. Achieved [TO_BE_FILLED]% prediction success rate across [TO_BE_FILLED]+ test requests.
-
-> **Built near real-time credit risk assessment pipeline** integrating CDC (Debezium), event streaming (Kafka), distributed processing (Flink), and ML inference (KServe), reducing prediction latency from minutes (batch) to seconds (streaming) while maintaining [TO_BE_FILLED]% model accuracy.
-
-## 🔬 Test Methodology
-
-### Load Test Details
-The performance metrics above were obtained using **Locust load testing framework** simulating real production traffic:
-
-1. **Test Type**: End-to-end prediction pipeline test
-2. **Scenario**: Submit loan applications → Wait for predictions in Kafka topic
-3. **Measurement**: Time from PostgreSQL INSERT to prediction appearing in `hc.scoring` topic
-4. **Tool**: `locustfile_e2e_prediction.py` (see `tests/test_load/`)
-5. **Report**: Interactive HTML report with latency percentiles and throughput graphs
-
-### How to Reproduce
-```bash
-# Run quick validation test (10 users, 1 minute)
-USERS=10 RUN_TIME=1m ./tests/test_load/run_e2e_load_test.sh
-
-# Run full load test (100 users, 10 minutes)
-USERS=100 SPAWN_RATE=20 RUN_TIME=10m ./tests/test_load/run_e2e_load_test.sh
-
-# View results
-open reports/e2e_prediction_*.html
-```
-
-### Test Environment
-- **Infrastructure**: Minikube (Kubernetes) + Docker Compose
-- **Resources**: [TO_BE_FILLED] CPU cores, [TO_BE_FILLED] GB RAM
-- **Network**: Local (localhost), production would have lower latency
-- **Data**: Synthetic loan applications with realistic bureau data
-
-## 📊 Performance Comparison
-
-### Industry Benchmarks
-| Latency Range | Classification | Use Case | This System |
-|---------------|----------------|----------|-------------|
-| < 100ms | Real-time | HFT, Gaming | ❌ |
-| 100ms - 1s | Near real-time | Fraud detection | ✅ ([TO_BE_FILLED]s P95) |
-| 1s - 5s | Low-latency | Credit scoring | ✅ |
-| 5s+ | Batch | Offline analytics | ❌ |
-
-**Conclusion**: This system achieves **near real-time performance** suitable for production credit risk assessment, competitive with industry standards for loan decisioning systems.
-
-## What make the system work? 
-
-1. **PgBouncer**: Thanks to connection pooling. We can handle more than 500 customers at the same time. Previously when I don't use pgbouncer, even though the downstream task can handle the computing efficiently. But the postgres itself is the bottle neck, hence not utilize the infrastructure at hand. Add a Pgbouncer allow for more requests from customer. 
-2. **Flink**: Thanks to Flink. Previous code run with pure python, slow af. 
-3. **Redis**: The code use Redis for online storage, fast retrieval. 
-
-## 🚀 Future Optimizations
-
-Potential improvements to increase throughput and reduce latency:
-
-1. **Flink Parallelism**: Increase from 4 to 8-16 for higher throughput
-2. **Redis Clustering**: Switch to Redis Cluster for horizontal scaling
-3. **Model Optimization**: Quantization or distillation to reduce inference time
-4. **Caching**: Cache frequent predictions (e.g., repeat applicants)
-5. **GPU Inference**: Use GPU-accelerated serving for complex models
-6. **CDN**: Deploy predictors across multiple regions for lower network latency
-
-**Estimated Impact**: 2-3x throughput increase, 30-50% latency reduction
-
----
-
-*Last updated: [TO_BE_FILLED] | Test results: `reports/e2e_prediction_*.html`*
+locust -f locustfile.py --web-host=0.0.0.0 --web-port=8089
 
 
 # Guide to Install and Run Code
@@ -1053,20 +875,31 @@ For more detail, access the localhost:9055, the username/password is airflow/air
 
 ![](/assets/upRunAirflow.gif)
 
+# Performance Bottlenecks and how to overcome it
+
+## Record on Oct 25
+- The setup (aim for the baseline):
+    - Peak user: 200 concurrent users
+    - Ramp up: 5 user/sec
+    - Duration: 10 min
+
+![Load test for 200 conc users w 5 user/sec ramp up for 10 min](./assets/READMEimg/oct-25-load-test.png)
+
+- The results (TLDR: backend is not scaling with concurrency):
+    - RPS is stable aorund 120-130, that's good for me, seems like there is no falling over from just throughput. 
+    - p50 response time is low aand fine but the p95 is climbing linearly, raech around 7 min at the end (this is **acceptable for in-day application** but **fail the 3 min objective**)
+
+- Bottleneck that is detected is mostly coming from blocking I/O or DB bottleneck, not the heavy computing from CPU (most core sitting around 30-60%): 
+    - Serialized in serving pod. With current setup, we are implement a simple retry logic, that is we will try to look into feast at most 15 times, the time gap between each is 300ms, therefore in worst case scenario, each thread have to wait 4.5 sec to consume the next request. Therefore we have no parallism. 
+    - Only one query container for eacg internal and external database, we need to scale this up horizontally. We could try scaling from 1-3 
+
 # Future Development
 1. Definitely to prepare the infrastructure to be production ready, I could deploy this using managed services from cloud provider or maybe migrate the whole things to run with K8s and bring that cluster onto cloud. 
 2. Define more business rule, I know that these application often integrate some rule-based as well. 
 3. Authentication and Authorization as the security layer. 
 4. Dedicate some time to build meaningful dashboard (Kibana, Grafana and Superset)
 5. Some components are handling both read and write at the same time (i.e our data warehouse). One approach could be to implement database replication (master-slave approach), we will write to the master database and read from the slave database. Clickhouse already have a guidance on how to do this here in this [link](https://clickhouse.com/docs/engines/table-engines/mergetree-family/replication). If we go further,
-
-# Performance Bottlenecks
-
-Current E2E latency: 3.7s at low load, degrades to 100s at 100 RPS due to throughput limitations.
-
-Primary bottlenecks:
-1. Scoring service: Single-threaded Kafka consumer processes 10 msg/sec. Requires horizontal scaling.
-2. External bureau service: Single instance with sequential ClickHouse queries limits to 15 msg/sec. Scale to multiple instances.
-3. Flink bureau aggregation: 8 task slots with complex 60+ feature computation. Increase parallelism to 16-32 slots.
-
-Queueing delays dominate at high load. Horizontal scaling required across all consumer components for production throughput. 
+6. **Optimize the current data platform (most critical)**, here is how I would do it: 
+    - Migrate everything into k8s for scalability. 
+    - Optimize Kafka components. With the current setup, kafka is running with single-threaded consumer.
+    - Optimize the retry logic in the serving pod.
