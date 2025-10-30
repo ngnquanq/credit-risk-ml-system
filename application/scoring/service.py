@@ -575,9 +575,8 @@ def _run_kafka_consumer():  # pragma: no cover
         logger.warning("kafka-python not installed; skipping Kafka consumer")
         return
     try:
-        # Subscribe to BOTH loan applications and feature readiness topics
+        # Subscribe to feature readiness topic only
         consumer = KafkaConsumer(
-            settings.loan_application_topic,
             settings.feature_ready_topic,
             bootstrap_servers=settings.kafka_bootstrap_servers,
             group_id=settings.kafka_group_id,
@@ -594,97 +593,59 @@ def _run_kafka_consumer():  # pragma: no cover
                 key_serializer=lambda v: (v.encode("utf-8") if isinstance(v, str) else v),
             )
 
-        # Store pending loan applications waiting for features
-        pending_requests: Dict[str, Dict[str, Any]] = {}
-
         logger.info(
-            f"Kafka consumer started: topics=[{settings.loan_application_topic}, {settings.feature_ready_topic}], group={settings.kafka_group_id}"
+            f"Kafka consumer started: topic={settings.feature_ready_topic}, group={settings.kafka_group_id}"
         )
+
         for msg in consumer:
             try:
-                # Route based on topic
-                if msg.topic == settings.feature_ready_topic:
-                    # Feature ready notification - process pending request
-                    sk_id = msg.key or str(msg.value.get("sk_id_curr", "")).strip()
-                    if not sk_id or sk_id not in pending_requests:
-                        logger.debug(f"No pending request for sk_id_curr={sk_id}, skipping")
-                        continue
-
-                    # Retrieve pending request details
-                    req = pending_requests.pop(sk_id)
-                    payload = req["payload"]
-                    parent_context = req.get("parent_context")
-
-                    # Start span with trace context
-                    span_context = tracer.start_as_current_span("scoring_inference", context=parent_context) if tracer and parent_context else None
-                    if span_context:
-                        span_context.__enter__()
-                        trace.get_current_span().set_attribute("sk_id_curr", sk_id)
-
-                    # Fetch features and predict using shared helper functions
-                    try:
-                        features = _fetch_features_from_feast(sk_id)
-                        result = _predict_and_create_response(features, sk_id)
-                        logger.bind(event="stream_inference").info(result)
-
-                        if producer and settings.scoring_output_topic:
-                            producer.send(settings.scoring_output_topic, key=sk_id, value=result)
-
-                    except bentoml.exceptions.BentoMLException as e:
-                        logger.warning(f"Feature fetch failed for sk_id_curr={sk_id}: {e}")
-                        if producer and settings.scoring_output_topic:
-                            result = {
-                                "sk_id_curr": sk_id,
-                                "probability": None,
-                                "decision": "under-review",
-                                "threshold": settings.prediction_threshold,
-                                "model": MODEL_NAME,
-                                "version": MODEL_VERSION,
-                                "ts": datetime.utcnow().isoformat() + "Z",
-                                "reason": "feature_data_unavailable"
-                            }
-                            producer.send(settings.scoring_output_topic, key=sk_id, value=result)
-                    except Exception as e:
-                        logger.error(f"Prediction failed for sk_id_curr={sk_id}: {e}")
-
-
-                    if span_context:
-                        span_context.__exit__(None, None, None)
+                # Feature ready notification - fetch from Redis and predict
+                sk_id = msg.key or str(msg.value.get("sk_id_curr", "")).strip()
+                if not sk_id:
+                    logger.debug("No sk_id_curr in feature_ready message, skipping")
                     continue
 
-                # Loan application event - store as pending
-                payload = msg.value or {}
-                sk_id = str(payload.get("sk_id_curr") or payload.get("customer_id") or "").strip()
-                if not sk_id:
-                    sk_id = (_extract_sk_id_curr_from_cdc(payload) or "").strip()
-                if not sk_id and msg.key:
-                    try:
-                        key_obj = json.loads(msg.key)
-                        if isinstance(key_obj, dict):
-                            key_payload = key_obj.get("payload") or key_obj
-                            if isinstance(key_payload, dict) and key_payload.get("sk_id_curr"):
-                                sk_id = str(key_payload.get("sk_id_curr"))
-                    except Exception:
-                        pass
-
-                if not sk_id:
-                    logger.debug("No sk_id_curr found in loan application message, skipping")
-                    continue
-
-                # Extract trace context for later use
+                # Extract trace context
                 parent_context = None
                 if extract_or_create_trace_context and sk_id and msg.headers:
                     headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v
                                    for k, v in (msg.headers or [])}
                     parent_context = extract_or_create_trace_context(headers_dict, sk_id)
 
-                # Store pending request (will be processed when feature_ready arrives)
-                pending_requests[sk_id] = {
-                    "payload": payload,
-                    "parent_context": parent_context,
-                    "received_at": datetime.utcnow().isoformat()
-                }
-                logger.info(f"Stored pending loan application for sk_id_curr={sk_id}, waiting for feature_ready notification")
+                # Start span with trace context
+                span_context = tracer.start_as_current_span("scoring_inference", context=parent_context) if tracer and parent_context else None
+                if span_context:
+                    span_context.__enter__()
+                    trace.get_current_span().set_attribute("sk_id_curr", sk_id)
+
+                # Fetch features from Redis and predict
+                try:
+                    features = _fetch_features_from_feast(sk_id)
+                    result = _predict_and_create_response(features, sk_id)
+                    logger.bind(event="stream_inference").info(result)
+
+                    if producer and settings.scoring_output_topic:
+                        producer.send(settings.scoring_output_topic, key=sk_id, value=result)
+
+                except bentoml.exceptions.BentoMLException as e:
+                    logger.warning(f"Feature fetch failed for sk_id_curr={sk_id}: {e}")
+                    if producer and settings.scoring_output_topic:
+                        result = {
+                            "sk_id_curr": sk_id,
+                            "probability": None,
+                            "decision": "under-review",
+                            "threshold": settings.prediction_threshold,
+                            "model": MODEL_NAME,
+                            "version": MODEL_VERSION,
+                            "ts": datetime.utcnow().isoformat() + "Z",
+                            "reason": "feature_data_unavailable"
+                        }
+                        producer.send(settings.scoring_output_topic, key=sk_id, value=result)
+                except Exception as e:
+                    logger.error(f"Prediction failed for sk_id_curr={sk_id}: {e}")
+
+                if span_context:
+                    span_context.__exit__(None, None, None)
 
             except Exception as e:
                 logger.error(f"Error processing Kafka message: {e}")
