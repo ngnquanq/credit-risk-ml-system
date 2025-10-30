@@ -134,85 +134,22 @@ with bentoml.importing():
     @app.post("/v1/score-by-id")
     def score_by_id(req: ScoreByIdRequest) -> Dict[str, Any]:
         ensure_model_loaded()
-        if not settings.feast_enabled:
-            raise bentoml.exceptions.BentoMLException(
-                "Feast is disabled. Set SCORING_FEAST_ENABLED=true to enable."
-            )
-        try:
-            from feast import FeatureStore
-            import time
-        except Exception as e:  # pragma: no cover
-            raise bentoml.exceptions.BentoMLException(f"Feast not available: {e}")
+        features = _fetch_features_from_feast(req.sk_id_curr)
+        result = _predict_and_create_response(features, req.sk_id_curr)
 
-        fs = FeatureStore(repo_path=_resolve_feast_repo_path())
-        feature_refs = (
-            [f.strip() for f in (settings.feast_feature_refs or "").split(",") if f.strip()]
-        )
-        if not feature_refs:
-            raise bentoml.exceptions.BentoMLException("No Feast feature refs configured")
+        logger.bind(event="inference").info({
+            "sk_id_curr": req.sk_id_curr,
+            "probability": result["probability"],
+            "decision": result["decision"]
+        })
 
-        # Retry logic to handle race condition with feast-stream materialization
-        has_customer_data = False
-        res = None
-        max_attempts = settings.feast_retry_max_attempts if settings.feast_retry_enabled else 1
-        delay_ms = settings.feast_retry_delay_ms
-
-        for attempt in range(1, max_attempts + 1):
-            res = fs.get_online_features(features=feature_refs, entity_rows=[{"sk_id_curr": req.sk_id_curr}]).to_dict()
-
-            # Check if customer data exists in Redis
-            has_customer_data = False
-            for ref in feature_refs:
-                vals = res.get(ref) or res.get(ref.split(":")[-1])
-                if vals and vals[0] is not None:
-                    has_customer_data = True
-                    break
-
-            if has_customer_data:
-                logger.info(f"Feast lookup succeeded for sk_id_curr={req.sk_id_curr} (attempt {attempt}/{max_attempts})")
-                break
-            elif attempt < max_attempts:
-                # Calculate exponential backoff delay
-                current_delay_ms = delay_ms * (settings.feast_retry_backoff_multiplier ** (attempt - 1))
-                logger.info(f"No data for sk_id_curr={req.sk_id_curr} on attempt {attempt}/{max_attempts}, retrying in {current_delay_ms:.0f}ms...")
-                time.sleep(current_delay_ms / 1000.0)
-            else:
-                logger.warning(f"No feature data found for sk_id_curr={req.sk_id_curr} after {max_attempts} attempts")
-
-        logger.info(f"Feast lookup for sk_id_curr={req.sk_id_curr}: {res}")
-
-        # Validate against model's training features
-        if MODEL_FEAST_METADATA and MODEL_FEAST_METADATA.get("selected_features"):
-            expected_features = set(MODEL_FEAST_METADATA["selected_features"])
-            received_features = set(res.keys())
-            missing_model_features = expected_features - received_features
-            if missing_model_features:
-                logger.warning(f"⚠ Missing features expected by trained model: {list(missing_model_features)[:10]}")
-                logger.warning(f"  Model expects {len(expected_features)} features but Feast returned {len(received_features)}")
-
-        if not has_customer_data and settings.require_customer_data:
-            raise bentoml.exceptions.BentoMLException(
-                f"No feature data found for sk_id_curr={req.sk_id_curr} after {max_attempts} attempts. "
-                f"Customer data may still be processing in the streaming pipeline or does not exist. "
-                f"Set SCORING_REQUIRE_CUSTOMER_DATA=false to allow predictions with missing data."
-            )
-
-        features = _map_feast_features(res, feature_refs)
-        X_df = _as_dataframe_row(features)
-        raw = _predict_proba_local(X_df)
-        logger.info("Model data transform: " + str(X_df.to_dict(orient="records")))
-        prob = float(raw[0]) if hasattr(raw, "__len__") else float(raw)
-        probability, decision = postprocess(prob, settings.prediction_threshold)
-
+        # Convert to ScoreResponse for REST API
         resp = ScoreResponse(
-            probability=probability,
-            decision=decision,
-            threshold=settings.prediction_threshold,
-            model_name=MODEL_NAME,
-            model_version=MODEL_VERSION,
-        )
-        logger.bind(event="inference").info(
-            {"sk_id_curr": req.sk_id_curr, "probability": probability, "decision": decision}
+            probability=result["probability"],
+            decision=result["decision"],
+            threshold=result["threshold"],
+            model_name=result["model"],
+            model_version=result["version"],
         )
         return resp.model_dump()
 
@@ -335,6 +272,56 @@ def _get_expected_columns() -> List[str]:
                 "This file should be generated during training and uploaded to MLflow as an artifact."
             )
     return _EXPECTED_COLUMNS
+
+def _fetch_features_from_feast(sk_id_curr: str) -> Dict[str, Any]:
+    """Fetch features from Feast online store for a given customer ID.
+
+    Returns mapped features ready for prediction.
+    Raises BentoMLException if features not found.
+    """
+    if not settings.feast_enabled:
+        raise bentoml.exceptions.BentoMLException("Feast is disabled")
+
+    from feast import FeatureStore
+    fs = FeatureStore(repo_path=_resolve_feast_repo_path())
+    feature_refs = [f.strip() for f in (settings.feast_feature_refs or "").split(",") if f.strip()]
+
+    if not feature_refs:
+        raise bentoml.exceptions.BentoMLException("No Feast feature refs configured")
+
+    res = fs.get_online_features(features=feature_refs, entity_rows=[{"sk_id_curr": sk_id_curr}]).to_dict()
+
+    # Check if customer data exists
+    has_customer_data = any(
+        (res.get(ref) or res.get(ref.split(":")[-1], [None]))[0] is not None
+        for ref in feature_refs
+    )
+
+    if not has_customer_data and settings.require_customer_data:
+        raise bentoml.exceptions.BentoMLException(
+            f"No feature data found for sk_id_curr={sk_id_curr}"
+        )
+
+    return _map_feast_features(res, feature_refs)
+
+
+def _predict_and_create_response(features: Dict[str, Any], sk_id_curr: str) -> Dict[str, Any]:
+    """Shared prediction logic - creates response dict (not ScoreResponse object)."""
+    X_df = _as_dataframe_row(features)
+    raw = _predict_proba_local(X_df)
+    prob = float(raw[0]) if hasattr(raw, "__len__") else float(raw)
+    probability, decision = postprocess(prob, settings.prediction_threshold)
+
+    return {
+        "sk_id_curr": sk_id_curr,
+        "probability": probability,
+        "decision": decision,
+        "threshold": settings.prediction_threshold,
+        "model": MODEL_NAME,
+        "version": MODEL_VERSION,
+        "ts": datetime.utcnow().isoformat() + "Z",
+    }
+
 
 def _as_dataframe_row(features: Dict[str, Any]) -> pd.DataFrame:
     """Return a single-row DataFrame with all expected columns present.
@@ -588,8 +575,10 @@ def _run_kafka_consumer():  # pragma: no cover
         logger.warning("kafka-python not installed; skipping Kafka consumer")
         return
     try:
+        # Subscribe to BOTH loan applications and feature readiness topics
         consumer = KafkaConsumer(
             settings.loan_application_topic,
+            settings.feature_ready_topic,
             bootstrap_servers=settings.kafka_bootstrap_servers,
             group_id=settings.kafka_group_id,
             enable_auto_commit=True,
@@ -605,89 +594,47 @@ def _run_kafka_consumer():  # pragma: no cover
                 key_serializer=lambda v: (v.encode("utf-8") if isinstance(v, str) else v),
             )
 
+        # Store pending loan applications waiting for features
+        pending_requests: Dict[str, Dict[str, Any]] = {}
+
         logger.info(
-            f"Kafka consumer started: topic={settings.loan_application_topic}, group={settings.kafka_group_id}"
+            f"Kafka consumer started: topics=[{settings.loan_application_topic}, {settings.feature_ready_topic}], group={settings.kafka_group_id}"
         )
         for msg in consumer:
             try:
-                payload = msg.value or {}
+                # Route based on topic
+                if msg.topic == settings.feature_ready_topic:
+                    # Feature ready notification - process pending request
+                    sk_id = msg.key or str(msg.value.get("sk_id_curr", "")).strip()
+                    if not sk_id or sk_id not in pending_requests:
+                        logger.debug(f"No pending request for sk_id_curr={sk_id}, skipping")
+                        continue
 
-                # Extract SK_ID_CURR first (needed for deterministic tracing)
-                sk_id = str(payload.get("sk_id_curr") or payload.get("customer_id") or "").strip()
-                if not sk_id:
-                    sk_id = (_extract_sk_id_curr_from_cdc(payload) or "").strip()
-                # Fallback: extract from Kafka message key if value lacks ID
-                if not sk_id and msg.key:
-                    try:
-                        key_obj = json.loads(msg.key)
-                        # Debezium key usually has {"schema":..., "payload": {"sk_id_curr": "..."}}
-                        if isinstance(key_obj, dict):
-                            key_payload = key_obj.get("payload") or key_obj
-                            if isinstance(key_payload, dict) and key_payload.get("sk_id_curr"):
-                                sk_id = str(key_payload.get("sk_id_curr"))
-                    except Exception:
-                        # non-JSON key; ignore
-                        pass
+                    # Retrieve pending request details
+                    req = pending_requests.pop(sk_id)
+                    payload = req["payload"]
+                    parent_context = req.get("parent_context")
 
-                # Extract or create deterministic trace context based on SK_ID_CURR
-                parent_context = None
-                span_context = None
-                if extract_or_create_trace_context and sk_id and msg.headers:
-                    headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v
-                                   for k, v in (msg.headers or [])}
-                    parent_context = extract_or_create_trace_context(headers_dict, sk_id)
-                    # Start span with unified trace context
-                    span_context = tracer.start_as_current_span("scoring_inference", context=parent_context) if tracer else None
+                    # Start span with trace context
+                    span_context = tracer.start_as_current_span("scoring_inference", context=parent_context) if tracer and parent_context else None
                     if span_context:
                         span_context.__enter__()
-                        # Set SK_ID_CURR as span attribute for searchability
                         trace.get_current_span().set_attribute("sk_id_curr", sk_id)
 
-                features: Dict[str, Any] | None = payload.get("features")
-
-                # Fetch features from Feast if configured and sk_id present
-                if not features and settings.feast_enabled and sk_id:
+                    # Fetch features and predict using shared helper functions
                     try:
-                        from feast import FeatureStore
-                        import time
+                        features = _fetch_features_from_feast(sk_id)
+                        result = _predict_and_create_response(features, sk_id)
+                        logger.bind(event="stream_inference").info(result)
 
-                        fs = FeatureStore(repo_path=_resolve_feast_repo_path())
-                        feature_refs = [
-                            f.strip() for f in (settings.feast_feature_refs or "").split(",") if f.strip()
-                        ]
+                        if producer and settings.scoring_output_topic:
+                            producer.send(settings.scoring_output_topic, key=sk_id, value=result)
 
-                        # Retry logic to handle race condition with feast-stream materialization
-                        has_customer_data = False
-                        max_attempts = settings.feast_retry_max_attempts if settings.feast_retry_enabled else 1
-                        delay_ms = settings.feast_retry_delay_ms
-
-                        for attempt in range(1, max_attempts + 1):
-                            res = fs.get_online_features(features=feature_refs, entity_rows=[{"sk_id_curr": sk_id}]).to_dict()
-
-                            # Check if customer data exists in Redis
-                            has_customer_data = False
-                            for ref in feature_refs:
-                                vals = res.get(ref) or res.get(ref.split(":")[-1])
-                                if vals and vals[0] is not None:
-                                    has_customer_data = True
-                                    break
-
-                            if has_customer_data:
-                                # Map Feast features to ML model column names
-                                features = _map_feast_features(res, feature_refs)
-                                break
-                            elif attempt < max_attempts:
-                                # Calculate exponential backoff delay
-                                current_delay_ms = delay_ms * (settings.feast_retry_backoff_multiplier ** (attempt - 1))
-                                logger.info(f"No data for sk_id_curr={sk_id} on attempt {attempt}/{max_attempts}, retrying in {current_delay_ms:.0f}ms...")
-                                time.sleep(current_delay_ms / 1000.0)
-                            else:
-                                logger.warning(f"No feature data found for sk_id_curr={sk_id} after {max_attempts} attempts. Sending under-review.")
-
-                        if not has_customer_data and settings.require_customer_data:
-                            # Send under-review message to scoring topic
+                    except bentoml.exceptions.BentoMLException as e:
+                        logger.warning(f"Feature fetch failed for sk_id_curr={sk_id}: {e}")
+                        if producer and settings.scoring_output_topic:
                             result = {
-                                "sk_id_curr": sk_id or payload.get("sk_id_curr"),
+                                "sk_id_curr": sk_id,
                                 "probability": None,
                                 "decision": "under-review",
                                 "threshold": settings.prediction_threshold,
@@ -696,42 +643,51 @@ def _run_kafka_consumer():  # pragma: no cover
                                 "ts": datetime.utcnow().isoformat() + "Z",
                                 "reason": "feature_data_unavailable"
                             }
-                            logger.bind(event="stream_inference_under_review").warning(result)
-                            if producer and settings.scoring_output_topic:
-                                producer.send(settings.scoring_output_topic, key=sk_id or None, value=result)
-                            continue
-
+                            producer.send(settings.scoring_output_topic, key=sk_id, value=result)
                     except Exception as e:
-                        logger.warning(f"Feast lookup failed for {sk_id}: {e}")
+                        logger.error(f"Prediction failed for sk_id_curr={sk_id}: {e}")
 
-                if not features:
-                    logger.debug("No features found in message; skipping")
+
+                    if span_context:
+                        span_context.__exit__(None, None, None)
                     continue
 
-                # Build DataFrame with all expected columns (consistent with REST endpoint)
-                X_df = _as_dataframe_row(features)
-                raw = _predict_proba_local(X_df)
-                prob = float(raw[0]) if hasattr(raw, "__len__") else float(raw)
-                probability, decision = postprocess(prob, settings.prediction_threshold)
+                # Loan application event - store as pending
+                payload = msg.value or {}
+                sk_id = str(payload.get("sk_id_curr") or payload.get("customer_id") or "").strip()
+                if not sk_id:
+                    sk_id = (_extract_sk_id_curr_from_cdc(payload) or "").strip()
+                if not sk_id and msg.key:
+                    try:
+                        key_obj = json.loads(msg.key)
+                        if isinstance(key_obj, dict):
+                            key_payload = key_obj.get("payload") or key_obj
+                            if isinstance(key_payload, dict) and key_payload.get("sk_id_curr"):
+                                sk_id = str(key_payload.get("sk_id_curr"))
+                    except Exception:
+                        pass
 
-                result = {
-                    "sk_id_curr": sk_id or payload.get("sk_id_curr"),
-                    "probability": probability,
-                    "decision": decision,
-                    "threshold": settings.prediction_threshold,
-                    "model": MODEL_NAME,
-                    "version": MODEL_VERSION,
-                    "ts": datetime.utcnow().isoformat() + "Z",
+                if not sk_id:
+                    logger.debug("No sk_id_curr found in loan application message, skipping")
+                    continue
+
+                # Extract trace context for later use
+                parent_context = None
+                if extract_or_create_trace_context and sk_id and msg.headers:
+                    headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v
+                                   for k, v in (msg.headers or [])}
+                    parent_context = extract_or_create_trace_context(headers_dict, sk_id)
+
+                # Store pending request (will be processed when feature_ready arrives)
+                pending_requests[sk_id] = {
+                    "payload": payload,
+                    "parent_context": parent_context,
+                    "received_at": datetime.utcnow().isoformat()
                 }
-                logger.bind(event="stream_inference").info(result)
-                if producer and settings.scoring_output_topic:
-                    producer.send(settings.scoring_output_topic, key=sk_id or None, value=result)
+                logger.info(f"Stored pending loan application for sk_id_curr={sk_id}, waiting for feature_ready notification")
+
             except Exception as e:
                 logger.error(f"Error processing Kafka message: {e}")
-            finally:
-                # Exit span context if it was started
-                if span_context:
-                    span_context.__exit__(None, None, None)
     except Exception as e:
         logger.error(f"Kafka consumer failed to start: {e}")
 

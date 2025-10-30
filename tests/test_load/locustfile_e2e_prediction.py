@@ -194,8 +194,9 @@ class PredictionPipelineUser(User):
         start_time = time.time()
         customer_id = random.choice(self.customer_ids)
 
-        # Add timestamp to make ID unique for repeated tests
-        unique_customer_id = f"{customer_id}_{int(time.time() * 1000) % 100000}"
+        # Add timestamp + random to make ID unique for concurrent tests
+        # Uses microseconds + 6-digit random for ~1 trillion unique combinations per second
+        unique_customer_id = f"{customer_id}_{int(time.time() * 1000000)}_{random.randint(0, 999999)}"
 
         try:
             # Calculate dates

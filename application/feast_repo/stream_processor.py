@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any, Optional, List
 
 try:
-    from kafka import KafkaConsumer
+    from kafka import KafkaConsumer, KafkaProducer
     from loguru import logger
     from feast import FeatureStore
     import pandas as pd
@@ -35,6 +35,7 @@ TS_FIELDS = {
     "external": os.getenv("FEAST_TS_FIELD_EXT", "ts"),
     "dwh": os.getenv("FEAST_TS_FIELD_DWH", "ts"),
 }
+FEATURE_READY_TOPIC = os.getenv("FEAST_TOPIC_READY_FEATURE", "hc.feature_ready")
 
 class FeastStreamProcessor:
     """Stream processor that materializes Kafka data to Feast online store."""
@@ -69,6 +70,18 @@ class FeastStreamProcessor:
             
         logger.info(f"Kafka brokers: {KAFKA_BROKERS}")
         logger.info(f"Topics: {TOPICS}")
+
+        # Initialize Kafka producer for feature readiness notifications
+        try:
+            self.producer = KafkaProducer(
+                bootstrap_servers=KAFKA_BROKERS.split(","),
+                value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+                key_serializer=lambda v: v.encode('utf-8') if isinstance(v, str) else v
+            )
+            logger.info(f"✓ Kafka producer initialized for topic: {FEATURE_READY_TOPIC}")
+        except Exception as e:
+            logger.error(f"✗ Failed to initialize Kafka producer: {e}")
+            raise
 
     def extract_sk_id_curr_and_features(self, message: Dict[str, Any]) -> tuple[Optional[str], Dict[str, Any]]:
         """Extract sk_id_curr and features from Kafka message (handles CDC format)."""
@@ -119,6 +132,24 @@ class FeastStreamProcessor:
         except Exception:
             return []
 
+    def publish_feature_ready_event(self, sk_id_curr: str, source: str):
+        """Publish feature readiness event to Kafka after successful Redis write."""
+        try:
+            from datetime import datetime
+            event = {
+                "sk_id_curr": sk_id_curr,
+                "source": source,
+                "ts": datetime.utcnow().isoformat() + "Z"
+            }
+            self.producer.send(
+                FEATURE_READY_TOPIC,
+                key=sk_id_curr,
+                value=event
+            )
+            logger.debug(f"✓ Published feature_ready event for sk_id_curr={sk_id_curr}, source={source}")
+        except Exception as e:
+            logger.warning(f"Failed to publish feature_ready event for sk_id_curr={sk_id_curr}: {e}")
+
     def write_features_to_online_store(self, sk_id_curr: str, source: str, features: Dict[str, Any]):
         """Write features to Feast online store using proper SDK method."""
         try:
@@ -161,9 +192,12 @@ class FeastStreamProcessor:
                 feature_view_name=fv_name,
                 df=df
             )
-            
+
             logger.info(f"✓ Wrote {source} features for sk_id_curr={sk_id_curr} ({len(features)} features)")
-            
+
+            # Publish feature readiness event to Kafka (non-blocking notification)
+            self.publish_feature_ready_event(sk_id_curr, source)
+
         except Exception as e:
             logger.error(f"Failed to write {source} features for sk_id_curr={sk_id_curr}: {e}")
 

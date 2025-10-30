@@ -165,8 +165,8 @@ def create_or_update_inferenceservice(version: str) -> bool:
             },
             "spec": {
                 "predictor": {
-                    "minReplicas": 4,
-                    "maxReplicas": 4,
+                    "minReplicas": 2,
+                    "maxReplicas": 3,
                     "hostAliases": [{
                         "ip": "192.168.49.1",
                         "hostnames": ["host.minikube.internal", "broker", "kafka"]
@@ -197,20 +197,18 @@ def create_or_update_inferenceservice(version: str) -> bool:
                             {"name": "SCORING_ENABLE_KAFKA", "value": "true"},
                             {"name": "SCORING_KAFKA_BOOTSTRAP_SERVERS", "value": "host.minikube.internal:39092"},
                             {"name": "SCORING_LOAN_APPLICATION_TOPIC", "value": "hc.applications.public.loan_applications"},
+                            {"name": "SCORING_FEATURE_READY_TOPIC", "value": "hc.feature_ready"},
                             {"name": "SCORING_KAFKA_GROUP_ID", "value": "credit-risk-scoring"},
-                            {"name": "SCORING_FEAST_RETRY_ENABLED", "value": "true"},
-                            {"name": "SCORING_FEAST_RETRY_MAX_ATTEMPTS", "value": "15"},
-                            {"name": "SCORING_FEAST_RETRY_DELAY_MS", "value": "300"},
-                            {"name": "SCORING_FEAST_RETRY_BACKOFF_MULTIPLIER", "value": "1.0"},
+                            {"name": "SCORING_SCORING_OUTPUT_TOPIC", "value": "hc.scoring"},
                             {"name": "OTEL_EXPORTER_OTLP_ENDPOINT", "value": "host.minikube.internal:30317"},
                         ],
                         "resources": {
                             "requests": {
-                                "cpu": "500m",
+                                "cpu": "1",
                                 "memory": "1Gi"
                             },
                             "limits": {
-                                "cpu": "24",
+                                "cpu": "2",
                                 "memory": "2Gi"
                             }
                         }

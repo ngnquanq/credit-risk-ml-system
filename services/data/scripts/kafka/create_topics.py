@@ -7,6 +7,7 @@ Creates (idempotent):
  - hc.application_external
  - hc.application_dwh
  - hc.application_features
+ - more and more, scroll down for more detail
 
 Optionally pass topics via CLI args to create additional topics.
 """
@@ -18,7 +19,7 @@ from typing import List
 from confluent_kafka.admin import AdminClient, NewTopic
 
 
-def create_topics(bootstrap: str, topics: List[str], partitions: int = 3, replication_factor: int = 1) -> None:
+def create_topics(bootstrap: str, topics: List[str], partitions: int = 8, replication_factor: int = 1) -> None:
     admin = AdminClient({"bootstrap.servers": bootstrap})
     # Fetch existing topics once
     cluster_md = admin.list_topics(timeout=10)
@@ -47,6 +48,7 @@ def main():
         os.getenv("FEAST_TOPIC_EXTERNAL", "hc.application_ext"),
         os.getenv("FEAST_TOPIC_DWH", "hc.application_dwh"),
         os.getenv("BENTOML_SCORING_OUTPUT_TOPIC", "hc.scoring"),
+        os.getenv("FEAST_TOPIC_READY_FEATURE","hc.feature_ready")
     ]
     extra = sys.argv[1:]
     topics = default_topics + extra

@@ -81,24 +81,13 @@ class ScoringSettings(BaseSettings):
     scoring_output_topic: Optional[str] = Field(
         default="hc.scoring", description="Optional Kafka topic to publish scoring results"
     )
+    feature_ready_topic: str = Field(
+        default="hc.feature_ready", description="Kafka topic with feature readiness notifications"
+    )
 
     # Data validation
     require_customer_data: bool = Field(
         default=True, description="Require customer data to exist in Redis before prediction"
-    )
-
-    # Feast retry configuration (handle race condition with feast-stream materialization)
-    feast_retry_enabled: bool = Field(
-        default=True, description="Enable retry logic when Feast returns no features"
-    )
-    feast_retry_max_attempts: int = Field(
-        default=15, description="Maximum number of Feast lookup retry attempts (15 × 300ms = 4.5s max wait)"
-    )
-    feast_retry_delay_ms: int = Field(
-        default=300, description="Fixed delay between retries in milliseconds"
-    )
-    feast_retry_backoff_multiplier: float = Field(
-        default=1.0, description="Backoff multiplier (1.0 = fixed delay, >1.0 = exponential backoff)"
     )
 
     # Observability (default to core app settings when present)

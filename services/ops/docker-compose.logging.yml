@@ -25,7 +25,7 @@ services:
       logging.target: "elasticsearch"
       logging.type: "filebeat"
     healthcheck:
-      test: ["CMD", "filebeat", "test", "config"]
+      test: ["CMD", "filebeat", "test", "config", "--strict.perms=false"]
       interval: 30s
       timeout: 10s
       retries: 3

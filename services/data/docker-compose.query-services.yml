@@ -3,8 +3,10 @@ services:
     build:
       context: ../..
       dockerfile: application/services/Dockerfile
-    container_name: external_bureau_sink
+    # Removed container_name to enable scaling with deploy.replicas
     command: ["python", "services/external_bureau_service.py"]
+    deploy:
+      replicas: 3
     env_file:
       - ./.env.data
     environment:
@@ -29,8 +31,10 @@ services:
     build:
       context: ../..
       dockerfile: application/services/Dockerfile
-    container_name: dwh_features_reader
+    # Removed container_name to enable scaling with deploy.replicas
     command: ["python", "services/dwh_features_service.py"]
+    deploy:
+      replicas: 3
     env_file:
       - ./.env.data
     environment:

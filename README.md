@@ -406,8 +406,7 @@ Based on my research on reddit, quora, and other platforms about how personal lo
 
 ## Perform load test and stress test
 
-locust -f locustfile.py --web-host=0.0.0.0 --web-port=8089
-
+locust -f ./tests/test_load/locustfile_e2e_prediction.py --web-host=0.0.0.0 --web-port=8089 
 
 # Guide to Install and Run Code
 
@@ -837,6 +836,10 @@ cd services/ml/k8s/logging/elastic-stack
 helm upgrade --install elasticsearch ./elasticsearch -n logging -f \
   elasticsearch-values.custom.yaml
 
+# Then create the secrets
+kubectl create secret generic elasticsearch-master-credentials -n logging \
+      --from-literal=username=elastic --from-literal=password=changeme
+
 # After elastic Search is up and running, start to install kibana
 helm install kibana ./kibana -n logging -f kibana-values.custom.yaml --no-hooks
 
@@ -890,8 +893,14 @@ For more detail, access the localhost:9055, the username/password is airflow/air
     - p50 response time is low aand fine but the p95 is climbing linearly, raech around 7 min at the end (this is **acceptable for in-day application** but **fail the 3 min objective**)
 
 - Bottleneck that is detected is mostly coming from blocking I/O or DB bottleneck, not the heavy computing from CPU (most core sitting around 30-60%): 
-    - Serialized in serving pod. With current setup, we are implement a simple retry logic, that is we will try to look into feast at most 15 times, the time gap between each is 300ms, therefore in worst case scenario, each thread have to wait 4.5 sec to consume the next request. Therefore we have no parallism. 
-    - Only one query container for eacg internal and external database, we need to scale this up horizontally. We could try scaling from 1-3 
+    - **Problem 1:** Serialized in serving pod. With current setup, we are implement a simple retry logic, that is we will try to look into feast at most 15 times, the time gap between each is 300ms, therefore in worst case scenario, each thread have to wait 4.5 sec to consume the next request. Therefore we have no parallism. 
+    - **Solutions:**  We will let stream processor to write to another kafka topic (hc.feature_ready) with the key is the SK_ID_CURR, and then serving pod will consume the message in that topic to know when the data is ready. If we do it that way, we allow multi-thread processing since we don't hold any CPU core for 4.5s at most. For the audit, we will compare the time gap between the hc.scoring and the hc.application.public topic to see if it match our objective or not.  
+    - **Problem 2**: Only one query container for each internal and external database, we need to scale this up horizontally. We could try scaling from 1-3 
+    - **Solutions**: Add more :D
+
+
+
+
 
 # Future Development
 1. Definitely to prepare the infrastructure to be production ready, I could deploy this using managed services from cloud provider or maybe migrate the whole things to run with K8s and bring that cluster onto cloud. 
@@ -903,3 +912,4 @@ For more detail, access the localhost:9055, the username/password is airflow/air
     - Migrate everything into k8s for scalability. 
     - Optimize Kafka components. With the current setup, kafka is running with single-threaded consumer.
     - Optimize the retry logic in the serving pod.
+7. Get more data via OCR or text extraction, remember that we do allow user to send some pdf files like their payslips, driver license etc? We can extract more information given that, i.e their address, their income (the one that shows on the payslips), their insurance contract etc. 
