@@ -75,11 +75,11 @@ spec:
           subPath: feature_store.yaml
         resources:
           requests:
-            memory: "512Mi"
-            cpu: "200m"
+            memory: "1Gi"
+            cpu: "500m"
           limits:
-            memory: "2Gi"
-            cpu: "1000m"
+            memory: "4Gi"
+            cpu: "2000m"
         livenessProbe:
           exec:
             command:

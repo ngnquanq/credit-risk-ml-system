@@ -123,8 +123,8 @@ cd "$(dirname "$0")/../data" 2>/dev/null || cd ../data
 docker compose -f docker-compose.query-services.yml up -d 2>&1 | sed 's/^/  /' || echo "  ⚠ Failed to start query services"
 
 # Restart Kubernetes-based consumers
-echo "Scaling up Feast stream processors..."
-kubectl scale deployment feast-stream -n feature-registry --replicas=1 2>&1 | sed 's/^/  /' || echo "  ⚠ Feast stream not found"
+echo "Scaling up Feast stream processors to 3 replicas..."
+kubectl scale deployment feast-stream -n feature-registry --replicas=3 2>&1 | sed 's/^/  /' || echo "  ⚠ Feast stream not found"
 
 # Restart KServe serving pods (scale back to 4 replicas each)
 echo "Scaling up KServe serving pods..."

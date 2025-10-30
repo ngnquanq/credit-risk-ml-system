@@ -792,6 +792,13 @@ kubectl apply -f watcher-deployment.yaml
 
 For the feature registry components, we will use feast as our feature registry and redis as our online store. This allow inference service to retrieve data fast. 
 
+We need to containerize it first, push to dockerhub 
+```shell
+docker build ./application/feast_repo/ -t ngnquanq/feast-repo:v15
+docker push ngnquanq/feast-repo:v15
+```
+and then run the following
+
 ```shell
 kubectl create ns feature-registry
 

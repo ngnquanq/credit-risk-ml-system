@@ -20,7 +20,7 @@ spec:
       containers:
       - name: feast-apply
         # Built from application/feast/Dockerfile
-        image: ngnquanq/feast-repo:v12
+        image: ngnquanq/feast-repo:v16
         imagePullPolicy: Always
         workingDir: /work
         command:
