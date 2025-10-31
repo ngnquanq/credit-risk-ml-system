@@ -229,8 +229,8 @@ class FeastStreamProcessor:
         consumer = None
         executor = None
 
-        # Configurable worker count (default: 50, or from environment)
-        max_workers = int(os.getenv("FEAST_MAX_WORKERS", 50))
+        # Configurable worker count (default: 20, optimized for Redis throughput)
+        max_workers = int(os.getenv("FEAST_MAX_WORKERS", 20))
 
         while True:
             try:
