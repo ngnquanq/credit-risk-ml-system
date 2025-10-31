@@ -213,9 +213,20 @@ def _predict_proba_local(X):
     """Return positive-class probability if available, else prediction.
 
     Supports sklearn estimators and MLflow pyfunc models (via params method).
+    Sets nthread=1 for XGBoost models to optimize single-sample predictions.
     """
     if model is None:
         ensure_model_loaded()
+
+    # Set XGBoost to single-threaded for optimal performance with parallel workers
+    # This prevents thread contention when using ThreadPoolExecutor
+    if hasattr(model, "get_booster"):
+        # It's an XGBoost model - set inference threads to 1
+        try:
+            model.set_params(nthread=1)
+        except Exception:
+            pass  # Ignore if set_params fails
+
     # Native sklearn path
     if hasattr(model, "predict_proba"):
         try:

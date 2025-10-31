@@ -139,6 +139,8 @@ def build_and_push_image(version: str) -> bool:
         log.error(f"Failed to build/push image for {version}: {e}")
         return False
 
+
+
 def create_or_update_inferenceservice(version: str) -> bool:
     """Create or update KServe InferenceService for a version."""
     try:
