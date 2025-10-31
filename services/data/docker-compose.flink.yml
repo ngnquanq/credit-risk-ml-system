@@ -29,6 +29,14 @@ services:
       context: ../../application/flink
       dockerfile: Dockerfile
     container_name: flink_taskmanager
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 6G
+        reservations:
+          cpus: '2'
+          memory: 4G
     depends_on:
       flink-jobmanager:
         condition: service_healthy
@@ -78,19 +86,6 @@ services:
     command: ["bash", "-lc", "flink run -m flink-jobmanager:8081 -d -py /opt/app/jobs/bureau_aggregation_etl.py -pyfs /opt/app/jobs"]
     networks:
       - hc-network
-
-  # features-python-worker:
-  #   build:
-  #     context: ./scripts/python-features-worker/
-  #     dockerfile: Dockerfile
-  #   container_name: features_python_worker
-  #   environment:
-  #     - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
-  #     - CDC_TOPIC=${CDC_TOPIC:-hc.applications.public.loan_applications}
-  #     - FEATURES_TOPIC=${FEAST_TOPIC_APP_FEATURES:-hc.application_features}
-  #   restart: unless-stopped
-  #   networks:
-  #     - hc-network
 
 networks:
   hc-network:

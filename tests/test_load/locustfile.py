@@ -44,7 +44,7 @@ class LoanApplicationUser(HttpUser):
         """Called when a user starts. Load customer IDs from CSV."""
         if not LoanApplicationUser.customer_ids:
             # Load customer IDs from application_train.csv
-            csv_path = Path(__file__).parent.parent / "data" / "application_train.csv"
+            csv_path = Path(__file__).parent.parent / "data" / "application_test.csv"
 
             try:
                 with open(csv_path, 'r') as f:

@@ -4,6 +4,60 @@ This directory contains operational scripts for managing the Home Credit ML plat
 
 ## Scripts Overview
 
+### `fresh-start.sh`
+**Purpose**: Create a clean environment for load testing by clearing all application data.
+
+**When to use**:
+- Before starting load tests (ensures clean baseline)
+- After architecture changes that invalidate old data
+- When Kafka consumer groups have stale message backlogs
+
+**Usage**:
+```bash
+cd /home/nhatquang/home-credit-credit-risk-model-stability/services/ops
+./fresh-start.sh
+```
+
+**What it does**:
+1. **Truncates PostgreSQL** - Removes all loan applications (operations.public.loan_applications)
+2. **Flushes Redis** - Clears all materialized features
+3. **Deletes InferenceServices** - Removes all KServe scoring deployments completely
+4. **Purges hc.feature_ready topic** - Deletes old feature_ready messages (sets retention to 1s then restores)
+5. **Resets Kafka consumer groups** - Moves all offsets to LATEST:
+   - `external-bureau-sink`
+   - `dwh-features-reader`
+   - `credit-risk-scoring` (including `hc.feature_ready` topic)
+   - `feast-materializer-external`
+   - `feast-materializer-application`
+   - `feast-materializer-dwh`
+6. **Waits for auto-recreation** - serving-watcher automatically recreates InferenceServices from MLflow (45-75 seconds)
+7. **Verifies system** - Shows consumer group lag and pod status
+
+**Result**:
+- PostgreSQL: 0 rows
+- Redis: 0 keys
+- Kafka hc.feature_ready: Old messages purged
+- Kafka consumer groups: All offsets at LATEST (LAG = 0)
+- InferenceServices: Freshly recreated with clean state
+- All services: Restarted and healthy
+
+---
+
+### `clear-kafka-backlog.sh`
+**Purpose**: Reset Kafka consumer group offsets to LATEST without touching PostgreSQL/Redis.
+
+**When to use**:
+- When you only need to clear Kafka message backlogs
+- Called automatically by `fresh-start.sh`
+
+**Usage**:
+```bash
+cd /home/nhatquang/home-credit-credit-risk-model-stability/services/ops
+./clear-kafka-backlog.sh
+```
+
+---
+
 ### `restart-gateway.sh`
 **Purpose**: Restart k8s_gateway with the current Kafka broker IP address.
 

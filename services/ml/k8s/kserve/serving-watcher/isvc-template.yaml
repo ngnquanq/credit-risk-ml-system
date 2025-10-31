@@ -10,8 +10,8 @@ metadata:
     serving.kserve.io/deploymentMode: RawDeployment
 spec:
   predictor:
-    minReplicas: 2
-    maxReplicas: 3
+    minReplicas: 3
+    maxReplicas: 4
     hostAliases:
       - ip: 192.168.49.1
         hostnames:
@@ -80,8 +80,8 @@ spec:
 
         resources:
           requests:
-            cpu: "1"
-            memory: 1Gi
-          limits:
-            cpu: "2"
+            cpu: "2000m"
             memory: 2Gi
+          limits:
+            cpu: "2000m"
+            memory: 3Gi

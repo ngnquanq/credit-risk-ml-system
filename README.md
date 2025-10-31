@@ -587,8 +587,10 @@ Starting by running the K8s cluster:
 ```shell
 # Due to resources constraint, here are the spec that I use, feel free to change it
 minikube start -p mlops --kubernetes-version=v1.28.3 --driver=docker \
-    --cpus=20 --memory=10000 --disk-size=100g --addons=ingress,metallb
+    --cpus=12 --memory=10000 --disk-size=100g --addons=ingress,metallb
 ```
+
+**Notice**: This is the only resource left on my pc :) The data platform itself consume lots of space lollll. The recommend CPU/Memory ratio is 1:4 or around that, i.e 64c256g or 20c80g something like that
 
 ### Create socat layer
 
@@ -905,6 +907,14 @@ For more detail, access the localhost:9055, the username/password is airflow/air
     - **Problem 2**: Only one query container for each internal and external database, we need to scale this up horizontally. We could try scaling from 1-3 
     - **Solutions**: Add more :D
 
+
+## Record on Oct 30
+- The setup (aim for the baseline):
+    - Peak user: 200 concurrent users
+    - Ramp up: 5 user/sec
+    - Duration: 10 min
+
+![Load test for 200 conc users w 5 user/sec ramp up for 10 min on Oct 30](./assets/READMEimg/oct-30-load-test.png)
 
 
 
