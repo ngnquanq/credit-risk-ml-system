@@ -916,7 +916,15 @@ For more detail, access the localhost:9055, the username/password is airflow/air
 
 ![Load test for 200 conc users w 5 user/sec ramp up for 10 min on Oct 30](./assets/READMEimg/oct-30-load-test.png)
 
+- The results: 
+    - RPS is around the old area, no fail logs, that's good for me, seems like through put still not an error. 
+    - p50 is the same, p95 is not good, even though reduce the time. However the response time is faster by 100 sec, which is good, but we can do more. Quite fun fact is that based on the system monitor on my PC, seems like we have max out everything we got (RAM, CPU, even use the swap ram :(, but there are still room for improvement))
 
+- Bottleneck that is detected is mostly come from I/O related operations and resource allocated and model optimization. Here are the problems I found. 
+    - **Problem 1** XGBoost threading issues: we don't specify the number of thread during inference, therefore each predictions can tries to use all system core, which may cause overhead for context switching, which make the CPU seems to be busy, but infact they may not that busy, they just do un important things. 
+    - **Solution**: Config the thread during inference, or we could just move to lightgbm for faster inference.     
+    - **Problem 2**: When I check the data flow, it took 6 min for feast materialization, this suggests redis write throughput is saturated. Multiple workers write synchronously to a single Redis instance. 
+    - **Solution**: Let try and scale redis horizontally 
 
 
 # Future Development
