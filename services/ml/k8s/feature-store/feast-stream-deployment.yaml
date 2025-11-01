@@ -7,7 +7,7 @@ metadata:
     app: feast-stream
     component: feature-store
 spec:
-  replicas: 3
+  replicas: 8
   selector:
     matchLabels:
       app: feast-stream
@@ -75,11 +75,11 @@ spec:
           subPath: feature_store.yaml
         resources:
           requests:
-            memory: "1Gi"
+            memory: "512Mi"
             cpu: "500m"
           limits:
-            memory: "4Gi"
-            cpu: "2000m"
+            memory: "768Mi"
+            cpu: "1000m"
         livenessProbe:
           exec:
             command:

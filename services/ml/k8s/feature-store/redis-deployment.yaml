@@ -33,10 +33,10 @@ spec:
         resources:
           requests:
             memory: "1Gi"
-            cpu: "2000m"
+            cpu: "250m"
           limits:
             memory: "2Gi"
-            cpu: "4000m"
+            cpu: "500m"
         livenessProbe:
           tcpSocket:
             port: 6379
