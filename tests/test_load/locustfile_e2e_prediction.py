@@ -24,6 +24,7 @@ import time
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from kafka import KafkaConsumer
+from kafka.admin import KafkaAdminClient
 from datetime import date, datetime, timedelta
 from locust import User, task, between, events
 from pathlib import Path
@@ -117,33 +118,157 @@ class PredictionMonitor:
                 consumer.close()
 
 
-# Global prediction monitor (shared across all users)
+class KafkaTopicMonitor:
+    """
+    Monitors Kafka topics to track message counts and throughput.
+    Reports metrics every N seconds to show pipeline health.
+    """
+
+    TOPICS = [
+        "hc.applications.public.loan_applications",  # CDC source
+        "hc.application_features",                   # Flink output
+        "hc.application_ext",                        # External service
+        "hc.application_dwh",                        # DWH service
+        "hc.feature_ready",                          # Feast output
+        "hc.scoring"                                 # Final predictions
+    ]
+
+    def __init__(self, kafka_bootstrap_servers, report_interval=10):
+        self.kafka_bootstrap_servers = kafka_bootstrap_servers
+        self.report_interval = report_interval
+        self.stop_event = Event()
+        self.monitor_thread = None
+        self.initial_offsets = {}
+        self.last_offsets = {}
+
+    def start(self):
+        """Start the topic monitor in a background thread."""
+        self.monitor_thread = Thread(target=self._monitor_topics, daemon=True)
+        self.monitor_thread.start()
+        logger.info(f"✓ Kafka topic monitor started (reporting every {self.report_interval}s)")
+
+    def stop(self):
+        """Stop the topic monitor."""
+        self.stop_event.set()
+        if self.monitor_thread:
+            self.monitor_thread.join(timeout=5)
+
+    def _get_topic_offsets(self, consumer, topic):
+        """Get current end offsets for all partitions of a topic."""
+        try:
+            partitions = consumer.partitions_for_topic(topic)
+            if not partitions:
+                return {}
+
+            from kafka import TopicPartition
+            topic_partitions = [TopicPartition(topic, p) for p in partitions]
+            end_offsets = consumer.end_offsets(topic_partitions)
+
+            # Sum across all partitions
+            total = sum(end_offsets.values())
+            return {topic: total}
+        except Exception as e:
+            logger.warning(f"Failed to get offsets for {topic}: {e}")
+            return {topic: 0}
+
+    def _monitor_topics(self):
+        """Background thread that monitors topic sizes."""
+        try:
+            # Create a consumer just for monitoring (no consumption)
+            consumer = KafkaConsumer(
+                bootstrap_servers=self.kafka_bootstrap_servers,
+                enable_auto_commit=False,
+                group_id=None
+            )
+
+            logger.info(f"Kafka topic monitor connected to {self.kafka_bootstrap_servers}")
+
+            # Get initial offsets
+            for topic in self.TOPICS:
+                offsets = self._get_topic_offsets(consumer, topic)
+                self.initial_offsets.update(offsets)
+                self.last_offsets.update(offsets)
+
+            while not self.stop_event.is_set():
+                time.sleep(self.report_interval)
+
+                # Get current offsets
+                current_offsets = {}
+                for topic in self.TOPICS:
+                    offsets = self._get_topic_offsets(consumer, topic)
+                    current_offsets.update(offsets)
+
+                # Calculate deltas and report to Locust stats
+                for topic in self.TOPICS:
+                    current = current_offsets.get(topic, 0)
+                    initial = self.initial_offsets.get(topic, 0)
+                    last = self.last_offsets.get(topic, 0)
+
+                    total_msgs = current - initial
+                    recent_msgs = current - last
+                    throughput = recent_msgs / self.report_interval if self.report_interval > 0 else 0
+
+                    # Fire Locust event to show in Statistics panel
+                    # Use response_time to show message count, response_length for throughput
+                    events.request.fire(
+                        request_type="Kafka",
+                        name=f"📊 {topic.split('.')[-1][:30]}",  # Shorten topic name
+                        response_time=total_msgs,  # Total messages
+                        response_length=int(throughput),  # Messages/sec
+                        exception=None,
+                        context={}
+                    )
+
+                # Update last offsets
+                self.last_offsets = current_offsets
+
+        except Exception as e:
+            logger.error(f"Kafka topic monitor error: {e}")
+        finally:
+            if 'consumer' in locals():
+                consumer.close()
+
+
+# Global monitors (shared across all users)
 prediction_monitor = None
+topic_monitor = None
 
 
 @events.test_start.add_listener
 def on_test_start(environment, **kwargs):
-    """Initialize prediction monitor when test starts."""
-    global prediction_monitor
+    """Initialize monitors when test starts."""
+    global prediction_monitor, topic_monitor
 
     kafka_bootstrap = environment.host or "localhost:39092"
     # Extract just the hostname:port if URL provided
     if "://" in kafka_bootstrap:
         kafka_bootstrap = kafka_bootstrap.split("://")[1]
 
+    # Start prediction monitor
     prediction_monitor = PredictionMonitor(
         kafka_bootstrap_servers=kafka_bootstrap,
         topic="hc.scoring"
     )
     prediction_monitor.start()
 
+    # Start topic monitor (reports every 10 seconds)
+    topic_monitor = KafkaTopicMonitor(
+        kafka_bootstrap_servers=kafka_bootstrap,
+        report_interval=10
+    )
+    topic_monitor.start()
+
 
 @events.test_stop.add_listener
 def on_test_stop(environment, **kwargs):
-    """Stop prediction monitor when test ends."""
+    """Stop monitors when test ends."""
     if prediction_monitor:
         prediction_monitor.stop()
         logger.info("✓ Prediction monitor stopped")
+
+    if topic_monitor:
+        topic_monitor.stop()
+        logger.info("✓ Topic monitor stopped")
 
 
 class PredictionPipelineUser(User):
