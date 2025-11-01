@@ -643,7 +643,7 @@ def _run_kafka_consumer():  # pragma: no cover
         return
 
     # Configurable worker count (default: 50, or from environment)
-    max_workers = int(os.getenv("SCORING_MAX_WORKERS", 50))
+    max_workers = int(os.getenv("SCORING_MAX_WORKERS", 20))
 
     try:
         # Subscribe to feature readiness topic only

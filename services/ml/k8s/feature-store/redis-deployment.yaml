@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: feast-redis
+  namespace: feature-registry
   labels:
     app: feast-redis
     component: feature-store
@@ -53,6 +54,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: feast-redis
+  namespace: feature-registry
   labels:
     app: feast-redis
     component: feature-store
