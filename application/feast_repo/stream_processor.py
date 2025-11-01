@@ -22,8 +22,9 @@ try:
     from loguru import logger
     from feast import FeatureStore
     import pandas as pd
+    import redis
 except ImportError:
-    print("Missing dependencies. Install with: pip install kafka-python loguru 'feast[redis,kafka]'")
+    print("Missing dependencies. Install with: pip install kafka-python loguru 'feast[redis,kafka]' redis")
     sys.exit(1)
 
 # Use same environment variables as generate_config.py for consistency
@@ -90,6 +91,39 @@ class FeastStreamProcessor:
             logger.info(f"Kafka producer initialized for topic: {FEATURE_READY_TOPIC}")
         except Exception as e:
             logger.error(f"Failed to initialize Kafka producer: {e}")
+            raise
+
+        # Initialize Redis client for coordination (separate from Feast's Redis)
+        redis_host = os.getenv("FEAST_REDIS_HOST", "feast-redis.feature-registry.svc.cluster.local")
+        redis_port = int(os.getenv("FEAST_REDIS_PORT", 6379))
+        redis_db = int(os.getenv("FEAST_COORDINATION_DB", 1))  # Use DB 1 for coordination (Feast uses DB 0)
+        self.coordination_ttl = int(os.getenv("FEAST_COORDINATION_TTL", 300))  # 5 minutes
+
+        try:
+            self.redis_client = redis.Redis(
+                host=redis_host,
+                port=redis_port,
+                db=redis_db,
+                decode_responses=True,
+                socket_connect_timeout=5,
+                socket_timeout=5
+            )
+            # Test connection
+            self.redis_client.ping()
+            logger.info(f"Redis coordination client initialized: {redis_host}:{redis_port} DB{redis_db}")
+        except Exception as e:
+            logger.error(f"Failed to initialize Redis coordination client: {e}")
+            raise
+
+        # Load Lua script for atomic coordination
+        lua_script_path = os.path.join(os.path.dirname(__file__), "redis_coordination.lua")
+        try:
+            with open(lua_script_path, 'r') as f:
+                lua_script = f.read()
+            self.coordination_script = self.redis_client.register_script(lua_script)
+            logger.info("Redis coordination Lua script loaded")
+        except Exception as e:
+            logger.error(f"Failed to load Lua script from {lua_script_path}: {e}")
             raise
 
         # Per-source batching buffers (thread-safe queues)
@@ -242,9 +276,32 @@ class FeastStreamProcessor:
                 f"({throughput:.0f} writes/sec)"
             )
 
-            # 4. Publish individual feature_ready events for EACH sk_id_curr
+            # 4. Use Redis coordination to track sources and publish only when all 3 are present
+            ready_count = 0
             for item in batch:
-                self.publish_feature_ready_event(item["sk_id_curr"], source)
+                sk_id_curr = item["sk_id_curr"]
+
+                try:
+                    # Call Lua script atomically: add source to coordination set and get count
+                    coord_key = f"feature_coordination:{sk_id_curr}"
+                    source_count = self.coordination_script(
+                        keys=[coord_key],
+                        args=[source, self.coordination_ttl]
+                    )
+
+                    # Only publish feature_ready when ALL 3 sources are present
+                    if source_count == 3:
+                        self.publish_feature_ready_event(sk_id_curr, source)
+                        ready_count += 1
+                        logger.debug(f"All 3 sources ready for sk_id_curr={sk_id_curr}, published feature_ready")
+                    else:
+                        logger.debug(f"Source {source} completed for sk_id_curr={sk_id_curr} ({source_count}/3 sources)")
+
+                except Exception as coord_err:
+                    logger.error(f"Coordination failed for sk_id_curr={sk_id_curr}: {coord_err}")
+
+            if ready_count > 0:
+                logger.info(f"Published {ready_count} feature_ready events (all 3 sources complete)")
 
         except Exception as e:
             logger.error(f"Failed to flush batch for {source}: {e}")
