@@ -32,11 +32,11 @@ services:
     deploy:
       resources:
         limits:
+          cpus: '6'
+          memory: 8G
+        reservations:
           cpus: '4'
           memory: 4G
-        reservations:
-          cpus: '2'
-          memory: 2G
     depends_on:
       flink-jobmanager:
         condition: service_healthy

@@ -41,7 +41,8 @@ data:
   FEAST_TOPIC_READY_FEATURE: "hc.feature_ready"
 
   # Redis coordination settings (for 3-source feature aggregation)
-  FEAST_REDIS_HOST: "feast-redis.feature-registry.svc.cluster.local"
-  FEAST_REDIS_PORT: "6379"
+  # Using COORD prefix to avoid conflict with K8s auto-generated FEAST_REDIS_PORT env var
+  FEAST_REDIS_COORD_HOST: "feast-redis.feature-registry.svc.cluster.local"
+  FEAST_REDIS_COORD_PORT: "6379"
   FEAST_COORDINATION_DB: "1"       # Use DB 1 for coordination (Feast uses DB 0)
   FEAST_COORDINATION_TTL: "300"    # 5 minutes TTL for coordination keys

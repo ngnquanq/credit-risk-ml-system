@@ -85,9 +85,9 @@ class ExternalBureauService:
 
             # Prepare raw data for Flink aggregation
             raw_data = {
-                "sk_id_curr": sk_id_curr,
-                **bureau_data,  # Contains 'bureau' and 'bureau_balance' arrays
+                **bureau_data,  # Contains 'bureau', 'bureau_balance' arrays, and sk_id_curr (int)
                 "external_scores": external_scores,
+                "sk_id_curr": sk_id_curr,  # Override with string format (e.g., "798498_1041")
                 "ts": time.time(),  # Unix timestamp for Feast
             }
 

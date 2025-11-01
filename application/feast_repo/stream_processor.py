@@ -94,8 +94,8 @@ class FeastStreamProcessor:
             raise
 
         # Initialize Redis client for coordination (separate from Feast's Redis)
-        redis_host = os.getenv("FEAST_REDIS_HOST", "feast-redis.feature-registry.svc.cluster.local")
-        redis_port = int(os.getenv("FEAST_REDIS_PORT", 6379))
+        redis_host = os.getenv("FEAST_REDIS_COORD_HOST", "feast-redis.feature-registry.svc.cluster.local")
+        redis_port = int(os.getenv("FEAST_REDIS_COORD_PORT", 6379))
         redis_db = int(os.getenv("FEAST_COORDINATION_DB", 1))  # Use DB 1 for coordination (Feast uses DB 0)
         self.coordination_ttl = int(os.getenv("FEAST_COORDINATION_TTL", 300))  # 5 minutes
 

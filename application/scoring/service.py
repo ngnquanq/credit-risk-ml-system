@@ -178,6 +178,7 @@ def _map_feast_features(feast_result: Dict[str, Any], feature_refs: List[str]) -
 
     features = {}
     unmapped_refs = []
+    none_value_refs = []
 
     for ref in feature_refs:
         fname = ref.split(":", 1)[-1]  # Strip view prefix
@@ -200,11 +201,14 @@ def _map_feast_features(feast_result: Dict[str, Any], feature_refs: List[str]) -
                         features[model_col] = float(val)
                 except Exception:
                     features[model_col] = val
+            else:
+                none_value_refs.append(fname)
         else:
             unmapped_refs.append(fname)
 
     if len(features) < len(feature_refs):
-        logger.warning(f"⚠️ Missing {len(feature_refs) - len(features)} features: {unmapped_refs[:5]}")
+        missing_detail = f"unmapped={unmapped_refs[:5]}, none_values={none_value_refs[:5]}"
+        logger.warning(f"⚠️ Missing {len(feature_refs) - len(features)} features: {missing_detail}")
 
     return features
 
