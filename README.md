@@ -963,3 +963,14 @@ These section bellow is like a diary of major change in the system. This time we
     - Optimize Kafka components. With the current setup, kafka is running with single-threaded consumer.
     - Optimize the retry logic in the serving pod.
 7. Get more data via OCR or text extraction, remember that we do allow user to send some pdf files like their payslips, driver license etc? We can extract more information given that, i.e their address, their income (the one that shows on the payslips), their insurance contract etc. 
+
+
+# Extension
+
+This section will deep dive into kserve
+
+## Infrastructure setup
+
+```shell
+
+```
