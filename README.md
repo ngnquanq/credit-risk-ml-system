@@ -404,6 +404,14 @@ Based on my research on reddit, quora, and other platforms about how personal lo
 
 - **Processing time is expected to be within 1 day** from the moment the customer submit their loan application. Some institutions got a longer processing time, could be because they are not fully automated, i.e 70% of the steps are make by the machine, the rest 30% is by loan officiers.  
 
+## Model results
+
+After perform feature engineering, hyper-parameter tuning, the model achieve 80% AUC. 
+
+The reason we choose AUC over Accuracy is because this is a imbalance dataset, choosing accuracy as the mandatory metrics does not reflect the whole situation. 
+
+You can access the leader board here: 
+
 ## Perform load test and stress test
 
 locust -f ./tests/test_load/locustfile_e2e_prediction.py --web-host=0.0.0.0 --web-port=8089 
@@ -889,6 +897,8 @@ For more detail, access the localhost:9055, the username/password is airflow/air
 
 # Performance Bottlenecks and how to overcome it
 
+These section bellow is like a diary of major change in the system. This time we will try to 
+
 ## Record on Oct 25
 - The setup (aim for the baseline):
     - Peak user: 200 concurrent users
@@ -917,7 +927,7 @@ For more detail, access the localhost:9055, the username/password is airflow/air
 ![Load test for 200 conc users w 5 user/sec ramp up for 10 min on Oct 30](./assets/READMEimg/oct-30-load-test.png)
 
 - The results: 
-    - RPS is around the old area, no fail logs, that's good for me, seems like through put still not an error. 
+    - RPS is in the area 80-120, no fail logs, that's good for me, seems like through put still not an error. 
     - p50 is the same, p95 is not good, even though reduce the time. However the response time is faster by 100 sec, which is good, but we can do more. Quite fun fact is that based on the system monitor on my PC, seems like we have max out everything we got (RAM, CPU, even use the swap ram :(, but there are still room for improvement))
 
 - Bottleneck that is detected is mostly come from I/O related operations and resource allocated and model optimization. Here are the problems I found. 
@@ -925,6 +935,21 @@ For more detail, access the localhost:9055, the username/password is airflow/air
     - **Solution**: Config the thread during inference, or we could just move to lightgbm for faster inference.     
     - **Problem 2**: When I check the data flow, it took 6 min for feast materialization, this suggests redis write throughput is saturated. Multiple workers write synchronously to a single Redis instance. 
     - **Solution**: Let try and scale redis horizontally 
+
+## Record on Nov 02
+- The setup (aim for the baseline):
+    - Peak user: 200 concurrent users
+    - Ramp up: 5 user/sec
+    - Duration: 10 min
+
+![Load test for 200 conc users w 5 user/sec ramp up for 10 min on Nov 02](/assets/READMEimg/0111-140rps-good-changebatchsize.png)
+
+- Ther results: 
+    - RPS is in range 120-150, mostly stable arround 140 RPS, and again, no fail logs. 
+    - P50 is the same, p95 is better than before. We do still got the queue up situataion, however this time, instead of 500s, we able to reduce it to only 350s, a big improvement. This happen because of 2 things. 
+        - We implement the micro batch ingestion to redis, the logic is very similar to the spark streaming, it could be either enough 200 request or 300ms. The reason is that during peak workload, i.e we are doing for 500 user at the sametime, the batch 200 may kick in first before the time of the batch, or maybe during normal workload, the 300ms hit first. This approach is to compromise for both normal and heavy workload in case we don't know what will happen first. What make this different from the original logic is that instead of transform every single request to pd.DataFrame format, we could actually get a load of it and transform, then write at the sametime, this approach reduce the round-trip of each write up, therefore more efficient during high traffic workload, the trade-off here is that the throughput may be higher, but this is small, I test it, kafka still handle it normally. 
+
+        - We also do some model optimization in the inference phase, we carefully choose the number of worker, number of thread, number of pod, the resources for that services. However, there are still room for more improvement. Currently we are setting #serving_pods = #partition_in_topic(hc.feature_ready). We could add more pod and implement a load balancer to fan out all these request, therefore maximize the capability of the serving components
 
 
 # Future Development

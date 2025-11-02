@@ -91,6 +91,7 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/scripts/orchestration/plugins:/opt/airflow/plugins
     - ${AIRFLOW_PROJ_DIR:-.}/../../application:/opt/airflow/application
     - ${AIRFLOW_PROJ_DIR:-.}/../../data/complete_feature_dataset.csv:/opt/airflow/data/complete_feature_dataset.csv
+    - ${AIRFLOW_PROJ_DIR:-.}/../../ml_data_mart:/opt/airflow/dbt
     - /var/run/docker.sock:/var/run/docker.sock
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:

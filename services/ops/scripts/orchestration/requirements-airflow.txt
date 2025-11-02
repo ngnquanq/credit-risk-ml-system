@@ -9,3 +9,9 @@ clickhouse-driver
 apache-airflow-providers-apache-spark
 apache-airflow-providers-openlineage>=1.8.0
 apache-airflow-providers-docker
+# sqlalchemy<2.0.0
+# dbt-clickhouse==1.5.0
+# dbt-core==1.5.11
+# dbt-extractor==0.4.1
+dbt-core
+dbt-clickhouse

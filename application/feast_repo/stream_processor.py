@@ -16,16 +16,11 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any, Optional, List
-
-try:
-    from kafka import KafkaConsumer, KafkaProducer
-    from loguru import logger
-    from feast import FeatureStore
-    import pandas as pd
-    import redis
-except ImportError:
-    print("Missing dependencies. Install with: pip install kafka-python loguru 'feast[redis,kafka]' redis")
-    sys.exit(1)
+from kafka import KafkaConsumer, KafkaProducer
+from loguru import logger
+from feast import FeatureStore
+import pandas as pd
+import redis
 
 # Use same environment variables as generate_config.py for consistency
 KAFKA_BROKERS = os.getenv("FEAST_KAFKA_BROKERS", "broker:29092")
@@ -49,8 +44,8 @@ class FeastStreamProcessor:
         self.repo_path = repo_path
 
         # Batching configuration
-        self.batch_size = int(os.getenv("FEAST_BATCH_SIZE", 50))
-        self.batch_timeout_sec = float(os.getenv("FEAST_BATCH_TIMEOUT_MS", 500)) / 1000.0
+        self.batch_size = int(os.getenv("FEAST_BATCH_SIZE", 200))
+        self.batch_timeout_sec = float(os.getenv("FEAST_BATCH_TIMEOUT_MS", 300)) / 1000.0
 
         # Initialize Feast store using existing configuration
         try:

@@ -31,8 +31,8 @@ data:
   FEAST_TS_FIELD_DWH: "ts"
 
   # Micro-batching configuration for Redis writes
-  FEAST_BATCH_SIZE: "50"           # Batch 50 messages before flushing
-  FEAST_BATCH_TIMEOUT_MS: "500"    # Or flush after 500ms timeout
+  FEAST_BATCH_SIZE: "200"          # Batch 200 messages before flushing
+  FEAST_BATCH_TIMEOUT_MS: "300"    # Or flush after 300ms timeout
 
   # Worker thread pool size for parallel message processing
   FEAST_MAX_WORKERS: "20"          # 20 workers per pod for I/O-bound queueing
