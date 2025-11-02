@@ -77,33 +77,33 @@ for deploy in "${DEPLOYMENTS[@]}"; do
 done
 echo ""
 
-# Step 4.5: Restart KServe InferenceService serving pods
-echo "Step 4.5: Restarting KServe InferenceService serving pods..."
-echo "  Auto-detecting InferenceServices..."
+# # Step 4.5: Restart KServe InferenceService serving pods
+# echo "Step 4.5: Restarting KServe InferenceService serving pods..."
+# echo "  Auto-detecting InferenceServices..."
 
-# Get all InferenceServices across all namespaces
-isvc_list=$(kubectl get inferenceservice -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null || echo "")
+# # Get all InferenceServices across all namespaces
+# isvc_list=$(kubectl get inferenceservice -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null || echo "")
 
-if [ -z "$isvc_list" ]; then
-    echo "  ℹ No InferenceServices found"
-else
-    while IFS=' ' read -r ns isvc_name; do
-        if [ -n "$isvc_name" ]; then
-            echo "  Found InferenceService: $ns/$isvc_name"
+# if [ -z "$isvc_list" ]; then
+#     echo "  ℹ No InferenceServices found"
+# else
+#     while IFS=' ' read -r ns isvc_name; do
+#         if [ -n "$isvc_name" ]; then
+#             echo "  Found InferenceService: $ns/$isvc_name"
 
-            # Get predictor deployment for this InferenceService
-            predictor_deploy=$(kubectl get deployment -n "$ns" -l serving.kserve.io/inferenceservice="$isvc_name" -o name 2>/dev/null | head -1)
+#             # Get predictor deployment for this InferenceService
+#             predictor_deploy=$(kubectl get deployment -n "$ns" -l serving.kserve.io/inferenceservice="$isvc_name" -o name 2>/dev/null | head -1)
 
-            if [ -n "$predictor_deploy" ]; then
-                echo "    Restarting predictor deployment..."
-                kubectl rollout restart "$predictor_deploy" -n "$ns" 2>&1 | sed 's/^/      /'
-            else
-                echo "    ⚠ No predictor deployment found"
-            fi
-        fi
-    done <<< "$isvc_list"
-fi
-echo ""
+#             if [ -n "$predictor_deploy" ]; then
+#                 echo "    Restarting predictor deployment..."
+#                 kubectl rollout restart "$predictor_deploy" -n "$ns" 2>&1 | sed 's/^/      /'
+#             else
+#                 echo "    ⚠ No predictor deployment found"
+#             fi
+#         fi
+#     done <<< "$isvc_list"
+# fi
+# echo ""
 
 # Step 5: Fix storage provisioner if needed
 echo "Step 5: Checking storage provisioner..."

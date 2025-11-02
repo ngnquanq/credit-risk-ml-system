@@ -7,11 +7,16 @@ metadata:
     app: credit-risk-scoring
     version: ${VERSION}
   annotations:
-    serving.kserve.io/deploymentMode: RawDeployment
+    autoscaling.knative.dev/target: "100"
+    autoscaling.knative.dev/metric: "concurrency"
+    autoscaling.knative.dev/window: "60s"
+    autoscaling.knative.dev/panic-window-percentage: "10"
 spec:
   predictor:
-    minReplicas: 0
+    minReplicas: 1
     maxReplicas: 4
+    scaleTarget: 100
+    scaleMetric: concurrency
     hostAliases:
       - ip: 192.168.49.1
         hostnames:
@@ -81,7 +86,14 @@ spec:
         resources:
           requests:
             cpu: "1500m"
-            memory: 768Mi
+            memory: 512Mi
           limits:
             cpu: "2000m"
-            memory: 1152Mi
+            memory: 768Mi
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 30
