@@ -1,0 +1,88 @@
+name: Feature Pipeline (dbt + DVC)
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'ml_data_mart/**'
+      - 'services/data/**'
+      - '.github/workflows/features-deploy.yml'
+
+env:
+  PYTHON_VERSION: '3.10'
+  DBT_DIR: ml_data_mart
+
+jobs:
+  lint:
+    name: Lint (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install linters
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 black
+      - name: Lint (flake8)
+        run: flake8 .
+      - name: Lint (black)
+        run: black --check .
+
+  dbt_test:
+    name: dbt deps + test
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dbt (adapter configurable)
+        run: |
+          python -m pip install --upgrade pip
+          # Replace adapter if needed, e.g. dbt-postgres, dbt-clickhouse
+          pip install dbt-core dbt-postgres
+      - name: dbt deps
+        working-directory: ${{ env.DBT_DIR }}
+        env:
+          DBT_PROFILES_DIR: ${{ env.DBT_DIR }}/profiles
+        run: dbt deps
+      - name: dbt test
+        working-directory: ${{ env.DBT_DIR }}
+        env:
+          DBT_PROFILES_DIR: ${{ env.DBT_DIR }}/profiles
+          # Add warehouse secrets as needed (e.g., DB_HOST, DB_USER, DB_PASS...)
+        run: dbt test --profiles-dir ${{ env.DBT_DIR }}/profiles
+
+  dvc_push:
+    name: DVC Push (if configured)
+    runs-on: ubuntu-latest
+    needs: dbt_test
+    if: ${{ hashFiles('dvc.yaml', '.dvc/config', '**/*.dvc') != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install DVC
+        run: |
+          python -m pip install --upgrade pip
+          pip install "dvc[s3]" || pip install dvc
+      - name: Configure DVC remote (example S3)
+        if: ${{ secrets.DVC_REMOTE_URL != '' }}
+        env:
+          DVC_REMOTE_URL: ${{ secrets.DVC_REMOTE_URL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+        run: |
+          dvc remote modify origin endpointurl "$DVC_REMOTE_URL" || true
+      - name: dvc status & push
+        run: |
+          dvc status || true
+          dvc push
