@@ -1,0 +1,48 @@
+# Bandit Security Configuration
+# Static Application Security Testing (SAST) for Python
+# https://bandit.readthedocs.io/
+#
+# Configuration: Test EVERYTHING, Report MEDIUM and HIGH severity only
+# No tests are skipped - comprehensive security analysis
+
+# Run ALL available security tests (no exclusions)
+# This ensures maximum coverage of potential security issues
+tests: []  # Empty list = run all tests
+
+# Directories to exclude from scanning (non-code artifacts only)
+exclude_dirs:
+  - /venv
+  - /.venv
+  - /env
+  - /.git
+  - /__pycache__
+  - /node_modules
+  - /ml_data_mart/dbt_packages
+  - /ml_data_mart/target
+  - /security-reports
+
+# NO TESTS ARE SKIPPED
+# All security checks will run, including:
+# - B104 (hardcoded_bind_all_interfaces)
+# - B101 (assert_used)
+# - B608 (hardcoded_sql_expressions)
+# Everything will be tested and reported if it meets severity threshold
+skips: []
+
+# Severity threshold: Report MEDIUM and above
+# Options: low, medium, high
+# MEDIUM catches: weak crypto, insecure configs, temp file issues
+# HIGH catches: code injection, hardcoded secrets, SQL injection
+severity: medium
+
+# Confidence threshold: Report ALL confidence levels
+# Options: low, medium, high
+# LOW confidence = include potential issues that need manual review
+confidence: low
+
+# Output configuration
+# Show 5 lines of code context for each finding
+max_lines: 5
+
+# Additional options
+aggregate: file  # Group results by file for easier review

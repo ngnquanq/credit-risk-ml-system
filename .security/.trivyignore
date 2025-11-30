@@ -1,0 +1,10 @@
+# Trivy Ignore File
+# Use this file to suppress specific CVEs with justification
+# Format: CVE-ID [expiration date] [reason]
+#
+# Examples:
+# CVE-2024-12345  # False positive - not applicable to our usage
+# CVE-2024-67890 2025-12-31  # Accepted risk - mitigated by network controls
+
+# Add specific CVEs to ignore below with clear justification:
+

@@ -1,0 +1,37 @@
+# Trivy Security Scanner Configuration
+# Multi-purpose vulnerability scanner for containers, filesystems, and IaC
+# https://trivy.dev/
+
+# Vulnerability scanning configuration
+vulnerability:
+  type:
+    - os        # Operating system packages
+    - library   # Application dependencies (Python, npm, etc.)
+
+# Scan for HIGH and CRITICAL severity only
+severity:
+  - HIGH
+  - CRITICAL
+
+# Security scanners to enable
+scanners:
+  - vuln      # Vulnerability scanning
+  - secret    # Secret detection
+  - config    # Misconfiguration detection
+
+# Database configuration
+db:
+  skip-update: false  # Always update vulnerability database
+  repository: "ghcr.io/aquasecurity/trivy-db"
+
+# Skip vulnerabilities with no known fix
+ignore-unfixed: false  # Report all vulnerabilities (even without fixes)
+
+# Timeout for scanning (seconds)
+timeout: 5m0s
+
+# Exit code configuration
+exit-code: 1  # Fail with exit code 1 if vulnerabilities found
+
+# Output configuration
+format: table  # Options: table, json, sarif, cyclonedx, spdx, github
