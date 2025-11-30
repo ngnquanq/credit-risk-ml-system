@@ -1,0 +1,99 @@
+name: Scoring Service CI/CD
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'application/scoring/**'
+      - 'models/**'
+      - 'services/ml/docker-compose.serving.yml'
+      - '.github/workflows/scoring-service.yml'
+
+env:
+  PYTHON_VERSION: '3.10'
+  SERVICE_DIR: application/scoring
+  BENTO_NAME: credit_risk_scoring
+
+jobs:
+  lint_test:
+    name: Lint and Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 black pytest "bentoml>=1.1.10" fastapi
+      - name: Lint (flake8)
+        run: flake8 .
+      - name: Lint (black)
+        run: black --check .
+      - name: Run pytest (if tests exist)
+        if: ${{ hashFiles('tests/**/*.py') != '' }}
+        run: pytest -q
+
+  build_container:
+    name: Build Bento and Containerize
+    runs-on: ubuntu-latest
+    needs: lint_test
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install BentoML
+        run: |
+          python -m pip install --upgrade pip
+          pip install "bentoml>=1.1.10" fastapi
+      - name: Build Bento (tag with SHA)
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: |
+          bentoml build --version "${GITHUB_SHA}"
+      - name: Log in to registry
+        env:
+          REGISTRY: ${{ secrets.REGISTRY }}
+          REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+        run: echo "$REGISTRY_TOKEN" | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
+      - name: Containerize Bento and Push
+        working-directory: ${{ env.SERVICE_DIR }}
+        env:
+          REGISTRY: ${{ secrets.REGISTRY }}
+        run: |
+          IMAGE_TAG="$REGISTRY/homecredit/credit-risk-scoring:${GITHUB_SHA}"
+          bentoml containerize "${{ env.BENTO_NAME }}:${GITHUB_SHA}" -t "$IMAGE_TAG"
+          docker push "$IMAGE_TAG"
+      - name: Export image tag
+        id: meta
+        run: echo "image=${{ secrets.REGISTRY }}/homecredit/credit-risk-scoring:${GITHUB_SHA}" >> $GITHUB_OUTPUT
+
+  deploy_gce:
+    name: Deploy to GCE VM
+    runs-on: ubuntu-latest
+    needs: build_container
+    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+    steps:
+      - name: SSH into VM and deploy (Docker Compose)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.GCE_HOST }}
+          username: ${{ secrets.GCE_USER }}
+          key: ${{ secrets.GCE_SSH_KEY }}
+          port: ${{ secrets.GCE_SSH_PORT || 22 }}
+          script: |
+            set -euo pipefail
+            IMAGE="${{ secrets.REGISTRY }}/homecredit/credit-risk-scoring:${GITHUB_SHA}"
+            echo "Pulling $IMAGE"
+            docker pull "$IMAGE"
+            # Example: update compose file or restart container
+            # Assumes a compose file referencing the image via an env var BENTO_IMAGE
+            export BENTO_IMAGE="$IMAGE"
+            cd /opt/credit-risk && docker compose up -d
+            docker image prune -f

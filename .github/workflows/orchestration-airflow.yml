@@ -1,0 +1,32 @@
+name: Orchestration Airflow Image & DAG Verify
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'services/ops/scripts/orchestration/**'
+      - 'services/ops/docker-compose.orchestration.yml'
+      - 'application/spark/**'
+      - '.github/workflows/orchestration-airflow.yml'
+
+jobs:
+  build_and_verify:
+    name: Build Airflow (orchestration) and verify DAGs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build orchestration Airflow image
+        run: |
+          docker build -t hc-airflow-orchestration:ci ./services/ops/scripts/orchestration
+      - name: Verify SparkSubmitOperator available
+        run: |
+          docker run --rm hc-airflow-orchestration:ci \
+            python -c "from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator; print('SparkSubmitOperator OK')"
+      - name: Validate DAG parsing
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/services/ops/scripts/orchestration/dags:/opt/airflow/dags" \
+            -v "$GITHUB_WORKSPACE/application:/opt/airflow/application" \
+            hc-airflow-orchestration:ci \
+            python -c "from airflow.models.dagbag import DagBag; b=DagBag('/opt/airflow/dags', include_examples=False); print('Import errors:', b.import_errors); import sys; sys.exit(1 if b.import_errors else 0)"
