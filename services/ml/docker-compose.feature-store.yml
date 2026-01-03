@@ -1,3 +1,6 @@
+# ⚠️ DEPRECATED: This Docker Compose file is superseded by Kubernetes deployments
+# Use the K8s deployments in services/ml/k8s/feature-store/ instead
+# This file is kept for reference/local development only
 services:
   # One-shot: apply Feast repo definitions (entities + StreamFeatureViews)
   feast-apply:

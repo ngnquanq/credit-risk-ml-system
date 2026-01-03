@@ -1,3 +1,6 @@
+# ⚠️ DEPRECATED: This Docker Compose file is superseded by Kubernetes deployments
+# Use the K8s deployments in services/ml/k8s/model-serving/ and services/ml/k8s/kserve/ instead
+# This file is kept for reference/local development only
 services:
 
   # BentoML Model Serving (with Feast integration)

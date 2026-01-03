@@ -1,402 +1,92 @@
-# Business Objective
+# Business Objectives
+## What this delivers (business value)
+- End-to-end credit risk decisioning that targets lower default rates, higher approval accuracy, and risk-adjusted growth. This application is 100% fully automated decision.
+- Automated model promotion and serving so business teams can ship approved models without manual ops.
+- Feature-store-backed, low-latency scoring (Kafka + Redis + KServe) designed for ~100 RPS and less than 10 min end-to-end SLA.
 
-**Improve key lending KPIs via predictive risk modeling:**
 
-- **Default rate reduction** – lower the proportion of loan applicants who default
-- **Loan approval efficiency** – increase approvals for low-risk borrowers
-- **Loss mitigation** – reduce financial losses from write-offs
-- **Customer retention** – minimize rejection of good customers and reduce churn
-- **Risk-adjusted revenue growth** – enable differentiated pricing for different risk tiers
+## System at a glance
+- **Workloads**: Real-time scoring, batch training, CDC-based feature streaming, dashboards.
+- **Stacks**: Docker Compose for data platform; Minikube/K8s for ML platform (KServe, Kubeflow, Feast, MLflow).
+- **Data flow**: Postgres → Debezium/Kafka → Flink → Redis/ClickHouse → KServe/BentoML → Kafka.
+- **Artifacts**: Models tracked in MLflow; bundles built with BentoML; features governed by Feast registry.
 
 ## About the application
 This application is for lending money, fully automated decision, i.e the machine will do all the calculation and decide whether you are worthy with the money or not.
 
-Some of the aggrement about the application:
-- SLA approximately 3 minuites (180 second)
-- Fully automated decision making
-- Resilient to external latency and failures via retries and DLQ
-
-Some of the assumptions about the external system:
-- SLA as explained by the credit bureau is under 1 min. 
-- Availability is >= 99%/monthly 
-## Situation
-
-Alpha Lending processes thousands of loan applications monthly. A large share of applicants have limited or no formal credit history. This creates two challenges:
-
-- **Revenue loss**: Many low-risk customers are wrongly rejected due to insufficient information.  
-- **Credit losses**: Some high-risk applicants are incorrectly approved, leading to higher default rates.  
-
-The company has diverse data sources—application forms, bureau records, past loan performance, credit card balances, and repayment histories—but lacks a unified, data-driven solution to leverage them for accurate decision-making.
-
-## Task
-
-Design and implement a **machine learning solution** that predicts the probability of default for each applicant.  
-The solution must directly support the business objective by:
-
-- Reducing default rates among approved loans  
-- Increasing approvals of creditworthy applicants  
-- Providing interpretable outputs for decision-makers  
-- Allowing integration into the existing loan approval pipeline  
-
-## Action
-
-### Data Science Team
-- **Data integration**: Consolidate application, bureau, previous credit, and repayment datasets into a single analytical view.  
-- **Feature engineering**: Derive risk indicators (e.g., debt-to-income ratios, missed payment counts, external risk scores).  
-- **Model development**: Train and validate predictive models (e.g., gradient boosting) with AUC as primary metrics
-- **Create training pipeline**: Define training pipeline and registry model and its artifact to model registry
-
-### MLE Team
-- **Build automation pipeline**: Automation pipeline from when the model is approved to go to production. 
-- **Ensure feature availability**: Not all features use to train are reflect on production, the team make sure it's there
-- **Troubleshoot bottleneck**: Track for queue up issues, i,e message produce too fast will end up in queue => reduce UX :(
-
-### Business Team
-- **Define acceptance thresholds**: Work with DS team to set default-probability cutoffs that balance growth vs. risk.  (i.e 0.3 in this case)
-- **Policy alignment**: Adapt credit approval rules and pricing strategies based on model outputs.  
-- **Operational integration**: Train loan officers on interpreting model results and using them in decision-making.  
-- **Monitoring & feedback**: Establish KPIs to continuously track impact (default rates, approval rates, revenue changes).  
-
-## Result
-
-The application is now handle these things:
-- **Can handle 500 RPS** while still maintain SLA (the result is within the application day)
-- **High performance ML model** with 70% AUC 
-- **Fully automation** from bringing model in staging to production, also automation 100%, i.e credit officer no need to define by hand. 
-- **Easy to scale**, by far there is no bottle neck in the ML platform, however a majro scale up can be work with the data platform, i.e indexing for faster retrieval, use multi-thread approach for kafka etc,. to name a few. 
-
-
-But still, there are few things that it lacks of. We will discuss this later at the end. 
-
-# Dataset
-
-This dataset is from kaggle, provided by home credit. You can download the data here via this [link](https://www.kaggle.com/competitions/home-credit-default-risk).
-
-The dataset is very rich, around 3GB in total (you can find another version that is bigger also from home credit on kaggle as well). 
-
-There will be 2 main sources of data in my opinion:
-
-1. External data: Those that you can get from external sources, i.e CIC or any third party that's already calculate your credit score. 
-2. Internal data: Including your previous loan, your spending behavior, etc ...
-
-![Data Model](/assets/READMEimg/datamodeling.png)
-
-For a more in-dept detail of this dataset, I suggest you go and take a look of it. It took me a while to truly grasp what is the dataset about and how these are related to each other. 
-
-**Note**: When you download the data from Kaggle, it also have a data dictionary file as well. Make sure to take a look at this to have a high level overview of what these files are doing and the content of it. 
-
-# Repository Structure
-
-
-
-# High-level System Architecture 
-## Machine Spec
-### Minimum Recommended Specifications
-The following specifications are based on the development/testing environment:
-
-**Hardware:**
-- **CPU**: 12+ cores (24 threads) - AMD Ryzen 9 9900X or equivalent
-- **RAM**: Around 32 GB (for running full stack with K8s + Docker Compose) (more is better tho)
-
-**Software:**
-- **OS**: Ubuntu 24.04 LTS or compatible Linux distribution
-- **Kernel**: 6.14+ (for Docker and K8s compatibility)
-- **Docker**: 24.0+
-- **Minikube**: 1.32+
-- **Kubernetes**: 1.28+
-
-### Resource Allocation for Services
-When running the full stack:
-- **Docker containers**: ~20-25 GB RAM usage
-- **Minikube cluster**: 20 GB RAM max 
-
-**Note**: For production deployments, scale resources based on data volume and request
-throughput. Later on we will have some load test to see if our application can handle things at the same time or not. Therefore strong machine can benefit a little bit. 
-
-## Overall Architecture
-Here is what the system architecture look like on a high level. 
-![System Architecture](/assets/READMEimg/systemarch.png)
-
-More precisely: 
-- In this system, we use Lambda Architecture (combining batch processing with real-time streaming) with Medallion Architecture as our data design pattern 
-- There are 2 distinct environment in this system: Docker compose (mostly for data platform) and Kubernetes (mostly for ML platform). 
-- This is a data driven design that aim to help approve loan in near-real time (less than 5 sec) with high sla. 
-
-### Architecture Layers
-
-#### 1. **Application Layer** (Docker Compose)
-- **User-facing services**: NGINX → Streamlit frontends → FastAPI backends
-- **Operational database**: PostgreSQL with PgBouncer for connection pooling
-- **File storage**: MinIO for customer documents and model artifacts
-
-#### 2. **Event-Driven Streaming** (Kafka Ecosystem)
-- **CDC pipeline**: Debezium captures PostgreSQL changes → Kafka topics
-- **Stream processing**: Apache Flink for real-time feature computation
-- **Schema management**: Confluent Schema Registry for data contracts
-
-#### 3. **Data Platform** (Batch & Analytical)
-- **Operational database**: Postgres and MinIO (Bronze)
-- **Data warehouse** and **Data mart**: ClickHouse (silver, gold)
-- **Batch processing**: Apache Spark for large-scale feature engineering, model training.
-- **Orchestration**: Apache Airflow scheduling dbt transformations and ETL jobs
-- **Visualization**: Apache Superset for BI developer and DA to create dashboard. 
-- **Feature Storage**: Using Redis as online store for fast data retrieval.
-
-#### 4. **Feature Store** (Feast)
-- **Offline store**: Historical features from ClickHouse (training datasets)
-- **Online store**: Real-time features in Redis (sub-100ms serving)
-- **Materialization**: Automated sync Kafka → Redis for fresh features
-
-#### 5. **ML Training Platform** (Kubernetes)
-- **Pipeline orchestration**: Kubeflow Pipelines for reproducible experiments
-- **Distributed training**: Ray cluster for hyperparameter tuning
-- **Model registry**: MLflow tracking experiments, versioning models
-- **Automation**: MLflow watcher triggers builds on Production promotions
-
-#### 6. **ML Serving Platform** (Kubernetes + KServe)
-- **Model packaging**: BentoML bundles (model + Feast metadata)
-- **Deployment**: KServe InferenceServices with canary/blue-green strategies
-- **Validation**: Startup checks ensure feature registry alignment
-
-#### 7. **Observability Layer** (ELK + Promethus-Grafana + Jaeger)
-- **Logging**: Filebeat for log collection, Elastic Search for storage, Kibana for visualization. 
-- **Monitoring**: Cadvisor for metrics collection (container-level resources), Prometheus for scrapes and store time-series metrics. Grafana for visualize with prebuilt dashboards. 
-- **Tracing**: Deploy Jaeger with all-in-one mode, we will have the collector to store spans in memory and an UI to visualize this (to avoid overhead, we just sampling 10% of all the requests). 
-
-### Key Design Patterns
-
-1. **Event-Driven Architecture**: CDC + Kafka ensures eventual consistency across
-systems
-2. **Hybrid Deployment**: Docker Compose (data platform) + Kubernetes (ML platform)
-3. **Feature-Model Contract**: `feast_metadata.yaml` prevents train-serve skew
-4. **Automated MLOps**: Watchers + Jobs eliminate manual deployment steps
-5. **Separation of Concerns**: Distinct networks/namespaces for security and isolation
-6. **Lambda Architecture**: Combines batch processing (Spark/ClickHouse) with real-time
-streaming (Kafka/Flink) for balanced accuracy and latency
-7. **Medallion Architecture**: 3-tier data refinement (Bronze: raw operational data;
-Silver: validated warehouse; Gold: business-ready data marts)
-
-## Data Flow for Serving Pods
-Here is how the data flow from the moment a user submit a loan request to when the decision of that loan is made. 
-
-![Data Flow](/assets/READMEimg/dataflow.png)
-
-For a more detail version, it will be this: 
-
-1. The user submit a loan request
-2. All the information about the loan will go to the operational database (postgres)
-3. CDC that connect operational database (postgres) and event bus (kafka) will capture this new request, create a message and push into the event bus under the topic `hc.applications.public.loan_applications` with the `KEY=SK_ID_CURR`
-4. Given that new message, here are what gonna happen at the same time: 
-    - A Flink job consume that message and perform PII masking. This Flink job will push into the event bus under the topic `hc.application_features`
-    - A python job will query from the external sources (bureau data), write the data to the topic `hc.application_ext_raw`, another Flink job will consume message from topic, do some aggregation and then produce to the topic `hc.application_ext`. The reason we split into 2 topic is because later on, we will sync the original data from external sources into our data warehouse for model training so that our model get external data as well (hint: external data contribute a lot to the model's performance)
-    - Another python job will query from the data mart (internal data), write the data to the topic `hc.application_dwh`.
-5. All of those 3 topics that I mentioned be consume by a python service called feast consumer. Since this is just concatenate these fields together, a simple python script can do this. The combined data will be pushed into an online storage (redis) for the serving pod to use. 
-6. During the aggregation, the serving pod (or scoring worker) will consume the raw event, and then query from redis to get the features it need.
-7. After inference, the serving pod will write back to kafka under the topic `hc.scoring`. In future, there will be other services that consume this topic, it could be the notification services or something like that. 
-
-**Note 1**: It is absolutely the case that the scoring worker will consume the message before the data is ready in feast redis. Therefore we do have a retry strategy for this, that is we will try 15 times, the time gap between each time is 300ms. This will ensure that eventually, the model can perform prediction. 
-
-**Note 2**: It is also the case that the customer has no external data because they simply not lend money before or something like that. Some customer also doesn't have the internal data because they are new customer. The way we handle these situations is by replace the missing value with 0 or +inf or something like that, this is truly depends on the characteristics of the data. 
-
-**Note 3**: Previously, instead of flink, I try with pure python code, and it's very slow, hence not utilize my machine capacity (very sad tho). So I try and transfer those job onto flink. Everything run faster and smoother, especially for task related to CPU computation. Those with high I/O rate can just use async using python code. 
-
-## From Training to Serving Pipeline
-
-Here is what the training and serving pattern look like:
-
-![Training-Serving pattern](/assets/READMEimg/train2serve.png)
-
-For this to work, every component must be ready before new model are registered. 
-
-In short, here are the scope split by role:
-
-- Data Scientist:
-  1. Perform feature engineering.
-  2. Perform modeling. 
-  3. Perform hyper-parameter tuning and finalize the training
-  4. Keep track of everything and then push to mlflow (model-registry namespace) these information:
-      - The model (weights and its metadata and related things like the encoder etc)
-      - The feature list (feature that was used to train the model)
-  5. Inform the auditter that the model has been submit
-
-- Auditter:
-  1. Validate the model with their own data or against any business rule that they hold.
-  2. Promote the model to "Production" (if the model pass the test) 
-
-- The mlflow-watcher (this is a cluster deployment pod):
-  1. A model promotion watcher (poll from mlflow every 10 sec) will detect if there is a change to "Production". 
-  2. Trigger a build job that will do the following things: 
-      1. Clone the model serving code. 
-      2. Create a bentoml bundle (contain the model and the feature metadata). 
-      3. Load those bundle into an object storage in model-serving namespace.
-
-- The serving-watcher (this is a cluster deployment pod):
-  1. A deployment that poll into the object storage every 10 sec and detect if there is a new bundle appear. 
-  2. If there is new bundle detected, it will start to deploy an InferenceService (kserve custom resource definition) using that bundle. 
-
-- The serving pod (this is an InferenceService):
-  1. During warm-up, it will check to see if the feature registered in feast and the feature that was used to train the model are the same. if not the same, it won't deploy, hence it can't receive request.
-  2. If all feature are there, it will deploy, consume predict request from kafka and query for data from online store (redis).
-
-**Notice**: During feast deployment, we will sync the feast registry into the object storage in model-serving namespace. The reason why we are doing this instead of using PVC is for easier to audit (each InferenceService version got their own feature registry). 
-
-## Cross-platform netwokring
-Previously when doing this project, I use 100% docker compose, therefore there is no problem with networking. But solely rely on docker is not good especially when serving machine learning model. I decide to use kubernetes for the ML workload. Here is when the cross-platform networking challenge occurs. More specifically: 
-
-- Docker: bridge networks 
-- Kubernetes: CNI
-
-During the development, I try to connect the docker network with minikube network, this work, but not best practice. Therefore I decide to pivot things, using socat as a TCP relay/proxy to bridge docker and k8s traffic. At the same time, I also use MetalLB to provide LoadBalancer IP for k8s services so they can be reached from outside the cluster. 
-
-- Socat: communicate from Docker to Kubernetes
-- MetalLB: communicate from Kubernetes to Docker
-
-On a high level, the networking will be like this: 
-
-![Networking Architecture](./assets/READMEimg/networking.png)
-
-However, the current setup won't work on cloud, because of these reason.
-
-**1. Minikube-specific dependencies:**
-    - `host.minikube.internal` hostname doesn't exist in EKS/GKE/AKS
-    - Minikube tunnel and local networking assumptions fail in cloud VPCs
-
-**2. Docker Compose limitations:**
-    - No high availability or fault tolerance
-    - Single-node deployment (not distributed)
-    - Incompatible with cloud networking (VPC, security groups, subnets)
-
-**3. socat networking:**
-    - Relies on host network mode (problematic in cloud container services)
-    - Doesn't work across VPC boundaries or availability zones
-    - Single point of failure
-
-
-**Note**: But here are pattern you can try if you want to fully deploy it on a dedicate, functional infrastructure:
-1. Migrate everything to k8s (GKE on GCP or EKS on Azure, etc):
-    - Pros: 
-        - Networking more simple (can just use DNS, no need socat or metalLB hacks, can even try Istio for advanced routing).
-        - Cloud-native, portable.
-        - Easier to mange, build CI/CD pipeline. 
-
-    - Cons: 
-        - Refactoring all the docker compose (tired work) into k8s manifest or helm charts. 
-        - More complex initial setup with high learning curve. 
-
-2. Keep docker compose and kubernetes, but with VPC peering:
-    - Pros: 
-        - Minimal code change
-        - Can reuse existing docker compose config
-    - Cons:
-        - More complex networking (VPC peering, Sec group, NAT gateway, etc).
-        - Manage a lot of things. 
-        - Data Platform build with docker compoes is hard to scale. 
-
-3. Hybrid with managed services from cloud providers:
-    - Pros:
-        - Keep logic as it is, simpler networking. 
-        - Cloud-native with auto-scaling from cloud provider. 
-        - More reliable with built-in monitoring. 
-    - Cons: 
-        - Vendor lock for sure 
-        - Very expensive
-
-## Logging and Monitoring Flow
-Here is what the logging and monitoring flow look like. 
-
-![Logging and Monitoring](/assets/READMEimg/LoggingandMonitoring.png)
-
-In depth, here is what it look like:
-
-- For logging: 
-
-    1. For docker components, we have docker daemon to capture any stderr or stdout. These logs will be stored in JSON format at `/var/lib/docker/container/ ... /*.log`. Filebeat container has volume mount to these folder, it also uses autodiscovery to find all containers in hc-network and tails each container's log file. 
-
-
-## Current Status: Development & POC Environment
-
-This setup is designed for:
-- Local development and testing
-- ML experimentation and model training
-- Proof-of-concept demonstrations
-- Learning and understanding the full ML platform architecture
-
-## Future Improvement: Production Deployment
-
-The **application code, ML pipelines, and data engineering logic** are production-ready.
-
-However, the **infrastructure deployment** requires modifications for production use:
-
-### For On-Premise Production
-
-To deploy this system in an on-premise production environment, you'll need:
-
-**Infrastructure Upgrades:**
-- Replace Minikube with production Kubernetes cluster (kubeadm, k3s, OpenShift, or Rancher)
-- Migrate Docker Compose services to Kubernetes operators:
-  - Kafka → Strimzi Operator (3+ broker cluster with HA)
-  - PostgreSQL → CloudNativePG or Zalando Postgres Operator (with replication)
-  - Redis → Redis Operator (Sentinel or Cluster mode)
-  - ClickHouse → ClickHouse Operator
-  - Airflow → Apache Airflow on Kubernetes (Helm chart)
-
-**High Availability & Reliability:**
-- Multi-node Kubernetes cluster (3+ control plane nodes, multiple worker nodes)
-- Service replication and anti-affinity rules
-- Network-attached storage (NFS, Ceph, Longhorn) for persistent volumes
-- Automated backup and disaster recovery procedures
-
-**Security Hardening:**
-- TLS/mTLS encryption for all service communication
-- Kubernetes Network Policies to restrict pod-to-pod traffic
-- Secrets management (HashiCorp Vault, Sealed Secrets)
-- RBAC configuration for Kubernetes access control
-- Container image scanning and vulnerability management
-
-**Networking:**
-- Replace socat with production-grade solutions:
-  - Option 1: Deploy all services in Kubernetes (eliminates Docker↔K8s networking)
-  - Option 2: Use MetalLB in BGP mode with production-grade routers
-  - Option 3: External load balancers (HAProxy, F5, hardware LB)
-- Ingress controllers for external API access
-- Service mesh (optional: Istio, Linkerd) for advanced traffic management
-
-### For Cloud Production (AWS/Azure/GCP)
-
-The current Docker Compose + Minikube architecture is **not suitable for cloud deployment**. For cloud environments, you'll need to redesign the infrastructure:
-
-**Kubernetes Migration:**
-- Use managed Kubernetes services (Amazon EKS, Azure AKS, Google GKE)
-- ML platform components (Kubeflow, MLflow, KServe, Feast) deploy to managed K8s
-- Remove Minikube-specific configurations
-
-**Replace Docker Compose with Cloud-Native Services:**
-- **Kafka** → Amazon MSK, Azure Event Hubs, Google Cloud Pub/Sub, or Confluent Cloud
-- **PostgreSQL** → Amazon RDS, Azure Database for PostgreSQL, Google Cloud SQL
-- **Redis** → Amazon ElastiCache, Azure Cache for Redis, Google Cloud Memorystore
-- **ClickHouse** → ClickHouse Cloud or self-managed on EC2/GCE/Azure VMs
-- **MinIO** → Amazon S3, Azure Blob Storage, Google Cloud Storage (native)
-- **Airflow** → Amazon MWAA, Google Cloud Composer, or Astronomer
-
-**Networking Simplification:**
-- All services in same VPC/VNet
-- Kubernetes Service discovery for internal communication (no socat/MetalLB hacks needed)
-- Cloud-native load balancers (ALB/NLB, Azure Load Balancer, GCP Load Balancer)
-- API Gateway for external access
-- IAM roles and service accounts for authentication
-- Private endpoints for managed services (no public internet exposure)
-
-**Cloud-Native Features:**
-- Auto-scaling (horizontal pod autoscaling, cluster autoscaling)
-- Managed backups and point-in-time recovery
-- Multi-region deployment for disaster recovery
-- Cloud monitoring integration (CloudWatch, Azure Monitor, Cloud Monitoring)
-- Infrastructure as Code (Terraform, CloudFormation, Pulumi)
-
-
-# Results of Current Architecture
-
-This section documents the performance benchmarks and capabilities of the production ML platform, demonstrating the system's ability to handle real-world credit risk assessment workloads at scale.
+## Capabilities & components (where to look)
+- **API & apps**: `application/api`, Streamlit UIs, FastAPI services, NGINX entry.
+- **Data platform (Compose)**: Postgres + Debezium, Kafka + Schema Registry, ClickHouse, MinIO, Airflow, Superset, Redis.
+- **Feature store**: Feast repo `application/feast_repo`, online Redis, offline ClickHouse, Flink materialization.
+- **Training**: Kubeflow/Ray jobs, MLflow registry, training notebooks/pipelines under `application/training` and `application/scoring`.
+- **Serving**: BentoML bundles, KServe InferenceServices, serving-watcher + mlflow-watcher in `services/ml/k8s/kserve`.
+- **Observability**: ELK, Prometheus/Grafana, Jaeger; configs under `services/monitoring` and `services/ops`.
+- **Ops scripts**: Helper scripts in `services/ops`; Make targets in `Makefile`.
+
+## How to run (concise)
+Prereqs: Docker, kubectl, Minikube 1.32+, Helm 3, 32 GB RAM at least if running full stack locally.
+
+1) **Data platform (Docker Compose)**  
+```bash
+make create-network
+make up-data           # Postgres, Debezium, Kafka, ClickHouse, MinIO, etc.
+make up-monitoring     # ELK/Prometheus/Grafana/Jaeger
+```
+
+2) **ML platform (Minikube/K8s)**  
+```bash
+make k8s-up            # start minikube profile
+make k8s-ml-platform   # deploy Feast, MLflow, KServe, serving/registry components
+```
+
+3) **Model flow**  
+- Train & log to MLflow → watcher builds Bento bundle → bundle stored in MinIO → serving-watcher deploys KServe InferenceService → scoring pods consume Kafka and use Redis features.
+
+See inline notes in `Makefile` and `services/ml/k8s/*` for environment-specific flags.
+
+## Operations (adhoc scripts for fast clean up)
+- **Restart after minikube IP change**: `services/ops/restart-k8s-after-minikube.sh`
+- **Rebuild serving after model promotion**: Ensure mlflow-watcher and serving-watcher are running and reapply `isvc-template.yaml` if concurrency/replicas change.
+- **Data backfill/materialize**: Feast materialization jobs (Flink to Redis); check Feast repo for feature definitions.
+- **Clean start**: `docker system prune -a --volumes` and `minikube delete -p mlops` (already scripted in ops notes).
+
+## Troubleshooting (quick pointers)
+- **Kafka connectivity**: Ensure `broker:29092` reachable; if using socat gateway, restart `k8s_gateway`; check `services/ml/k8s/kserve/kafka-broker-service.yaml`.
+- **Feast/feature drift**: Serving pod checks `feast_metadata.yaml`; redeploy registry or refresh online store if mismatch.
+- **KServe cold start**: Startup probe on port 3000; minReplicas=1; autoscaling via Knative concurrency (target 100).
+- **Cross-network**: Socat bridges Docker↔K8s; works for Minikube, replace with load balancer or VPC peering in production.
+
+## Testing & quality
+- Unit/integration test scaffolding under `tests/`; see `tests/README.md` for status and planned coverage.
+- Load tests (Locust) were removed from `feature/ml-model-v1`; reintroduce via `tests/test_load` if needed.
+
+## Roadmap / known gaps
+- Migrate remaining Docker Compose services to Kubernetes/Helm for HA and also make ease of communication betwene services.
+- Replace socat/Minikube-specific networking with cloud/K8s-native ingress and load balancers.
+- Harden security: TLS/mTLS, secrets management, network policies, image scanning.
+- Expand automated tests (integration with real DB/Kafka, E2E, load).
+- Production-grade autoscaling and multi-AZ Kafka/Redis/Postgres replacements.
+
+## Dataset (source)
+- Home Credit Default Risk (Kaggle, ~3 GB). External (bureau) + internal (loan history) data. See Kaggle data dictionary for field meanings. Diagram: `assets/READMEimg/datamodeling.png`.
+
+## Repository map (quick links)
+- Apps/API: `application/api`, `application/services`
+- Feature store: `application/feast_repo`
+- Training/scoring: `application/training`, `application/scoring`
+- K8s manifests: `services/ml/k8s/` (model-serving, registry, kserve, feature-store)
+- Compose stacks: `services/data`, `services/monitoring`, `services/ops`
+- CI/automation: `Makefile`, scripts in `services/ops`
+
+## Deep dives (long-form)
+- Architecture diagrams: `assets/READMEimg/*`
+- Feast repo details: `application/feast_repo/`
+- KServe templates and watchers: `services/ml/k8s/kserve/`
+- Ops scripts: `services/ops/`
+- Terraform (experimental): `infrastructure/terraform/README.md`
+
+## Current status
+- Built for local/dev & POC; production use requires infra substitutions (managed Kafka, Postgres, Redis; K8s ingress/load balancer; HA storage; security hardening).
 
 ## Assumptions
 
@@ -602,9 +292,19 @@ minikube start -p mlops --kubernetes-version=v1.28.3 --driver=docker \
 
 ### Create socat layer
 
+Socat is used as a TCP relay/proxy to bridge Docker Compose and Kubernetes networking. It forwards Kafka traffic from the Docker network to Kubernetes pods.
+
+**How it works:**
+- Socat runs in Docker Compose and listens on `host:39092`
+- It forwards traffic to `kafka_broker:29092` in the Docker network
+- Kubernetes pods access Kafka via `host.minikube.internal:39092`
+- The `kafka-broker-service.yaml` (deployed in KServe setup) provides DNS resolution for pods
+
 ```shell
 docker compose -f services/ops/docker-compose.gateway.yml up -d
 ```
+
+**Note**: This is a Minikube-specific solution. For production cloud deployments, use VPC peering or deploy all services in Kubernetes to eliminate the need for socat.
 
 ### Create training data storage
 
@@ -723,6 +423,10 @@ helm install kserve . -n kserve
 
 # 4. Deploy bento-builder config map
 kubectl apply -f services/ml/k8s/kserve/bento-builder/configmap.yaml
+
+# 5. Configure Kafka DNS resolution for scoring pods
+# This service maps 'broker:29092' DNS name to the socat gateway
+kubectl apply -f services/ml/k8s/kserve/kafka-broker-service.yaml
 ```
 ### Create mlflow-watcher
 
@@ -788,14 +492,20 @@ cd services/ml/k8s/model-serving
 cd bundle-storage
 helm install serving-minio . -n model-serving -f values.internal.yaml
 
-# Deploy Docker registry (for model images)
+# Deploy Docker registry (OPTIONAL - for airgapped environments)
+# Note: By default, the watcher pushes images to DockerHub (docker.io/ngnquanq/credit-risk-scoring)
+# Only deploy this if you need an in-cluster registry for airgapped environments
 cd ..
-kubectl apply -f registry-deployment.yaml
+# kubectl apply -f registry-deployment.yaml  # Uncomment if needed
 
 # Deploy serving watcher (automation)
+# Note: watcher-configmap.yaml contains Kafka connection settings
 kubectl apply -f watcher-rbac.yaml
 kubectl apply -f watcher-configmap.yaml
 kubectl apply -f watcher-deployment.yaml
+
+# Restart watcher to pick up any config changes
+kubectl rollout restart -n model-serving deployment/serving-watcher
 ```
 
 ### Create feature registry components

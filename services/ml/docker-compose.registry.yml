@@ -1,3 +1,6 @@
+# ⚠️ DEPRECATED: This Docker Compose file is superseded by Kubernetes deployments
+# Use the K8s deployments in services/ml/k8s/model-registry/ instead
+# This file is kept for reference/local development only
 version: '3.8'
 
 services:

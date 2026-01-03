@@ -25,6 +25,15 @@ OPS_DASHBOARD_COMPOSE := ./services/ops/docker-compose.dashboard.yml
 OPS_GATEWAY_COMPOSE := ./services/ops/docker-compose.gateway.yml
 OPS_ORCHESTRATION_COMPOSE := ./services/ops/docker-compose.orchestration.yml
 
+MINIKUBE_PROFILE ?= mlops
+MINIKUBE_DRIVER ?= docker
+MINIKUBE_K8S_VERSION ?= v1.28.3
+MINIKUBE_CPUS ?= 8
+MINIKUBE_MEMORY ?= 20000
+MINIKUBE_DISK ?= 80g
+K8S_CONTEXT ?= $(MINIKUBE_PROFILE)
+EXECUTE_K8S_APPLY ?= false
+
 PYTHON := python
 
 help: ## Show this help message
@@ -41,6 +50,8 @@ help: ## Show this help message
 	@echo "  up-data         - Start data platform services"
 	@echo "  up-ml           - Start ML platform services"
 	@echo "  up-ops          - Start operations services"
+	@echo "  k8s-up          - Start Minikube profile (mlops) with addons"
+	@echo "  k8s-ml-platform - Deploy ML platform components to K8s (preview/apply)"
 	@echo ""
 	@echo "Individual Service Commands:"
 	@echo "  up-storage      - Start data storage (MinIO)"
@@ -54,9 +65,6 @@ help: ## Show this help message
 	@echo "  up-batch        - Start Spark batch processing cluster"
 	@echo "  setup-cdc       - Start streaming + CDC + create connectors"
 	@echo "  deploy-complete - Full deployment with automated setup"
-	@echo "  up-feature-store - Start feature store"
-	@echo "  up-registry     - Start model registry"
-	@echo "  up-serving      - Start model serving"
 	@echo "  up-dashboard    - Start Superset dashboard"
 	@echo ""
 	@echo "Utility Commands:"
@@ -111,6 +119,36 @@ up-ml: create-network ## Start all ML platform services
 up-ops: create-network ## Start all operations services
 	docker compose -f $(OPS_DASHBOARD_COMPOSE) -f $(OPS_GATEWAY_COMPOSE) -f $(OPS_ORCHESTRATION_COMPOSE) up -d
 
+k8s-up: ## Start Minikube profile for ML platform (with addons)
+	minikube start -p $(MINIKUBE_PROFILE) --kubernetes-version=$(MINIKUBE_K8S_VERSION) --driver=$(MINIKUBE_DRIVER) --cpus=$(MINIKUBE_CPUS) --memory=$(MINIKUBE_MEMORY) --disk-size=$(MINIKUBE_DISK)
+	minikube -p $(MINIKUBE_PROFILE) addons enable ingress
+	minikube -p $(MINIKUBE_PROFILE) addons enable metallb
+	minikube -p $(MINIKUBE_PROFILE) addons enable metrics-server
+
+k8s-ml-platform: ## Deploy ML platform components (set EXECUTE_K8S_APPLY=true to apply)
+	@echo "K8s context: $(K8S_CONTEXT)"
+	@if [ "$(EXECUTE_K8S_APPLY)" = "true" ]; then \
+		kubectl config use-context $(K8S_CONTEXT) >/dev/null 2>&1 || true; \
+		echo "Applying KServe core..."; \
+		kubectl apply -f services/ml/k8s/kserve/standard-install.yaml; \
+		echo "Applying Feast/feature-store..."; \
+		kubectl apply -k services/ml/k8s/feature-store/; \
+		echo "Applying model registry..."; \
+		kubectl apply -k services/ml/k8s/model-registry/; \
+		echo "Applying model serving (watchers + storage)..."; \
+		kubectl apply -k services/ml/k8s/model-serving/; \
+		echo "Applying Kafka DNS helper for serving pods..."; \
+		kubectl apply -f services/ml/k8s/kserve/kafka-broker-service.yaml; \
+	else \
+		echo "Preview only (no changes). To apply, rerun with EXECUTE_K8S_APPLY=true"; \
+		echo "kubectl config use-context $(K8S_CONTEXT)"; \
+		echo "kubectl apply -f services/ml/k8s/kserve/standard-install.yaml"; \
+		echo "kubectl apply -k services/ml/k8s/feature-store/"; \
+		echo "kubectl apply -k services/ml/k8s/model-registry/"; \
+		echo "kubectl apply -k services/ml/k8s/model-serving/"; \
+		echo "kubectl apply -f services/ml/k8s/kserve/kafka-broker-service.yaml"; \
+	fi
+
 # Individual service management
 up-storage: create-network ## Start data storage services
 	docker compose -f $(DATA_STORAGE_COMPOSE) up -d
@@ -144,6 +182,8 @@ run-flink-job: ## Build and run the self-contained PyFlink job submitter
 	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.flink.yml build flink-job
 	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.flink.yml up -d flink-job
 
+# NOTE: Spark batch processing is available but commented out by default
+# Uncomment below to enable Spark cluster for large-scale batch processing
 # up-batch: create-network ## Start Spark batch processing cluster
 # 	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.batch.yml up -d
 # 	@echo "Waiting for Spark Master to be ready..."
@@ -166,15 +206,6 @@ deploy-complete: up-core setup-cdc ## Deploy complete platform with automated CD
 	@echo "Testing data flow (optional)..."
 	@cd services && docker exec ops_postgres psql -U ops_admin -d operations -c "INSERT INTO applications (user_id, application_data, status) VALUES (99998, '{\"test\": \"deployment_verification\", \"timestamp\": \"$$(date -Iseconds)\"}', 'TEST');" || true
 	@echo "Complete deployment with CDC ready!"
-
-up-feature-store: create-network ## Start feature store services
-	docker compose -f $(ML_FEATURE_STORE_COMPOSE) up -d
-
-up-registry: create-network ## Start model registry services
-	docker compose -f $(ML_REGISTRY_COMPOSE) up -d
-
-up-serving: create-network ## Start model serving services
-	docker compose -f $(ML_SERVING_COMPOSE) up -d
 
 up-batch: create-network ## Start batch processing services
 	docker compose -f $(ML_BATCH_COMPOSE) up -d

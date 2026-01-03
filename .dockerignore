@@ -1,7 +1,8 @@
 # VCS and metadata
 .git
 .gitignore
-.claude
+.claude/
+.cursor/
 .qodo
 __pycache__
 *.pyc

@@ -5,6 +5,7 @@ __pycache__/
 *$py.class
 # qodo extension
 .qodo/
+.cursor/
 
 # C extensions
 *.so
@@ -37,6 +38,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+.security/
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
@@ -247,8 +249,6 @@ CLAUDE.md
 services/data/.volumes/
 */.volumes/
 
-# .github for  now
-.github/
 
 services/data/scripts/dwh/.volumes/
 
