@@ -28,7 +28,7 @@ kubectl create namespace logging
 ### 2. Install Elasticsearch
 
 ```bash
-cd /home/nhatquang/home-credit-credit-risk-model-stability/services/ml/k8s/logging/elastic-stack
+cd /home/nhatquang/home-credit-credit-risk-model-stability/services/ops/k8s/logging/elastic-stack
 
 helm upgrade --install elasticsearch ./elasticsearch \
   -n logging \

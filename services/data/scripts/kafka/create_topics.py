@@ -43,6 +43,7 @@ def create_topics(bootstrap: str, topics: List[str], partitions: int = 8, replic
 def main():
     bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
     default_topics = [
+        os.getenv("RAW_TOPIC_APPLICATION", "hc.applications.public.loan_applications"),
         os.getenv("FEAST_TOPIC_APP_FEATURES", "hc.application_features"),
         os.getenv("CLICKHOUSE_EXTERNAL", "hc.application_ext_raw"),
         os.getenv("FEAST_TOPIC_EXTERNAL", "hc.application_ext"),

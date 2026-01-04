@@ -53,7 +53,7 @@ kubectl create namespace logging
 
 ### Install Elasticsearch
 ```bash
-cd services/ml/k8s/logging/elastic-stack
+cd services/ops/k8s/logging/elastic-stack
 helm install elasticsearch ./elasticsearch -n logging -f elasticsearch-values.custom.yaml
 ```
 
@@ -156,7 +156,7 @@ kubectl logs -n logging -l app=filebeat-filebeat --tail=100 | grep -i error
 ## Files
 
 ```
-services/ml/k8s/logging/
+services/ops/k8s/logging/
 ├── README.md                              # This file
 └── elastic-stack/
     ├── elasticsearch-values.custom.yaml   # ES config
@@ -175,7 +175,7 @@ services/ops/
 ### Upgrade Components
 ```bash
 # Upgrade Filebeat
-cd services/ml/k8s/logging/elastic-stack
+cd services/ops/k8s/logging/elastic-stack
 helm upgrade filebeat ./filebeat -n logging -f filebeat-values.custom.yaml
 
 # Restart Docker Filebeat
