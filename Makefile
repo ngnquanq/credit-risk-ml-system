@@ -28,7 +28,7 @@ OPS_ORCHESTRATION_COMPOSE := ./services/ops/docker-compose.orchestration.yml
 MINIKUBE_PROFILE ?= mlops
 MINIKUBE_DRIVER ?= docker
 MINIKUBE_K8S_VERSION ?= v1.28.3
-MINIKUBE_CPUS ?= 8
+MINIKUBE_CPUS ?= 16
 MINIKUBE_MEMORY ?= 20000
 MINIKUBE_DISK ?= 80g
 K8S_CONTEXT ?= $(MINIKUBE_PROFILE)
@@ -43,35 +43,31 @@ help: ## Show this help message
 	@echo "  up              - Start all services"
 	@echo "  down            - Stop all services"
 	@echo "  logs            - View all service logs"
-	@echo "  health          - Check service health"
 	@echo ""
-	@echo "Category Commands:"
-	@echo "  up-core         - Start core infrastructure"
-	@echo "  up-data         - Start data platform services"
-	@echo "  up-ml           - Start ML platform services"
-	@echo "  up-ops          - Start operations services"
-	@echo "  k8s-up          - Start Minikube profile (mlops) with addons"
-	@echo "  k8s-ml-platform - Deploy ML platform components to K8s (preview/apply)"
+	@echo "Category Commands (Docker Compose):"
+	@echo "  up-core         - Start core infrastructure (Postgres, API, MinIO)"
+	@echo "  up-data         - Start data platform (Kafka, ClickHouse, Flink, CDC)"
+	@echo "  up-operation    - Start operations (ELK, Prometheus, Superset, socat)"
 	@echo ""
-	@echo "Individual Service Commands:"
-	@echo "  up-storage      - Start data storage (MinIO)"
-	@echo "  up-warehouse    - Start data warehouse (ClickHouse)"
-	@echo "  up-streaming    - Start streaming (Kafka)"
-	@echo "  up-cdc          - Start CDC services (requires streaming)"
-	@echo "  up-flink        - Start Flink cluster"
-	@echo "  up-query        - Start ext + dwh query services"
-	@echo "  up-redis        - Start Redis for Feast online store"
-	@echo "  run-flink-job   - Build and submit PyFlink job"
-	@echo "  up-batch        - Start Spark batch processing cluster"
-	@echo "  setup-cdc       - Start streaming + CDC + create connectors"
-	@echo "  deploy-complete - Full deployment with automated setup"
-	@echo "  up-dashboard    - Start Superset dashboard"
+	@echo "Kubernetes ML Platform Commands:"
+	@echo "  k8s-up                     - Start Minikube profile (mlops) with addons"
+	@echo "  k8s-ml-platform            - Deploy complete ML platform (one-off command)"
+	@echo "  k8s-training-data-storage  - Deploy training data storage (MinIO)"
+	@echo "  k8s-kubeflow               - Deploy Kubeflow Pipelines"
+	@echo "  k8s-ray                    - Deploy Ray cluster for hyperparameter tuning"
+	@echo "  k8s-model-registry         - Deploy MLflow model registry"
+	@echo "  k8s-kserve                 - Deploy KServe serving infrastructure"
+	@echo "  k8s-mlflow-watcher         - Deploy MLflow watcher (auto Bento builds)"
+	@echo "  k8s-model-serving          - Deploy model serving (bundle storage + watcher)"
+	@echo "  k8s-feature-registry       - Deploy Feast feature registry"
+	@echo "  k8s-monitoring             - Deploy Prometheus + Grafana monitoring"
+	@echo "  k8s-logging                - Deploy EFK logging stack"
+	@echo "  k8s-automation             - Deploy Jenkins automation server for CI/CD"
 	@echo ""
 	@echo "Utility Commands:"
-	@echo "  create-network  - Create platform network"
-	@echo "  check-ports     - Check container port mappings"
-	@echo "  core-apply-migrations - Apply core DB migrations (idempotent)"
-	@echo "  core-reset-db   - Drop and recreate core DB (destructive)"
+	@echo "  create-network            - Create platform network"
+	@echo "  core-apply-migrations     - Apply core DB migrations (idempotent)"
+	@echo "  core-reset-db             - Drop and recreate core DB (destructive)"
 
 # Network management
 create-network: ## Create the platform network
@@ -92,7 +88,7 @@ restart: ## Restart all services
 
 # Category-based deployment
 up-core: create-network ## Start core infrastructure services
-	@cd services && docker compose --env-file .env --env-file .env.core -f core/docker-compose.yml up -d
+	@docker compose --env-file services/core/.env.core -f services/core/docker-compose.operationaldb.yml -f services/core/docker-compose.api.yml -f ./services/data/docker-compose.storage.yml up -d
 	@echo "Waiting for PostgreSQL to be ready..."
 	@until docker exec ops_postgres pg_isready -U ops_admin -d operations > /dev/null 2>&1; do sleep 2; echo -n "."; done
 	@echo " PostgreSQL ready!"
@@ -106,18 +102,31 @@ core-apply-migrations: ## Apply core DB migrations into running ops-postgres
 
 core-reset-db: ## Destructive: reset core DB volume and re-init with migrations
 	@echo "This will remove ops-postgres volume and reinitialize the database."
-	@cd services && docker compose --env-file .env --env-file .env.core -f core/docker-compose.yml down -v
+	@cd services && docker compose --env-file .env.core -f core/docker-compose.operationaldb.yml -f core/docker-compose.api.yml down -v
 	@$(MAKE) up-core
 	@$(MAKE) core-apply-migrations
 
-up-data: create-network ## Start all data platform services
-	docker compose -f $(DATA_STORAGE_COMPOSE) -f $(DATA_WAREHOUSE_COMPOSE) -f $(DATA_STREAMING_COMPOSE) -f $(DATA_CDC_COMPOSE) up -d
+up-data: create-network
+	 docker compose --env-file services/data/.env.data \
+	   --env-file services/core/.env.core \
+	   -f services/data/docker-compose.warehouse.yml \
+	   -f services/data/docker-compose.streaming.yml \
+	   -f services/data/docker-compose.cdc.yml \
+	   up -d
+	 python ./services/data/scripts/kafka/create_topics.py || true
+	 bash ./services/data/scripts/dwh/ch_load_internal.sh
+	 bash ./services/data/scripts/dwh/ch_load_external.sh
+	 cd ml_data_mart/ && dbt debug --project-dir . --profiles-dir . && dbt run --project-dir . --profiles-dir . --target gold && cd ..
+	 docker compose --env-file services/data/.env.data \
+		-f services/data/docker-compose.query-services.yml up -d 
+	docker compose --env-file services/data/.env.data \
+		-f services/data/docker-compose.flink.yml up -d
 
-up-ml: create-network ## Start all ML platform services
-	docker compose -f $(ML_FEATURE_STORE_COMPOSE) -f $(ML_REGISTRY_COMPOSE) -f $(ML_SERVING_COMPOSE) -f $(ML_BATCH_COMPOSE) up -d
-
-up-ops: create-network ## Start all operations services
-	docker compose -f $(OPS_DASHBOARD_COMPOSE) -f $(OPS_GATEWAY_COMPOSE) -f $(OPS_ORCHESTRATION_COMPOSE) up -d
+up-operation:
+	docker compose -f services/ops/docker-compose.logging.yml up -d
+	docker compose -f services/ops/docker-compose.monitoring.yml up -d
+	docker compose -f services/ops/docker-compose.dashboard.yml up -d
+	docker compose -f services/ops/docker-compose.gateway.yml up -d
 
 k8s-up: ## Start Minikube profile for ML platform (with addons)
 	minikube start -p $(MINIKUBE_PROFILE) --kubernetes-version=$(MINIKUBE_K8S_VERSION) --driver=$(MINIKUBE_DRIVER) --cpus=$(MINIKUBE_CPUS) --memory=$(MINIKUBE_MEMORY) --disk-size=$(MINIKUBE_DISK)
@@ -125,153 +134,252 @@ k8s-up: ## Start Minikube profile for ML platform (with addons)
 	minikube -p $(MINIKUBE_PROFILE) addons enable metallb
 	minikube -p $(MINIKUBE_PROFILE) addons enable metrics-server
 
-k8s-ml-platform: ## Deploy ML platform components (set EXECUTE_K8S_APPLY=true to apply)
-	@echo "K8s context: $(K8S_CONTEXT)"
-	@if [ "$(EXECUTE_K8S_APPLY)" = "true" ]; then \
-		kubectl config use-context $(K8S_CONTEXT) >/dev/null 2>&1 || true; \
-		echo "Applying KServe core..."; \
-		kubectl apply -f services/ml/k8s/kserve/standard-install.yaml; \
-		echo "Applying Feast/feature-store..."; \
-		kubectl apply -k services/ml/k8s/feature-store/; \
-		echo "Applying model registry..."; \
-		kubectl apply -k services/ml/k8s/model-registry/; \
-		echo "Applying model serving (watchers + storage)..."; \
-		kubectl apply -k services/ml/k8s/model-serving/; \
-		echo "Applying Kafka DNS helper for serving pods..."; \
-		kubectl apply -f services/ml/k8s/kserve/kafka-broker-service.yaml; \
-	else \
-		echo "Preview only (no changes). To apply, rerun with EXECUTE_K8S_APPLY=true"; \
-		echo "kubectl config use-context $(K8S_CONTEXT)"; \
-		echo "kubectl apply -f services/ml/k8s/kserve/standard-install.yaml"; \
-		echo "kubectl apply -k services/ml/k8s/feature-store/"; \
-		echo "kubectl apply -k services/ml/k8s/model-registry/"; \
-		echo "kubectl apply -k services/ml/k8s/model-serving/"; \
-		echo "kubectl apply -f services/ml/k8s/kserve/kafka-broker-service.yaml"; \
-	fi
+k8s-training-data-storage: ## Deploy training data storage (MinIO for versioned training datasets)
+	@echo "Deploying training data storage..."
+	kubectl create ns training-data || true
+	helm upgrade --install training-minio ./services/ml/k8s/training-data-storage -n training-data \
+		-f services/ml/k8s/training-data-storage/minio.values.yaml
+	@echo "✅ Training data storage deployed (namespace: training-data)"
+	@echo "Load sample data: docker exec clickhouse_dwh clickhouse-client -q \"SET s3_truncate_on_insert=1; INSERT INTO FUNCTION s3('http://172.18.0.1:31900/training-data/snapshots/ds=2025-09-19/loan_applications.csv','minioadmin','minioadmin','CSVWithNames') SELECT a.*, t.TARGET FROM application_mart.mart_application AS a INNER JOIN application_mart.mart_application_train AS t ON a.SK_ID_CURR = t.SK_ID_CURR\""
 
-# Individual service management
-up-storage: create-network ## Start data storage services
-	docker compose -f $(DATA_STORAGE_COMPOSE) up -d
+k8s-kubeflow: ## Deploy Kubeflow Pipelines for training orchestration
+	@echo "Deploying Kubeflow Pipelines v2.14.3..."
+	@export PIPELINE_VERSION=2.14.3 && \
+		kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=$$PIPELINE_VERSION" && \
+		kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io && \
+		kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/dev?ref=$$PIPELINE_VERSION" && \
+		kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref=$$PIPELINE_VERSION"
+	@echo "Patching MinIO deployment with valid image..."
+	@kubectl patch deployment minio -n kubeflow --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/image", "value":"minio/minio:RELEASE.2024-01-01T16-36-33Z"}]' || true
+	@echo "Removing GCP-specific proxy-agent (not needed for on-prem)..."
+	@kubectl delete deployment proxy-agent -n kubeflow --ignore-not-found=true
+	@echo "Waiting for Kubeflow Pipelines components to be ready (this may take several minutes)..."
+	@echo "✅ Kubeflow Pipelines deployed"
+	@echo "Port-forward: kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80"
 
-up-warehouse: create-network ## Start data warehouse services  
-	docker compose -f $(DATA_WAREHOUSE_COMPOSE) up -d
+k8s-ray: ## Deploy Ray cluster for distributed hyperparameter tuning
+	@echo "Deploying Ray cluster (1 head + 2 workers)..."
+	kubectl create ns ray || true
+	helm upgrade --install kuberay-operator ./services/ml/k8s/kuberay-operator \
+		-n ray -f services/ml/k8s/kuberay-operator/values.yaml
+	kubectl apply -f services/ml/k8s/kuberay-operator/raycluster.yaml
+	@echo "✅ Ray cluster deployed (namespace: ray)"
+	@echo "Check status: kubectl get raycluster -n ray"
 
-up-streaming: create-network ## Start streaming services
-	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.streaming.yml up -d
-	@echo "Waiting for Kafka to be ready..."
-	@until docker exec kafka_broker kafka-topics --bootstrap-server localhost:9092 --list > /dev/null 2>&1; do sleep 2; echo -n "."; done
-	@echo " Kafka ready!"
+k8s-model-registry: ## Deploy MLflow model registry with Postgres + MinIO backend
+	@echo "Deploying MLflow model registry..."
+	kubectl create ns model-registry || true
+	helm upgrade --install minio services/ml/k8s/model-registry/minio -n model-registry \
+		-f services/ml/k8s/model-registry/minio/values.internal.yaml
+	helm upgrade --install mlflow ./services/ml/k8s/model-registry/ -n model-registry \
+		-f services/ml/k8s/model-registry/values.internal.yaml
+	@echo "✅ MLflow registry deployed (namespace: model-registry)"
+	@echo "Port-forward: kubectl port-forward -n model-registry svc/mlflow 5000:5000"
 
-up-cdc: create-network ## Start CDC services (requires streaming to be running)
-	@cd services && docker compose --env-file .env --env-file .env.core --env-file .env.data -f data/docker-compose.streaming.yml -f data/docker-compose.cdc.yml up -d
-	@echo "Waiting for Debezium to be ready..."
-	@until curl -f http://localhost:8083/connectors > /dev/null 2>&1; do sleep 2; echo -n "."; done
-	@echo " Debezium ready!"
-
-up-flink: create-network ## Start Flink cluster (JobManager + TaskManager)
-	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.flink.yml up -d
-	@echo "Flink UI: http://localhost:8085"
-
-up-query: create-network ## Start external and DWH query services
-	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.query-services.yml up -d
-
-up-redis: create-network ## Start Redis (Feast online store)
-	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.redis.yml up -d
-
-run-flink-job: ## Build and run the self-contained PyFlink job submitter
-	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.flink.yml build flink-job
-	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.flink.yml up -d flink-job
-
-# NOTE: Spark batch processing is available but commented out by default
-# Uncomment below to enable Spark cluster for large-scale batch processing
-# up-batch: create-network ## Start Spark batch processing cluster
-# 	@cd services && docker compose --env-file .env --env-file .env.data -f data/docker-compose.batch.yml up -d
-# 	@echo "Waiting for Spark Master to be ready..."
-# 	@until curl -f http://localhost:8084 > /dev/null 2>&1; do sleep 2; echo -n "."; done
-# 	@echo " Spark cluster ready!"
-# 	@echo "Spark Master UI: http://localhost:8084"
-# 	@echo "Jupyter Notebook: http://localhost:8888 (token: spark_notebook_token)"
-
-setup-cdc: up-streaming up-cdc
-	@echo "Creating Debezium connectors..."
-	@cd services && bash -c "set -a && source .env && source .env.core && source .env.data && envsubst < data/create-connectors.sh" | bash
-
-deploy-complete: up-core setup-cdc ## Deploy complete platform with automated CDC setup
-	@echo "=== Complete Deployment Summary ==="
-	@echo "✅ Core services (PostgreSQL + PgBouncer) running"
-	@echo "✅ Streaming services (Kafka ecosystem) running" 
-	@echo "✅ CDC services (Debezium) running"
-	@echo "✅ Connectors created and active"
+k8s-kserve: ## Deploy KServe for model serving infrastructure
+	@echo "Deploying KServe (cert-manager + CRDs + main components)..."
+	kubectl create ns kserve || true
+	@echo "Installing cert-manager..."
+	kubectl apply -f services/ml/k8s/kserve/cert-manager.yaml
+	@echo "Waiting for cert-manager webhook to be ready (this may take 60-90s)..."
+	kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-webhook -n cert-manager || true
+	kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=webhook -n cert-manager --timeout=120s
+	@echo "✅ cert-manager ready"
 	@echo ""
-	@echo "Testing data flow (optional)..."
-	@cd services && docker exec ops_postgres psql -U ops_admin -d operations -c "INSERT INTO applications (user_id, application_data, status) VALUES (99998, '{\"test\": \"deployment_verification\", \"timestamp\": \"$$(date -Iseconds)\"}', 'TEST');" || true
-	@echo "Complete deployment with CDC ready!"
+	@echo "Installing KServe standard components..."
+	kubectl apply -f services/ml/k8s/kserve/standard-install.yaml
+	@echo ""
+	@echo "Installing KServe CRDs..."
+	cd services/ml/k8s/kserve/kserve-crd && (helm install kserve-crd . -n kserve 2>/dev/null || echo "kserve-crd already installed")
+	@echo "Waiting for CRDs to be established..."
+	@sleep 10
+	@echo ""
+	@echo "Installing KServe main components (creates Certificate and Issuer)..."
+	cd services/ml/k8s/kserve/kserve-main && (helm install kserve . -n kserve 2>/dev/null || echo "kserve already installed")
+	@echo "Waiting for certificate to be issued and controller to be ready..."
+	@sleep 20
+	@kubectl wait --for=condition=available --timeout=120s deployment/kserve-controller-manager -n kserve || true
+	@echo ""
+	@echo "Deploying bento-builder ConfigMap..."
+	kubectl apply -f services/ml/k8s/kserve/bento-builder/configmap.yaml
+	@echo "Configuring Kafka DNS resolution for scoring pods..."
+	kubectl apply -f services/ml/k8s/kserve/kafka-broker-service.yaml
+	@echo "✅ KServe deployed (namespace: kserve)"
 
-up-batch: create-network ## Start batch processing services
-	docker compose -f $(ML_BATCH_COMPOSE) up -d
+k8s-mlflow-watcher: ## Deploy MLflow watcher (auto-triggers Bento builds on model promotion)
+	@echo "Deploying MLflow watcher..."
+	kubectl apply -f services/ml/k8s/mlflow-watcher/rbac.yaml
+	kubectl -n model-registry apply \
+		-f services/ml/k8s/mlflow-watcher/poller-values.yaml \
+		-f services/ml/k8s/mlflow-watcher/poller-configmap.yaml \
+		-f services/ml/k8s/mlflow-watcher/builder-configmap.yaml \
+		-f services/ml/k8s/mlflow-watcher/deployment.yaml
+	kubectl -n model-registry rollout status deploy/mlflow-watcher
+	@echo "✅ MLflow watcher deployed (namespace: model-registry)"
 
-up-dashboard: create-network ## Start dashboard services
-	docker compose -f $(OPS_DASHBOARD_COMPOSE) up -d
+k8s-model-serving: ## Deploy model serving components (bundle storage + serving watcher)
+	@echo "Deploying model serving components..."
+	kubectl create ns model-serving || true
+	@echo "Note: Create DockerHub credentials secret if needed:"
+	@echo "  kubectl create secret generic dockerhub-creds --from-literal=username=YOUR_USERNAME --from-literal=password=YOUR_PASSWORD -n model-serving"
+	cd services/ml/k8s/model-serving/bundle-storage && \
+		helm upgrade --install serving-minio . -n model-serving -f values.internal.yaml
+	kubectl apply -f services/ml/k8s/model-serving/watcher-rbac.yaml
+	kubectl apply -f services/ml/k8s/model-serving/watcher-configmap.yaml
+	kubectl apply -f services/ml/k8s/model-serving/watcher-deployment.yaml
+	kubectl rollout restart -n model-serving deployment/serving-watcher
+	@echo "✅ Model serving deployed (namespace: model-serving)"
 
-up-gateway: create-network ## Start gateway services
-	docker compose -f $(OPS_GATEWAY_COMPOSE) up -d
+k8s-feature-registry: ## Deploy Feast feature registry + Redis online store
+	@echo "Deploying Feast feature registry..."
+	kubectl create ns feature-registry || true
+	@echo "Note: Build and push Feast repo image first:"
+	@echo "  docker build ./application/feast_repo/ -t ngnquanq/feast-repo:v15"
+	@echo "  docker push ngnquanq/feast-repo:v15"
+	kubectl apply -k ./services/ml/k8s/feature-store/
+	@echo "✅ Feast feature registry deployed (namespace: feature-registry)"
 
-up-orchestration: create-network ## Start orchestration services
-	docker compose -f $(OPS_ORCHESTRATION_COMPOSE) up -d
+k8s-monitoring: ## Deploy Prometheus + Grafana monitoring stack
+	@echo "Deploying monitoring stack (Prometheus + Grafana + cAdvisor)..."
+	kubectl create namespace monitoring || true
+	cd services/ops/k8s/monitoring && \
+		helm upgrade --install kube-prometheus-stack ./kube-prometheus-stack \
+		-n monitoring \
+		-f kube-prometheus-stack/values.custom.yaml
+	kubectl apply -f services/ops/k8s/monitoring/kube-prometheus-stack/docker-cadvisor-servicemonitor.yaml
+	@echo "✅ Monitoring stack deployed (namespace: monitoring)"
+	@echo "Port-forward Grafana: kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80"
+	@echo "Default credentials: admin/prom-operator"
 
-build-orchestration-image: ## Build Airflow orchestration image (with Spark provider)
-	docker build -t hc-airflow-orchestration:local ./services/ops/scripts/orchestration
+k8s-logging: ## Deploy EFK logging stack (Elasticsearch + Filebeat + Kibana)
+	@echo "Deploying EFK logging stack..."
+	kubectl create ns logging || true
+	@echo "Installing Elasticsearch..."
+	cd services/ops/k8s/logging/elastic-stack && \
+		helm upgrade --install elasticsearch ./elasticsearch -n logging -f elasticsearch-values.custom.yaml
+	kubectl create secret generic elasticsearch-master-credentials -n logging \
+		--from-literal=username=elastic --from-literal=password=changeme || true
+	@echo "Waiting for Elasticsearch to be ready..."
+	@sleep 30
+	@echo "Installing Kibana..."
+	cd services/ops/k8s/logging/elastic-stack && \
+		helm upgrade --install kibana ./kibana -n logging -f kibana-values.custom.yaml --no-hooks
+	@echo "Installing Filebeat..."
+	cd services/ops/k8s/logging/elastic-stack && \
+		helm upgrade --install filebeat ./filebeat -n logging -f filebeat-values.custom.yaml
+	@echo "✅ EFK logging stack deployed (namespace: logging)"
+	@echo "Port-forward Kibana: kubectl port-forward -n logging svc/kibana-kibana 5601:5601"
 
-verify-orchestration-dags: ## Verify Spark provider import and DAG parsing
-	@echo "Building orchestration image..."
-	@docker build -t hc-airflow-orchestration:local ./services/ops/scripts/orchestration
-	@echo "Checking SparkSubmitOperator import..."
-	@docker run --rm hc-airflow-orchestration:local \
-		python -c "from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator; print('SparkSubmitOperator OK')"
-	@echo "Validating DAG parsing..."
-	@docker run --rm \
-		-v $(PWD)/services/ops/scripts/orchestration/dags:/opt/airflow/dags \
-		-v $(PWD)/application:/opt/airflow/application \
-		hc-airflow-orchestration:local \
-		python -c "from airflow.models.dagbag import DagBag; b=DagBag('/opt/airflow/dags', include_examples=False); print('Import errors:', b.import_errors); import sys; sys.exit(1 if b.import_errors else 0)"
+k8s-automation: ## Deploy Jenkins automation server for CI/CD
+	@echo "Deploying Jenkins automation server..."
+	kubectl create ns automation || true
+	cd services/ops/k8s/automation && \
+		helm upgrade --install jenkins ./jenkins \
+		-n automation \
+		-f jenkins-values.custom.yaml
+	@echo "Waiting for Jenkins to be ready..."
+	@kubectl wait --for=condition=available --timeout=300s deployment/jenkins -n automation || true
+	@echo "✅ Jenkins deployed (namespace: automation)"
+	@echo "Port-forward: kubectl port-forward -n automation svc/jenkins 8080:8080"
+	@echo "Default credentials: admin / jenkins-admin-password (⚠️ Change in production!)"
 
-# Category-based shutdown
-down-core: ## Stop core services
-	docker compose -f $(CORE_COMPOSE) down
-
-down-data: ## Stop data platform services
-	docker compose -f $(DATA_STORAGE_COMPOSE) -f $(DATA_WAREHOUSE_COMPOSE) -f $(DATA_STREAMING_COMPOSE) -f $(DATA_CDC_COMPOSE) down
-
-down-ml: ## Stop ML platform services
-	docker compose -f $(ML_FEATURE_STORE_COMPOSE) -f $(ML_REGISTRY_COMPOSE) -f $(ML_SERVING_COMPOSE) -f $(ML_BATCH_COMPOSE) down
-
-down-ops: ## Stop operations services
-	docker compose -f $(OPS_DASHBOARD_COMPOSE) -f $(OPS_GATEWAY_COMPOSE) -f $(OPS_ORCHESTRATION_COMPOSE) down
-
-# Health and monitoring
-health: ## Check service health status
-	@echo "=== Service Health Check ==="
-	@echo "Network: $(NETWORK_NAME)"
-	@docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" --filter network=$(NETWORK_NAME)
-
-check-ports: ## Check port mappings for all running containers
-	@echo "Checking port mappings for all running containers..."
-	@for name in $$(docker ps --format '{{.Names}}'); do \
-		echo "--- Ports for container: $${name} ---"; \
-		docker port "$${name}"; \
-	done
-	@echo "--- End of port check ---"
-
-create-kafka-topics: ## Create default Kafka topics using Python SDK
-	@echo "Creating Kafka topics (hc.application_pii, hc.application_features)"
-	@python application/kafka/create_topics.py
-
-# Environment-specific deployments
-deploy-dev: up-core up-data up-ml ## Deploy development environment
-	@echo "Development environment deployed"
-
-deploy-staging: up-core up-data up-ml up-ops ## Deploy staging environment  
-	@echo "Staging environment deployed"
-
-deploy-prod: up ## Deploy production environment
-	@echo "Production environment deployed"
+k8s-ml-platform: ## Deploy complete ML platform (one-off setup: training storage, Kubeflow, Ray, registry, KServe, watchers, Feast, monitoring, logging)
+	@echo "========================================="
+	@echo "Deploying Complete ML Platform to K8s"
+	@echo "========================================="
+	@echo ""
+	@echo "Step 1/10: Training data storage..."
+	@if $(MAKE) k8s-training-data-storage; then \
+		echo "✅ Step 1/10 complete"; \
+	else \
+		echo "❌ Step 1/10 failed - aborting deployment"; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "Step 2/10: Kubeflow Pipelines..."
+	@if $(MAKE) k8s-kubeflow; then \
+		echo "✅ Step 2/10 complete"; \
+	else \
+		echo "❌ Step 2/10 failed - aborting deployment"; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "Step 3/10: Ray cluster..."
+	@if $(MAKE) k8s-ray; then \
+		echo "✅ Step 3/10 complete"; \
+	else \
+		echo "❌ Step 3/10 failed - aborting deployment"; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "Step 4/10: MLflow model registry..."
+	@if $(MAKE) k8s-model-registry; then \
+		echo "✅ Step 4/10 complete"; \
+	else \
+		echo "❌ Step 4/10 failed - aborting deployment"; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "Step 5/10: KServe serving infrastructure..."
+	@if $(MAKE) k8s-kserve; then \
+		echo "✅ Step 5/10 complete"; \
+	else \
+		echo "❌ Step 5/10 failed - aborting deployment"; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "Step 6/10: MLflow watcher..."
+	@if $(MAKE) k8s-mlflow-watcher; then \
+		echo "✅ Step 6/10 complete"; \
+	else \
+		echo "❌ Step 6/10 failed - aborting deployment"; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "Step 7/10: Model serving components..."
+	@if $(MAKE) k8s-model-serving; then \
+		echo "✅ Step 7/10 complete"; \
+	else \
+		echo "❌ Step 7/10 failed - aborting deployment"; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "Step 8/10: Feast feature registry..."
+	@if $(MAKE) k8s-feature-registry; then \
+		echo "✅ Step 8/10 complete"; \
+	else \
+		echo "❌ Step 8/10 failed - aborting deployment"; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "Step 9/10: Monitoring stack..."
+	@if $(MAKE) k8s-monitoring; then \
+		echo "✅ Step 9/10 complete"; \
+	else \
+		echo "❌ Step 9/10 failed - aborting deployment"; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "Step 10/10: Logging stack..."
+	@if $(MAKE) k8s-logging; then \
+		echo "✅ Step 10/10 complete"; \
+	else \
+		echo "❌ Step 10/10 failed - aborting deployment"; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "========================================="
+	@echo "✅ ML Platform Deployment Complete!"
+	@echo "========================================="
+	@echo ""
+	@echo "Port-forwarding commands:"
+	@echo "  MLflow:     kubectl port-forward -n model-registry svc/mlflow 5000:5000"
+	@echo "  Kubeflow:   kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80"
+	@echo "  Grafana:    kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80"
+	@echo "  Kibana:     kubectl port-forward -n logging svc/kibana-kibana 5601:5601"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Build & push Feast repo image: docker build ./application/feast_repo/ -t ngnquanq/feast-repo:v15 && docker push ngnquanq/feast-repo:v15"
+	@echo "  2. Create DockerHub secret: kubectl create secret generic dockerhub-creds --from-literal=username=YOUR_USER --from-literal=password=YOUR_PASS -n model-serving"
+	@echo "  3. Load training data: See output from k8s-training-data-storage"
+	@echo "  4. Submit training pipeline: Upload services/ml/k8s/training-pipeline/training_pipeline.yaml to Kubeflow UI"
