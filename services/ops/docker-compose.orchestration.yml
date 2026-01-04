@@ -77,12 +77,14 @@ x-airflow-common:
     DOCKER_HOST: 'tcp://docker-proxy:2375'
     # Host path to application directory for DockerOperator bind mounts
     APPLICATION_HOST_DIR: ${PWD}/application
+    # dbt ClickHouse connection for Airflow workers
+    DBT_CLICKHOUSE_HOST: clickhouse_dwh
+    DBT_CLICKHOUSE_PASSWORD: ""
 
     # WARNING: Use _PIP_ADDITIONAL_REQUIREMENTS option ONLY for a quick checks
     # for other purpose (development, test and especially production usage) build/extend Airflow image.
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
   volumes:
-
     - ${AIRFLOW_PROJ_DIR:-.}/scripts/orchestration/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/scripts/orchestration/logs:/opt/airflow/logs
     - ${AIRFLOW_PROJ_DIR:-.}/scripts/orchestration/config:/opt/airflow/config
@@ -146,7 +148,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 60s
+    restart: on-failure:3
     depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
@@ -163,7 +166,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 60s
+    restart: on-failure:3
     depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
@@ -183,7 +187,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 60s
+    restart: on-failure:3
     environment:
       <<: *airflow-common-env
       # Required to handle warm shutdown of the celery workers properly
@@ -206,7 +211,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 60s
+    restart: on-failure:3
     depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
