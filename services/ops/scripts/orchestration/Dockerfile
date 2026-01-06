@@ -9,7 +9,8 @@ RUN set -eux; \
         ca-certificates \
         libgl1-mesa-glx \
         libglib2.0-0 \
-        gosu; \
+        gosu \
+        git; \
     rm -rf /var/lib/apt/lists/*
 
 USER airflow

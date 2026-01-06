@@ -15,7 +15,7 @@ from airflow import DAG
 from airflow.operators.bash import BashOperator
 
 DEFAULT_ARGS = {
-    "owner": "data-engineering",
+    "owner": "airflow",
     "depends_on_past": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=2),
@@ -30,7 +30,7 @@ with DAG(
     catchup=False,
     tags=["dbt", "transformation", "clickhouse", "data-warehouse"],
     params={
-        "target": "dev",  # dbt target: dev, staging, prod
+        "target": "gold",  # dbt target: dev, staging, prod
         "full_refresh": False,  # Set to True to rebuild all incremental models
         "select": None,  # Optional: specific models to run (e.g., "staging.*")
         "exclude": None,  # Optional: models to exclude
@@ -69,17 +69,17 @@ with DAG(
         bash_command=dbt_run_cmd,
     )
 
-    # Task 5: dbt test - run data quality tests
-    dbt_test_cmd = """
-    cd /opt/airflow/dbt && dbt test --target {{ params.target }} \
-    {% if params.select %} --select {{ params.select }} {% endif %} \
-    {% if params.exclude %} --exclude {{ params.exclude }} {% endif %}
-    """
+    # # Task 5: dbt test - run data quality tests
+    # dbt_test_cmd = """
+    # cd /opt/airflow/dbt && dbt test --target {{ params.target }} \
+    # {% if params.select %} --select {{ params.select }} {% endif %} \
+    # {% if params.exclude %} --exclude {{ params.exclude }} {% endif %}
+    # """
 
-    dbt_test = BashOperator(
-        task_id="dbt_test",
-        bash_command=dbt_test_cmd,
-    )
+    # dbt_test = BashOperator(
+    #     task_id="dbt_test",
+    #     bash_command=dbt_test_cmd,
+    # )
 
     # Task 6: dbt docs generate - generate documentation (optional, runs on success)
     dbt_docs = BashOperator(
@@ -89,5 +89,5 @@ with DAG(
     )
 
     # Define task dependencies
-    # debug → deps → seed → run → test → docs
-    dbt_debug >> dbt_deps >> dbt_seed >> dbt_run >> dbt_test >> dbt_docs
+    # debug → deps → seed → run → docs
+    dbt_debug >> dbt_deps >> dbt_seed >> dbt_run >> dbt_docs

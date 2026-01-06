@@ -55,11 +55,11 @@ x-airflow-common:
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
     # For backward compatibility, with Airflow <2.3
-    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
-    AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@airflow-db/airflow
+    AIRFLOW__CELERY__BROKER_URL: redis://airflow-redis:6379/0
     AIRFLOW__CELERY__DEFAULT_QUEUE: default
     AIRFLOW__CORE__FERNET_KEY: ''
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
@@ -95,18 +95,18 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/../../data/complete_feature_dataset.csv:/opt/airflow/data/complete_feature_dataset.csv
     - ${AIRFLOW_PROJ_DIR:-.}/../../ml_data_mart:/opt/airflow/dbt
     - /var/run/docker.sock:/var/run/docker.sock
-  user: "${AIRFLOW_UID:-50000}:0"
+  user: "${AIRFLOW_UID:-50000}:${DOCKER_GID:-984}"
   depends_on:
     &airflow-common-depends-on
-    redis:
+    airflow-redis:
       condition: service_healthy
-    postgres:
+    airflow-db:
       condition: service_healthy
 
 services:
-  postgres:
+  airflow-db:
     image: postgres:13
-    container_name: airflow-postgres
+    container_name: airflow-db
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
@@ -123,7 +123,7 @@ services:
     networks:
       - hc-network
 
-  redis:
+  airflow-redis:
     image: redis:7
     container_name: airflow-redis
     expose:

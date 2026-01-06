@@ -45,9 +45,11 @@ help: ## Show this help message
 	@echo "  logs            - View all service logs"
 	@echo ""
 	@echo "Category Commands (Docker Compose):"
-	@echo "  up-core         - Start core infrastructure (Postgres, API, MinIO)"
-	@echo "  up-data         - Start data platform (Kafka, ClickHouse, Flink, CDC)"
-	@echo "  up-operation    - Start operations (ELK, Prometheus, Superset, socat)"
+	@echo "  up-core                  - Start core infrastructure (Postgres, API, MinIO)"
+	@echo "  up-data                  - Start data platform (Kafka, ClickHouse, Flink, CDC)"
+	@echo "  up-operation             - Start operations (ELK, Prometheus, Superset, socat)"
+	@echo "  fix-dbt-permissions      - Fix ml_data_mart permissions for Airflow containers"
+	@echo "  fix-airflow-permissions  - Fix Airflow DAGs/logs permissions for local editing"
 	@echo ""
 	@echo "Kubernetes ML Platform Commands:"
 	@echo "  k8s-up                     - Start Minikube profile (mlops) with addons"
@@ -122,11 +124,27 @@ up-data: create-network
 	docker compose --env-file services/data/.env.data \
 		-f services/data/docker-compose.flink.yml up -d
 
+fix-dbt-permissions: ## Fix permissions for ml_data_mart (for Airflow containers)
+	@bash services/ops/scripts/orchestration/helper/fix-dbt-permissions.sh
+
+fix-airflow-permissions: ## Fix permissions for Airflow orchestration directories (DAGs, logs, etc.)
+	@bash services/ops/scripts/orchestration/helper/fix-airflow-permissions.sh
+
+trigger-export-dag: ## Trigger ClickHouse to MinIO export DAG
+	@echo "Triggering clickhouse_to_minio_export DAG..."
+	docker exec airflow-scheduler airflow dags trigger clickhouse_to_minio_export
+
 up-operation:
+	@echo "Fixing dbt permissions for Airflow containers..."
+	@bash services/ops/scripts/orchestration/helper/fix-dbt-permissions.sh
+	@echo "Fixing Airflow permissions for DAGs and logs..."
+	@bash services/ops/scripts/orchestration/helper/fix-airflow-permissions.sh
 	docker compose -f services/ops/docker-compose.logging.yml up -d
 	docker compose -f services/ops/docker-compose.monitoring.yml up -d
 	docker compose -f services/ops/docker-compose.dashboard.yml up -d
 	docker compose -f services/ops/docker-compose.gateway.yml up -d
+	docker compose --env-file services/ops/.env.ops -f services/ops/docker-compose.orchestration.yml up -d
+	docker compose --env-file services/ops/.env.ops -f services/ops/docker-compose.automation.yml up -d
 
 k8s-up: ## Start Minikube profile for ML platform (with addons)
 	minikube start -p $(MINIKUBE_PROFILE) --kubernetes-version=$(MINIKUBE_K8S_VERSION) --driver=$(MINIKUBE_DRIVER) --cpus=$(MINIKUBE_CPUS) --memory=$(MINIKUBE_MEMORY) --disk-size=$(MINIKUBE_DISK)
