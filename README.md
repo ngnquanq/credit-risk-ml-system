@@ -535,7 +535,7 @@ To setup this, simply run:
 kubectl create namespace monitoring
 
 # Install kube-prometheus-stack with custom values
-cd services/ml/k8s/monitoring
+cd services/ops/k8s/monitoring
 helm upgrade --install kube-prometheus-stack ./kube-prometheus-stack \
 -n monitoring \
 -f kube-prometheus-stack/values.custom.yaml
@@ -558,7 +558,7 @@ To run this, simply run:
 kubectl create ns logging
 
 # Install elastic search
-cd services/ml/k8s/logging/elastic-stack
+cd services/ops/k8s/logging/elastic-stack
 
 helm upgrade --install elasticsearch ./elasticsearch -n logging -f \
   elasticsearch-values.custom.yaml

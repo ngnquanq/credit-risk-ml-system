@@ -735,7 +735,7 @@ GET /filebeat-*/_search
 
 ## References
 
-- EFK Stack Setup: `services/ml/k8s/logging/README.md`
+- EFK Stack Setup: `services/ops/k8s/logging/README.md`
 - Database Schema: `services/core/schemas/002_create_application_status_log.sql`
 - Performance Results: `reports/FINAL_PERFORMANCE_RESULTS.md`
 - Hardware Specifications: `reports/HARDWARE_SPECIFICATIONS.md`

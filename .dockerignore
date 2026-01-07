@@ -19,6 +19,7 @@ env
 # ClickHouse local storage
 .volumes/ch_data/
 .volumes/ch_logs/
+.mcp.json
 
 # Large, unused for service images
 assets/

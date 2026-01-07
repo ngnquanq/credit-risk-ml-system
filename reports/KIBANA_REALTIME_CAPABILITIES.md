@@ -400,5 +400,5 @@ Expected lag: 5-10 seconds behind actual events
 - Kibana Auto-Refresh: https://www.elastic.co/guide/en/kibana/current/set-time-filter.html#auto-refresh
 - Elasticsearch Refresh Interval: https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-update-settings.html
 - Prometheus vs Elasticsearch: https://prometheus.io/docs/introduction/comparison/
-- Your EFK Setup: `services/ml/k8s/logging/README.md`
+- Your EFK Setup: `services/ops/k8s/logging/README.md`
 - Your Grafana Setup: `services/ops/docker-compose.monitoring.yml`

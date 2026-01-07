@@ -40,7 +40,7 @@
 
 7. **Cert Manager** (README lines 508-513)
    - README: Install in `cert-manager` namespace
-   - Reality: ✅ Exists at `services/ml/k8s/cert-manager/`
+   - Reality: ✅ Exists at `services/ops/k8s/cert-manager/`
 
 8. **Ray Cluster** (README lines 515-527)
    - README: KubeRay operator + RayCluster

@@ -2,7 +2,7 @@ ml_data_mart:
   outputs:
     gold:
       type: clickhouse
-      host: localhost
+      host: "{{ env_var('DBT_CLICKHOUSE_HOST', 'localhost') }}"
       port: 8123
       user: default
       password: ""
@@ -14,7 +14,7 @@ ml_data_mart:
       
     silver:
       type: clickhouse
-      host: localhost  
+      host: "{{ env_var('DBT_CLICKHOUSE_HOST', 'localhost') }}"  
       port: 8123
       user: default
       password: ""

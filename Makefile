@@ -401,3 +401,43 @@ k8s-ml-platform: ## Deploy complete ML platform (one-off setup: training storage
 	@echo "  2. Create DockerHub secret: kubectl create secret generic dockerhub-creds --from-literal=username=YOUR_USER --from-literal=password=YOUR_PASS -n model-serving"
 	@echo "  3. Load training data: See output from k8s-training-data-storage"
 	@echo "  4. Submit training pipeline: Upload services/ml/k8s/training-pipeline/training_pipeline.yaml to Kubeflow UI"
+
+## =========================================
+## Jenkins CI/CD Automation
+## =========================================
+
+up-jenkins: ## Start Jenkins CI/CD server (Docker Compose)
+	@echo "Starting Jenkins automation server..."
+	docker compose -f services/ops/docker-compose.automation.yml up -d
+	@echo "Waiting for Jenkins to initialize..."
+	@sleep 30
+	@echo "✅ Jenkins running at http://localhost:8071"
+	@echo ""
+	@echo "Initial admin password:"
+	@docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword 2>/dev/null || echo "Jenkins still initializing, try: docker logs jenkins"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Open http://localhost:8071 and complete setup wizard"
+	@echo "  2. Install suggested plugins"
+	@echo "  3. Create Multibranch Pipeline job pointing to services/ops/scripts/automation/jenkinsfiles/flink-cicd.Jenkinsfile"
+
+down-jenkins: ## Stop Jenkins server
+	@echo "Stopping Jenkins..."
+	docker compose -f services/ops/docker-compose.automation.yml down
+	@echo "✅ Jenkins stopped"
+
+jenkins-logs: ## View Jenkins logs
+	docker logs -f jenkins
+
+jenkins-validate: ## Run Flink validation checks locally (mimics Jenkins)
+	@echo "Running validation checks (syntax only, no UDF tests)..."
+	@python3 -m py_compile application/flink/jobs/cdc_application_etl.py
+	@python3 -m py_compile application/flink/jobs/bureau_aggregation_etl.py
+	@python3 -m py_compile application/flink/jobs/cdc_udfs.py
+	@python3 -m py_compile application/flink/jobs/bureau_aggregation_udfs.py
+	@echo "✅ All Flink jobs have valid syntax"
+
+jenkins-build: ## Build Flink Docker image locally (mimics Jenkins)
+	@echo "Building Flink Docker image..."
+	@cd application/flink && docker build -t hc-flink-jobs:$(shell git rev-parse --short HEAD) .
+	@echo "✅ Image built: hc-flink-jobs:$(shell git rev-parse --short HEAD)"

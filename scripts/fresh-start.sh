@@ -331,7 +331,7 @@ sleep 30
 # 14.9: Monitoring (Prometheus + Grafana)
 echo "  Deploying Monitoring Stack (Prometheus + Grafana)..."
 kubectl create namespace monitoring || echo "Namespace already exists"
-cd services/ml/k8s/monitoring
+cd services/ops/k8s/monitoring
 helm upgrade --install kube-prometheus-stack ./kube-prometheus-stack \
     -n monitoring \
     -f kube-prometheus-stack/values.custom.yaml
@@ -342,7 +342,7 @@ sleep 30
 # 14.10: Logging (EFK Stack)
 echo "  Deploying Logging Stack (Elasticsearch + Filebeat + Kibana)..."
 kubectl create ns logging || echo "Namespace already exists"
-cd services/ml/k8s/logging/elastic-stack
+cd services/ops/k8s/logging/elastic-stack
 
 helm upgrade --install elasticsearch ./elasticsearch -n logging -f \
     elasticsearch-values.custom.yaml

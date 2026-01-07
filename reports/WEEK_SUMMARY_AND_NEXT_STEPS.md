@@ -245,7 +245,7 @@
 **Monitoring Strategy**:
 - `reports/KIBANA_DASHBOARD_SPECIFICATION.md`
 - `reports/KIBANA_REALTIME_CAPABILITIES.md`
-- `services/ml/k8s/logging/README.md`
+- `services/ops/k8s/logging/README.md`
 - `services/ops/docker-compose.logging.yml`
 
 **Database Schema**:
