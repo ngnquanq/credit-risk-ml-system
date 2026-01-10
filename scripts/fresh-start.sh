@@ -159,7 +159,7 @@ echo -e "${GREEN} Minikube cluster created${NC}\n"
 # STEP 13: CREATE SOCAT GATEWAY (Docker K8s)
 # ==============================================================================
 echo -e "${BLUE}[13/15] Creating Socat Gateway (Docker K8s bridge)...${NC}"
-docker compose -f services/ops/docker-compose.gateway.yml up -d
+make start-gateway
 echo -e "${GREEN} Socat gateway created${NC}\n"
 sleep 5
 

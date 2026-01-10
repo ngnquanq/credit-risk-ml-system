@@ -100,6 +100,60 @@ def build_and_push_image(version: str) -> bool:
                 log.error(f"Dockerfile not found at {dockerfile_path}")
                 return False
 
+            # Fix BentoML Dockerfile issues
+            log.info("Patching Dockerfile to fix $BENTO_PATH variable and uv command")
+            with open(dockerfile_path, 'r') as f:
+                dockerfile_content = f.read()
+
+            # Replace $BENTO_PATH with the actual path
+            dockerfile_content = dockerfile_content.replace('$BENTO_PATH', '/home/bentoml/bento')
+
+            # Fix uv command - replace with regular pip install
+            # Original: uv --directory $INSTALL_ROOT pip install -r /home/bentoml/bento/env/python/requirements.txt
+            # New: pip install -r /home/bentoml/bento/env/python/requirements.txt
+            dockerfile_content = dockerfile_content.replace(
+                'uv --directory $INSTALL_ROOT pip install -r',
+                'pip install --no-cache-dir -r'
+            )
+
+            with open(dockerfile_path, 'w') as f:
+                f.write(dockerfile_content)
+            log.info("Dockerfile patched successfully")
+
+            # Debug: List bento directory structure and check for requirements.txt
+            log.info("Bento directory structure:")
+            env_python_path = os.path.join(bento_dir, "env/python")
+            env_python_requirements = os.path.join(env_python_path, "requirements.txt")
+
+            log.info(f"Checking for env/python/requirements.txt:")
+            log.info(f"  env/python exists: {os.path.exists(env_python_path)}")
+            log.info(f"  requirements.txt exists: {os.path.exists(env_python_requirements)}")
+
+            if os.path.exists(env_python_path):
+                log.info(f"  Contents of env/python/:")
+                for item in os.listdir(env_python_path):
+                    log.info(f"    - {item}")
+
+            # If requirements.txt doesn't exist, create it from bentofile.yaml
+            if not os.path.exists(env_python_requirements):
+                log.info("requirements.txt not found, attempting to generate from bentofile.yaml")
+                bentofile_path = os.path.join(bento_dir, "src/bentofile.yaml")
+                if os.path.exists(bentofile_path):
+                    import yaml
+                    with open(bentofile_path, 'r') as f:
+                        bentofile = yaml.safe_load(f)
+
+                    packages = bentofile.get('python', {}).get('packages', [])
+                    if packages:
+                        os.makedirs(env_python_path, exist_ok=True)
+                        with open(env_python_requirements, 'w') as f:
+                            f.write('\n'.join(packages) + '\n')
+                        log.info(f"Created requirements.txt with {len(packages)} packages")
+                    else:
+                        log.error("No packages found in bentofile.yaml")
+                else:
+                    log.error(f"bentofile.yaml not found at {bentofile_path}")
+
             # Login to Docker Hub if credentials provided
             username = os.getenv("DOCKER_USERNAME")
             password = os.getenv("DOCKER_PASSWORD")

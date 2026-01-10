@@ -1,6 +1,11 @@
 # Filebeat DaemonSet Custom Configuration
 # Collects logs from all K8s pods
 
+# Disable certificate mounting (security disabled)
+daemonset:
+  secretMounts: []
+  extraEnvs: []
+
 # Filebeat configuration
 filebeatConfig:
   filebeat.yml: |

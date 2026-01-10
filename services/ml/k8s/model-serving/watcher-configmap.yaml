@@ -332,3 +332,92 @@ data:
 
     if __name__ == "__main__":
         main()
+
+  isvc-template.yaml: |
+    apiVersion: serving.kserve.io/v1beta1
+    kind: InferenceService
+    metadata:
+      name: ${SERVICE_NAME}
+      namespace: ${NAMESPACE}
+      labels:
+        app: credit-risk-scoring
+        version: ${VERSION}
+      annotations:
+        serving.kserve.io/deploymentMode: RawDeployment
+    spec:
+      predictor:
+        minReplicas: 0
+        maxReplicas: 4
+        hostAliases:
+          - ip: 192.168.49.1
+            hostnames:
+              - host.minikube.internal
+              - broker
+              - kafka
+        containers:
+          - name: kserve-container
+            image: ${IMAGE_URI}
+            imagePullPolicy: Always
+            ports:
+              - containerPort: 3000
+                protocol: TCP
+            env:
+              # Model configuration
+              - name: SCORING_MODEL_SOURCE
+                value: local
+              - name: SCORING_MODEL_PATH
+                value: bundle/model.joblib
+              - name: SCORING_LOG_LEVEL
+                value: INFO
+
+              # Feast configuration
+              - name: SCORING_FEAST_ENABLED
+                value: "true"
+              - name: SCORING_FEAST_REDIS_URL
+                value: feast-redis.feature-registry.svc.cluster.local:6379
+              - name: SCORING_FEAST_REGISTRY_URI
+                value: s3://feast-registry/feature_repo/registry.db
+              - name: SCORING_FEAST_PROJECT
+                value: hc
+              - name: SCORING_FEAST_PROVIDER
+                value: local
+              - name: SCORING_FEAST_INLINE_CONFIG_ENABLED
+                value: "true"
+
+              # AWS/MinIO configuration
+              - name: FEAST_S3_ENDPOINT_URL
+                value: http://serving-minio.model-serving.svc.cluster.local:9000
+              - name: AWS_S3_ENDPOINT
+                value: http://serving-minio.model-serving.svc.cluster.local:9000
+              - name: AWS_ACCESS_KEY_ID
+                value: minio_user
+              - name: AWS_SECRET_ACCESS_KEY
+                value: minio_password
+              - name: AWS_DEFAULT_REGION
+                value: us-east-1
+
+              # Kafka configuration
+              - name: SCORING_ENABLE_KAFKA
+                value: "true"
+              - name: SCORING_KAFKA_BOOTSTRAP_SERVERS
+                value: host.minikube.internal:39092
+              - name: SCORING_LOAN_APPLICATION_TOPIC
+                value: hc.applications.public.loan_applications
+              - name: SCORING_FEATURE_READY_TOPIC
+                value: hc.feature_ready
+              - name: SCORING_KAFKA_GROUP_ID
+                value: credit-risk-scoring
+              - name: SCORING_SCORING_OUTPUT_TOPIC
+                value: hc.scoring
+
+              # Observability
+              - name: OTEL_EXPORTER_OTLP_ENDPOINT
+                value: host.minikube.internal:30317
+
+            resources:
+              requests:
+                cpu: "1500m"
+                memory: 768Mi
+              limits:
+                cpu: "2000m"
+                memory: 1152Mi

@@ -1,6 +1,6 @@
 # Kibana Custom Configuration
 
-# Disable certificate mounting (security disabled)
+# Mount dummy certificate secret (content not used, but template requires it)
 secretMounts: []
 
 # Disable all extra volumes and mounts
@@ -8,14 +8,18 @@ extraVolumes: []
 extraVolumeMounts: []
 
 # Override environment variables to remove certificate and token references
-extraEnvs:
-  - name: ELASTICSEARCH_HOSTS
-    value: "http://elasticsearch-master:9200"
-  - name: SERVER_HOST
-    value: "0.0.0.0"
+extraEnvs: []
 
 # Elasticsearch connection
 elasticsearchHosts: "http://elasticsearch-master:9200"
+
+# Point to dummy secrets (templates require these, but http connection doesn't use them)
+elasticsearchCertificateSecret: "elasticsearch-master-certs"
+elasticsearchCertificateAuthoritiesFile: ""
+elasticsearchCredentialSecret: ""
+
+# Server host configuration
+serverHost: "0.0.0.0"
 
 # Resource limits
 resources:

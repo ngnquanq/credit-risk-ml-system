@@ -301,10 +301,13 @@ Socat is used as a TCP relay/proxy to bridge Docker Compose and Kubernetes netwo
 - The `kafka-broker-service.yaml` (deployed in KServe setup) provides DNS resolution for pods
 
 ```shell
-docker compose -f services/ops/docker-compose.gateway.yml up -d
+make start-gateway
 ```
 
-**Note**: This is a Minikube-specific solution. For production cloud deployments, use VPC peering or deploy all services in Kubernetes to eliminate the need for socat.
+**Note**:
+- Always use `make start-gateway` instead of direct docker-compose commands - it automatically detects current Minikube and Kafka IPs
+- If IPs change (after restarting Minikube or Kafka), use `make restart-gateway` to update the gateway
+- This is a Minikube-specific solution. For production cloud deployments, use VPC peering or deploy all services in Kubernetes to eliminate the need for socat.
 
 ### Create training data storage
 
@@ -673,3 +676,6 @@ These section bellow is like a diary of major change in the system. This time we
     - Optimize Kafka components. With the current setup, kafka is running with single-threaded consumer.
     - Optimize the retry logic in the serving pod.
 7. Get more data via OCR or text extraction, remember that we do allow user to send some pdf files like their payslips, driver license etc? We can extract more information given that, i.e their address, their income (the one that shows on the payslips), their insurance contract etc. 
+
+# Reference
+- [Building async ML Inference Pipelines with Knative Eventing and Kserve](https://medium.com/cars24-data-science-blog/building-asynchronous-ml-inference-pipelines-with-knative-eventing-and-kserve-79a7ab80bc79)

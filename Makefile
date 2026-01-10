@@ -4,6 +4,12 @@
 NETWORK_NAME := hc-network
 COMPOSE_FILE := ./services/docker-compose.yml
 
+# Load environment variables from root .env file
+ifneq (,$(wildcard .env))
+    include .env
+    export
+endif
+
 # Core service files
 CORE_COMPOSE := ./services/core/docker-compose.yml
 
@@ -70,6 +76,7 @@ help: ## Show this help message
 	@echo "  create-network            - Create platform network"
 	@echo "  core-apply-migrations     - Apply core DB migrations (idempotent)"
 	@echo "  core-reset-db             - Drop and recreate core DB (destructive)"
+	@echo "  test-env                  - Test if .env variables are loaded (for debugging)"
 
 # Network management
 create-network: ## Create the platform network
@@ -134,17 +141,45 @@ trigger-export-dag: ## Trigger ClickHouse to MinIO export DAG
 	@echo "Triggering clickhouse_to_minio_export DAG..."
 	docker exec airflow-scheduler airflow dags trigger clickhouse_to_minio_export
 
+start-gateway: ## Start K8s gateway with dynamic IP detection
+	@echo "Detecting Minikube IP..."
+	@MINIKUBE_IP=$$(minikube -p $(MINIKUBE_PROFILE) ip 2>/dev/null || echo ""); \
+	if [ -z "$$MINIKUBE_IP" ]; then \
+		echo "ERROR: Could not detect Minikube IP. Is the cluster running?"; \
+		echo "   Run 'make k8s-up' first or check minikube status with 'minikube -p $(MINIKUBE_PROFILE) status'"; \
+		exit 1; \
+	fi; \
+	echo "Minikube IP: $$MINIKUBE_IP"; \
+	echo "Detecting Kafka broker IP..."; \
+	KAFKA_IP=$$(docker inspect kafka_broker 2>/dev/null | grep -o '"IPAddress": "[^"]*"' | grep -v '""' | head -1 | cut -d'"' -f4 || echo ""); \
+	if [ -z "$$KAFKA_IP" ]; then \
+		echo "ERROR: Could not detect Kafka broker IP. Is Kafka running?"; \
+		echo "   Run 'make up-data' first or check container status with 'docker ps | grep kafka_broker'"; \
+		exit 1; \
+	fi; \
+	echo "Kafka broker IP: $$KAFKA_IP"; \
+	echo "Starting K8s gateway with detected IPs..."; \
+	KAFKA_BROKER_IP=$$KAFKA_IP MINIKUBE_IP=$$MINIKUBE_IP MINIKUBE_PROFILE=$(MINIKUBE_PROFILE) \
+		docker compose -f services/ops/docker-compose.gateway.yml up -d; \
+	echo "Gateway started successfully"
+
+restart-gateway: ## Restart K8s gateway (useful after IP changes)
+	@echo "Restarting K8s gateway..."
+	@docker compose -f services/ops/docker-compose.gateway.yml down
+	@$(MAKE) start-gateway
+
 up-operation:
-	@echo "Fixing dbt permissions for Airflow containers..."
-	@bash services/ops/scripts/orchestration/helper/fix-dbt-permissions.sh
-	@echo "Fixing Airflow permissions for DAGs and logs..."
-	@bash services/ops/scripts/orchestration/helper/fix-airflow-permissions.sh
+	# Temporarily disabled heavy services for performance testing
+	# @echo "Fixing dbt permissions for Airflow containers..."
+	# @bash services/ops/scripts/orchestration/helper/fix-dbt-permissions.sh
+	# @echo "Fixing Airflow permissions for DAGs and logs..."
+	# @bash services/ops/scripts/orchestration/helper/fix-airflow-permissions.sh
 	docker compose -f services/ops/docker-compose.logging.yml up -d
 	docker compose -f services/ops/docker-compose.monitoring.yml up -d
-	docker compose -f services/ops/docker-compose.dashboard.yml up -d
-	docker compose -f services/ops/docker-compose.gateway.yml up -d
-	docker compose --env-file services/ops/.env.ops -f services/ops/docker-compose.orchestration.yml up -d
-	docker compose --env-file services/ops/.env.ops -f services/ops/docker-compose.automation.yml up -d
+	# docker compose -f services/ops/docker-compose.dashboard.yml up -d  # Superset - TEMPORARILY DISABLED
+	@$(MAKE) start-gateway
+	# docker compose --env-file services/ops/.env.ops -f services/ops/docker-compose.orchestration.yml up -d  # Airflow - TEMPORARILY DISABLED
+	# docker compose --env-file services/ops/.env.ops -f services/ops/docker-compose.automation.yml up -d  # Jenkins - TEMPORARILY DISABLED
 
 k8s-up: ## Start Minikube profile for ML platform (with addons)
 	minikube start -p $(MINIKUBE_PROFILE) --kubernetes-version=$(MINIKUBE_K8S_VERSION) --driver=$(MINIKUBE_DRIVER) --cpus=$(MINIKUBE_CPUS) --memory=$(MINIKUBE_MEMORY) --disk-size=$(MINIKUBE_DISK)
@@ -157,8 +192,9 @@ k8s-training-data-storage: ## Deploy training data storage (MinIO for versioned 
 	kubectl create ns training-data || true
 	helm upgrade --install training-minio ./services/ml/k8s/training-data-storage -n training-data \
 		-f services/ml/k8s/training-data-storage/minio.values.yaml
-	@echo "✅ Training data storage deployed (namespace: training-data)"
-	@echo "Load sample data: docker exec clickhouse_dwh clickhouse-client -q \"SET s3_truncate_on_insert=1; INSERT INTO FUNCTION s3('http://172.18.0.1:31900/training-data/snapshots/ds=2025-09-19/loan_applications.csv','minioadmin','minioadmin','CSVWithNames') SELECT a.*, t.TARGET FROM application_mart.mart_application AS a INNER JOIN application_mart.mart_application_train AS t ON a.SK_ID_CURR = t.SK_ID_CURR\""
+	@echo "Training data storage deployed (namespace: training-data)"
+# 	Issue: this use Minikube IP which may not static, need to automatically track for the minikube IP first
+# 	@echo "Load sample data: docker exec clickhouse_dwh clickhouse-client -q \"SET s3_truncate_on_insert=1; INSERT INTO FUNCTION s3('http://172.18.0.1:31900/training-data/snapshots/ds=2025-09-19/loan_applications.csv','minioadmin','minioadmin','CSVWithNames') SELECT a.*, t.TARGET FROM application_mart.mart_application AS a INNER JOIN application_mart.mart_application_train AS t ON a.SK_ID_CURR = t.SK_ID_CURR\""
 
 k8s-kubeflow: ## Deploy Kubeflow Pipelines for training orchestration
 	@echo "Deploying Kubeflow Pipelines v2.14.3..."
@@ -181,7 +217,7 @@ k8s-ray: ## Deploy Ray cluster for distributed hyperparameter tuning
 	helm upgrade --install kuberay-operator ./services/ml/k8s/kuberay-operator \
 		-n ray -f services/ml/k8s/kuberay-operator/values.yaml
 	kubectl apply -f services/ml/k8s/kuberay-operator/raycluster.yaml
-	@echo "✅ Ray cluster deployed (namespace: ray)"
+	@echo "Ray cluster deployed (namespace: ray)"
 	@echo "Check status: kubectl get raycluster -n ray"
 
 k8s-model-registry: ## Deploy MLflow model registry with Postgres + MinIO backend
@@ -191,7 +227,7 @@ k8s-model-registry: ## Deploy MLflow model registry with Postgres + MinIO backen
 		-f services/ml/k8s/model-registry/minio/values.internal.yaml
 	helm upgrade --install mlflow ./services/ml/k8s/model-registry/ -n model-registry \
 		-f services/ml/k8s/model-registry/values.internal.yaml
-	@echo "✅ MLflow registry deployed (namespace: model-registry)"
+	@echo "MLflow registry deployed (namespace: model-registry)"
 	@echo "Port-forward: kubectl port-forward -n model-registry svc/mlflow 5000:5000"
 
 k8s-kserve: ## Deploy KServe for model serving infrastructure
@@ -202,7 +238,7 @@ k8s-kserve: ## Deploy KServe for model serving infrastructure
 	@echo "Waiting for cert-manager webhook to be ready (this may take 60-90s)..."
 	kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-webhook -n cert-manager || true
 	kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=webhook -n cert-manager --timeout=120s
-	@echo "✅ cert-manager ready"
+	@echo "cert-manager ready"
 	@echo ""
 	@echo "Installing KServe standard components..."
 	kubectl apply -f services/ml/k8s/kserve/standard-install.yaml
@@ -222,7 +258,7 @@ k8s-kserve: ## Deploy KServe for model serving infrastructure
 	kubectl apply -f services/ml/k8s/kserve/bento-builder/configmap.yaml
 	@echo "Configuring Kafka DNS resolution for scoring pods..."
 	kubectl apply -f services/ml/k8s/kserve/kafka-broker-service.yaml
-	@echo "✅ KServe deployed (namespace: kserve)"
+	@echo "KServe deployed (namespace: kserve)"
 
 k8s-mlflow-watcher: ## Deploy MLflow watcher (auto-triggers Bento builds on model promotion)
 	@echo "Deploying MLflow watcher..."
@@ -233,20 +269,23 @@ k8s-mlflow-watcher: ## Deploy MLflow watcher (auto-triggers Bento builds on mode
 		-f services/ml/k8s/mlflow-watcher/builder-configmap.yaml \
 		-f services/ml/k8s/mlflow-watcher/deployment.yaml
 	kubectl -n model-registry rollout status deploy/mlflow-watcher
-	@echo "✅ MLflow watcher deployed (namespace: model-registry)"
+	@echo "MLflow watcher deployed (namespace: model-registry)"
 
 k8s-model-serving: ## Deploy model serving components (bundle storage + serving watcher)
 	@echo "Deploying model serving components..."
 	kubectl create ns model-serving || true
-	@echo "Note: Create DockerHub credentials secret if needed:"
-	@echo "  kubectl create secret generic dockerhub-creds --from-literal=username=YOUR_USERNAME --from-literal=password=YOUR_PASSWORD -n model-serving"
+	@echo "Creating DockerHub credentials secret..."
+	kubectl create secret generic dockerhub-creds \
+		--from-literal=username=$(DOCKERHUB_USERNAME) \
+		--from-literal=password=$(DOCKERHUB_PASSWORD) \
+		-n model-serving --dry-run=client -o yaml | kubectl apply -f -
 	cd services/ml/k8s/model-serving/bundle-storage && \
 		helm upgrade --install serving-minio . -n model-serving -f values.internal.yaml
 	kubectl apply -f services/ml/k8s/model-serving/watcher-rbac.yaml
 	kubectl apply -f services/ml/k8s/model-serving/watcher-configmap.yaml
 	kubectl apply -f services/ml/k8s/model-serving/watcher-deployment.yaml
 	kubectl rollout restart -n model-serving deployment/serving-watcher
-	@echo "✅ Model serving deployed (namespace: model-serving)"
+	@echo "Model serving deployed (namespace: model-serving)"
 
 k8s-feature-registry: ## Deploy Feast feature registry + Redis online store
 	@echo "Deploying Feast feature registry..."
@@ -255,7 +294,7 @@ k8s-feature-registry: ## Deploy Feast feature registry + Redis online store
 	@echo "  docker build ./application/feast_repo/ -t ngnquanq/feast-repo:v15"
 	@echo "  docker push ngnquanq/feast-repo:v15"
 	kubectl apply -k ./services/ml/k8s/feature-store/
-	@echo "✅ Feast feature registry deployed (namespace: feature-registry)"
+	@echo "Feast feature registry deployed (namespace: feature-registry)"
 
 k8s-monitoring: ## Deploy Prometheus + Grafana monitoring stack
 	@echo "Deploying monitoring stack (Prometheus + Grafana + cAdvisor)..."
@@ -265,41 +304,9 @@ k8s-monitoring: ## Deploy Prometheus + Grafana monitoring stack
 		-n monitoring \
 		-f kube-prometheus-stack/values.custom.yaml
 	kubectl apply -f services/ops/k8s/monitoring/kube-prometheus-stack/docker-cadvisor-servicemonitor.yaml
-	@echo "✅ Monitoring stack deployed (namespace: monitoring)"
+	@echo "Monitoring stack deployed (namespace: monitoring)"
 	@echo "Port-forward Grafana: kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80"
 	@echo "Default credentials: admin/prom-operator"
-
-k8s-logging: ## Deploy EFK logging stack (Elasticsearch + Filebeat + Kibana)
-	@echo "Deploying EFK logging stack..."
-	kubectl create ns logging || true
-	@echo "Installing Elasticsearch..."
-	cd services/ops/k8s/logging/elastic-stack && \
-		helm upgrade --install elasticsearch ./elasticsearch -n logging -f elasticsearch-values.custom.yaml
-	kubectl create secret generic elasticsearch-master-credentials -n logging \
-		--from-literal=username=elastic --from-literal=password=changeme || true
-	@echo "Waiting for Elasticsearch to be ready..."
-	@sleep 30
-	@echo "Installing Kibana..."
-	cd services/ops/k8s/logging/elastic-stack && \
-		helm upgrade --install kibana ./kibana -n logging -f kibana-values.custom.yaml --no-hooks
-	@echo "Installing Filebeat..."
-	cd services/ops/k8s/logging/elastic-stack && \
-		helm upgrade --install filebeat ./filebeat -n logging -f filebeat-values.custom.yaml
-	@echo "✅ EFK logging stack deployed (namespace: logging)"
-	@echo "Port-forward Kibana: kubectl port-forward -n logging svc/kibana-kibana 5601:5601"
-
-k8s-automation: ## Deploy Jenkins automation server for CI/CD
-	@echo "Deploying Jenkins automation server..."
-	kubectl create ns automation || true
-	cd services/ops/k8s/automation && \
-		helm upgrade --install jenkins ./jenkins \
-		-n automation \
-		-f jenkins-values.custom.yaml
-	@echo "Waiting for Jenkins to be ready..."
-	@kubectl wait --for=condition=available --timeout=300s deployment/jenkins -n automation || true
-	@echo "✅ Jenkins deployed (namespace: automation)"
-	@echo "Port-forward: kubectl port-forward -n automation svc/jenkins 8080:8080"
-	@echo "Default credentials: admin / jenkins-admin-password (⚠️ Change in production!)"
 
 k8s-ml-platform: ## Deploy complete ML platform (one-off setup: training storage, Kubeflow, Ray, registry, KServe, watchers, Feast, monitoring, logging)
 	@echo "========================================="
@@ -386,6 +393,18 @@ k8s-ml-platform: ## Deploy complete ML platform (one-off setup: training storage
 		exit 1; \
 	fi
 	@echo ""
+	@echo "Restart K8s gateway to update IPs..."
+	@if $(MAKE) restart-gateway; then \
+		echo "✅ Gateway restarted successfully"; \
+	else \
+		echo "❌ Gateway restart failed - please check manually"; \
+	fi
+	@echo "Restart Feature Registry to pick up gateway changes..."
+	@if $(MAKE) k8s-feature-registry; then \
+		echo "✅ Feature Registry restarted successfully"; \
+	else \
+		echo "❌ Feature Registry restart failed - please check manually"; \
+	fi
 	@echo "========================================="
 	@echo "✅ ML Platform Deployment Complete!"
 	@echo "========================================="
@@ -441,3 +460,20 @@ jenkins-build: ## Build Flink Docker image locally (mimics Jenkins)
 	@echo "Building Flink Docker image..."
 	@cd application/flink && docker build -t hc-flink-jobs:$(shell git rev-parse --short HEAD) .
 	@echo "✅ Image built: hc-flink-jobs:$(shell git rev-parse --short HEAD)"
+
+k8s-logging: ## Deploy ECK logging stack (Elasticsearch + Kibana + Filebeat)
+	@echo "Deploying ECK logging stack..."
+	kubectl create ns logging || true
+	@echo "Installing ECK Operator..."
+	cd services/ops/k8s/logging/eck-stack && \
+		helm upgrade --install elastic-operator ./eck-operator -n logging --create-namespace
+	@echo "Waiting for ECK Operator to be ready..."
+	@sleep 20
+	@echo "Installing Elasticsearch and Kibana..."
+	cd services/ops/k8s/logging/eck-stack && \
+		helm upgrade --install elastic-stack ./eck-stack -n logging -f eck-values.custom.yaml || true
+	@echo "Deploying Filebeat..."
+	kubectl apply -f services/ops/k8s/logging/eck-stack/filebeat-manifest.yaml
+	@echo "ECK logging stack deployed (namespace: logging)"
+	@echo "Port-forward Kibana: kubectl port-forward -n logging svc/elastic-stack-eck-kibana-kb-http 5601:5601"
+	@echo "Default password: kubectl get secret elasticsearch-es-elastic-user -n logging -o=jsonpath='{.data.elastic}' | base64 -d"

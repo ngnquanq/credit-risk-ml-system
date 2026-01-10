@@ -1,8 +1,8 @@
 # PIPELINE DEFINITION
 # Name: credit-risk-training-pipeline
 # Inputs:
-#    aws_access_key_id: str [Default: 'minio_user']
-#    aws_secret_access_key: str [Default: 'minio_password']
+#    aws_access_key_id: str [Default: 'minioadmin']
+#    aws_secret_access_key: str [Default: 'minioadmin']
 #    bucket: str [Default: 'training-data']
 #    entity_key: str [Default: 'sk_id_curr']
 #    experiment: str [Default: 'credit-risk']
@@ -434,11 +434,11 @@ root:
   inputDefinitions:
     parameters:
       aws_access_key_id:
-        defaultValue: minio_user
+        defaultValue: minioadmin
         isOptional: true
         parameterType: STRING
       aws_secret_access_key:
-        defaultValue: minio_password
+        defaultValue: minioadmin
         isOptional: true
         parameterType: STRING
       bucket:
