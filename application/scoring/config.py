@@ -67,8 +67,8 @@ class ScoringSettings(BaseSettings):
         description="Comma-separated Feast feature references (set via env var or loaded from model's feast_metadata.yaml)",
     )
 
-    # Kafka integration (optional streaming scoring)
-    enable_kafka: bool = Field(default=True, description="Enable Kafka consumer for loan applications")
+    # Kafka integration (disabled - using Knative Eventing)
+    enable_kafka: bool = Field(default=False, description="Kafka consumer disabled in serverless mode")
     kafka_bootstrap_servers: str = Field(
         default="host.minikube.internal:39092", description="Kafka bootstrap servers"
     )

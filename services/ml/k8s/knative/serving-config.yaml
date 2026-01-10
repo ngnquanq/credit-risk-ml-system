@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-defaults
+  namespace: knative-serving
+data:
+  enable-scale-to-zero: "true"
+  scale-to-zero-grace-period: "30s"
+  revision-timeout-seconds: "300"
+  container-concurrency-target-percentage: "70"
+  container-concurrency: "100"

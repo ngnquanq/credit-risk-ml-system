@@ -195,6 +195,91 @@ def build_and_push_image(version: str) -> bool:
 
 
 
+def create_or_update_kafkasource(isvc_name: str, namespace: str) -> bool:
+    """Create or update KafkaSource to route events to latest InferenceService."""
+    try:
+        k8s_config.load_incluster_config()
+        custom_api = k8s.CustomObjectsApi()
+
+        kafka_source_name = "feature-ready-source"
+
+        kafka_source = {
+            "apiVersion": "sources.knative.dev/v1beta1",
+            "kind": "KafkaSource",
+            "metadata": {
+                "name": kafka_source_name,
+                "namespace": namespace
+            },
+            "spec": {
+                "bootstrapServers": ["host.minikube.internal:39092"],
+                "topics": ["hc.feature_ready"],
+                "consumerGroup": "knative-scoring-consumer",
+                "consumers": 1,
+                "initialOffset": "latest",
+                "sink": {
+                    "ref": {
+                        "apiVersion": "serving.kserve.io/v1beta1",
+                        "kind": "InferenceService",
+                        "name": isvc_name
+                    },
+                    "uri": "/v1/score-by-id"
+                },
+                "delivery": {
+                    "deadLetterSink": {
+                        "ref": {
+                            "apiVersion": "eventing.knative.dev/v1alpha1",
+                            "kind": "KafkaSink",
+                            "name": "scoring-dlq-sink"
+                        }
+                    },
+                    "retry": 3,
+                    "backoffPolicy": "exponential",
+                    "backoffDelay": "PT1S"
+                },
+                "resources": {
+                    "requests": {"cpu": "100m", "memory": "128Mi"},
+                    "limits": {"cpu": "200m", "memory": "256Mi"}
+                }
+            }
+        }
+
+        try:
+            existing = custom_api.get_namespaced_custom_object(
+                group="sources.knative.dev",
+                version="v1beta1",
+                namespace=namespace,
+                plural="kafkasources",
+                name=kafka_source_name
+            )
+            log.info(f"Updating KafkaSource {kafka_source_name} → {isvc_name}")
+            custom_api.patch_namespaced_custom_object(
+                group="sources.knative.dev",
+                version="v1beta1",
+                namespace=namespace,
+                plural="kafkasources",
+                name=kafka_source_name,
+                body=kafka_source
+            )
+        except k8s.rest.ApiException as e:
+            if e.status == 404:
+                log.info(f"Creating KafkaSource {kafka_source_name} → {isvc_name}")
+                custom_api.create_namespaced_custom_object(
+                    group="sources.knative.dev",
+                    version="v1beta1",
+                    namespace=namespace,
+                    plural="kafkasources",
+                    body=kafka_source
+                )
+            else:
+                raise
+
+        return True
+
+    except Exception as e:
+        log.error(f"Failed to create/update KafkaSource: {e}")
+        return False
+
+
 def create_or_update_inferenceservice(version: str) -> bool:
     """Create or update KServe InferenceService for a version."""
     try:
@@ -204,8 +289,8 @@ def create_or_update_inferenceservice(version: str) -> bool:
         service_name = f"credit-risk-{version}"
         image_uri = f"{REGISTRY_URL}/{IMAGE_NAME}:latest"
 
-        # Load InferenceService template from YAML file
-        template_path = os.path.join(os.path.dirname(__file__), "isvc-template.yaml")
+        # Load InferenceService template from YAML file (serverless mode)
+        template_path = os.path.join(os.path.dirname(__file__), "isvc-template-serverless.yaml")
         with open(template_path, 'r') as f:
             template_content = f.read()
 
@@ -303,12 +388,19 @@ def reconcile() -> None:
     log.info(f"Target versions to deploy: {target_versions}")
 
     # Deploy new versions
+    latest_version = None
     for version in target_versions:
         if version not in deployed_versions:
             log.info(f"New version detected: {version}")
             if build_and_push_image(version):
                 if create_or_update_inferenceservice(version):
                     deployed_versions.add(version)
+                    latest_version = version
+
+    # Update KafkaSource to point to latest version
+    if latest_version:
+        service_name = f"credit-risk-{latest_version}"
+        create_or_update_kafkasource(service_name, KSERVE_NAMESPACE)
 
     # Remove old versions
     versions_to_remove = deployed_versions - target_versions

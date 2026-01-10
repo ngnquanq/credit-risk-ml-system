@@ -1,0 +1,16 @@
+---
+# Service to expose host.minikube.internal:39092 as a Kubernetes service
+# This allows Knative Kafka controller to validate topics
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-broker-external
+  namespace: knative-eventing
+spec:
+  type: ExternalName
+  externalName: host.minikube.internal
+  ports:
+    - name: kafka
+      port: 39092
+      targetPort: 39092
+      protocol: TCP

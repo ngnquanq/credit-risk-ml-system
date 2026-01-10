@@ -19,8 +19,8 @@ python:
     - xgboost==2.1.0
     - joblib>=1.3
     - protobuf>=4.25.0,<5.0
-    - feast[redis,kafka]>=0.40
-    - kafka-python>=2.0.2
+    - feast[redis]>=0.40  # Removed kafka extra - Knative handles Kafka
+    # - kafka-python>=2.0.2  # Removed - Knative handles Kafka
     - boto3>=1.28
     - opentelemetry-api==1.22.0
     - opentelemetry-sdk==1.22.0

@@ -1,0 +1,12 @@
+apiVersion: eventing.knative.dev/v1alpha1
+kind: KafkaSink
+metadata:
+  name: scoring-dlq-sink
+  namespace: kserve
+spec:
+  bootstrapServers:
+    - host.minikube.internal:39092
+
+  topic: hc.scoring.dlq
+
+  contentMode: binary

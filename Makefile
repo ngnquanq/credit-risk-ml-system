@@ -230,6 +230,59 @@ k8s-model-registry: ## Deploy MLflow model registry with Postgres + MinIO backen
 	@echo "MLflow registry deployed (namespace: model-registry)"
 	@echo "Port-forward: kubectl port-forward -n model-registry svc/mlflow 5000:5000"
 
+k8s-knative-serving: ## Install Knative Serving v1.13.1
+	@echo "Installing Knative Serving v1.13.1..."
+	kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.13.1/serving-crds.yaml
+	kubectl wait --for=condition=Established --all --timeout=300s crd
+	kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.13.1/serving-core.yaml
+	kubectl wait --for=condition=available --timeout=300s deployment/controller -n knative-serving
+	kubectl wait --for=condition=available --timeout=300s deployment/activator -n knative-serving
+	@echo "Installing net-kourier networking layer..."
+	kubectl apply -f https://github.com/knative/net-kourier/releases/download/knative-v1.13.0/kourier.yaml
+	kubectl patch configmap/config-network --namespace knative-serving --type merge --patch '{"data":{"ingress-class":"kourier.ingress.networking.knative.dev"}}'
+	kubectl wait --for=condition=available --timeout=300s deployment/net-kourier-controller -n knative-serving
+	kubectl wait --for=condition=available --timeout=300s deployment/3scale-kourier-gateway -n kourier-system
+	@echo "✅ Knative Serving installed with Kourier networking"
+
+k8s-knative-eventing: ## Install Knative Eventing v1.13.7
+	@echo "Installing Knative Eventing v1.13.7..."
+	kubectl apply -f https://github.com/knative/eventing/releases/download/knative-v1.13.7/eventing-crds.yaml
+	kubectl wait --for=condition=Established --all --timeout=300s crd
+	kubectl apply -f https://github.com/knative/eventing/releases/download/knative-v1.13.7/eventing-core.yaml
+	kubectl wait --for=condition=available --timeout=300s deployment/eventing-controller -n knative-eventing
+	@echo "✅ Knative Eventing installed"
+
+k8s-knative-kafka: ## Install Knative Kafka Source/Sink v1.13.6
+	@echo "Installing Knative Kafka components v1.13.6..."
+	kubectl apply -f https://github.com/knative-extensions/eventing-kafka-broker/releases/download/knative-v1.13.6/eventing-kafka-controller.yaml
+	kubectl apply -f https://github.com/knative-extensions/eventing-kafka-broker/releases/download/knative-v1.13.6/eventing-kafka-source.yaml
+	kubectl apply -f https://github.com/knative-extensions/eventing-kafka-broker/releases/download/knative-v1.13.6/eventing-kafka-sink.yaml
+	kubectl wait --for=condition=available --timeout=300s deployment/kafka-controller -n knative-eventing
+	@echo "✅ Knative Kafka Source/Sink installed"
+
+k8s-knative-stack: k8s-knative-serving k8s-knative-eventing k8s-knative-kafka ## Install complete Knative stack
+	@echo "Applying Knative configuration..."
+	kubectl apply -f services/ml/k8s/knative/serving-config.yaml
+	@echo "✅ Knative stack installed (Serving + Eventing + Kafka)"
+
+k8s-kafka-sink: ## Deploy KafkaSink resources
+	@echo "Deploying KafkaSink resources..."
+	kubectl apply -f services/ml/k8s/kserve/kafka-sink.yaml
+	kubectl apply -f services/ml/k8s/kserve/kafka-dlq-sink.yaml
+	@echo "✅ KafkaSink resources deployed"
+
+k8s-knative-complete: k8s-knative-stack k8s-kafka-sink ## Complete Knative stack deployment
+	@echo "Deploying RBAC for KafkaSource..."
+	kubectl apply -f services/ml/k8s/knative/kafka-rbac.yaml
+	@echo "Enabling Knative addressable resolver in KServe..."
+	cd services/ml/k8s/kserve/kserve-main && helm upgrade kserve . -n kserve --reuse-values --set kserve.controller.knativeAddressableResolver.enabled=true
+	@echo "✅ Knative Eventing stack ready for model deployment"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Rebuild BentoML bundle with updated code"
+	@echo "  2. Upload to MLflow (serving watcher will auto-deploy)"
+	@echo "  3. Monitor: kubectl logs -n model-serving deployment/serving-watcher -f"
+
 k8s-kserve: ## Deploy KServe for model serving infrastructure
 	@echo "Deploying KServe (cert-manager + CRDs + main components)..."
 	kubectl create ns kserve || true

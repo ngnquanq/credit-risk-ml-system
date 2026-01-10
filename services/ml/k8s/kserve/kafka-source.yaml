@@ -1,0 +1,41 @@
+apiVersion: sources.knative.dev/v1beta1
+kind: KafkaSource
+metadata:
+  name: feature-ready-source
+  namespace: kserve
+spec:
+  bootstrapServers:
+    - host.minikube.internal:39092
+
+  topics:
+    - hc.feature_ready
+
+  consumerGroup: knative-scoring-consumer
+  consumers: 1
+  initialOffset: latest
+
+  sink:
+    ref:
+      apiVersion: serving.kserve.io/v1beta1
+      kind: InferenceService
+      name: credit-risk-latest  # Updated dynamically by watcher
+    uri: /v1/score-by-id
+
+  delivery:
+    retry: 3
+    backoffPolicy: exponential
+    backoffDelay: PT1S
+    # TODO: Add DLQ after KafkaSink connectivity is resolved
+    # deadLetterSink:
+    #   ref:
+    #     apiVersion: eventing.knative.dev/v1alpha1
+    #     kind: KafkaSink
+    #     name: scoring-dlq-sink
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
