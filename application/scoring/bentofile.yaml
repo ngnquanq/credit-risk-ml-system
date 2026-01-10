@@ -7,6 +7,7 @@ include:
   - "feast_repo/**"
   - "tracing/**"
 python:
+  lock_packages: false  # Use pip instead of uv for dependency installation
   packages:
     - bentoml>=1.1.10
     - fastapi>=0.110
