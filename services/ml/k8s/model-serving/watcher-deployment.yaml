@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: serving-watcher
+  namespace: model-serving
+  labels:
+    app: serving-watcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: serving-watcher
+  template:
+    metadata:
+      labels:
+        app: serving-watcher
+    spec:
+      serviceAccountName: serving-watcher
+      containers:
+      # Main watcher container
+      - name: watcher
+        image: docker:27-dind
+        imagePullPolicy: IfNotPresent
+        command: ["sh", "-c"]
+        args:
+          - |
+            apk add --no-cache python3 py3-pip && \
+            pip3 install --break-system-packages kubernetes pyyaml boto3 && \
+            echo "Waiting for Docker daemon..." && \
+            until docker ps >/dev/null 2>&1; do sleep 2; done && \
+            echo "Docker daemon ready" && \
+            python3 /app/watcher.py
+        env:
+        - name: DOCKER_HOST
+          value: tcp://localhost:2375
+        - name: MINIO_ENDPOINT
+          value: http://serving-minio.model-serving.svc.cluster.local:9000
+        - name: MINIO_ACCESS_KEY
+          value: minio_user
+        - name: MINIO_SECRET_KEY
+          value: minio_password
+        - name: BUCKET_NAME
+          value: bentoml-bundles
+        - name: BENTO_PREFIX
+          value: bentos/credit_risk_model
+        - name: REGISTRY_URL
+          value: docker.io/ngnquanq
+        - name: IMAGE_NAME
+          value: credit-risk-scoring
+        - name: DOCKER_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: dockerhub-creds
+              key: username
+              optional: true
+        - name: DOCKER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: dockerhub-creds
+              key: password
+              optional: true
+        - name: POLL_INTERVAL_SECS
+          value: "30"
+        - name: MAX_ACTIVE_MODELS
+          value: "2"
+        - name: KSERVE_NAMESPACE
+          value: kserve
+        volumeMounts:
+        - name: watcher-code
+          mountPath: /app
+
+      # Docker daemon sidecar
+      - name: dind
+        image: docker:27-dind
+        securityContext:
+          privileged: true
+        env:
+        - name: DOCKER_TLS_CERTDIR
+          value: ""
+        command: ["dockerd"]
+        args:
+          - "--host=tcp://0.0.0.0:2375"
+          - "--insecure-registry=docker-registry.model-serving.svc.cluster.local:5000"
+        volumeMounts:
+        - name: docker-storage
+          mountPath: /var/lib/docker
+
+      volumes:
+      - name: watcher-code
+        configMap:
+          name: serving-watcher
+          items:
+          - key: watcher.py
+            path: watcher.py
+          - key: isvc-template.yaml
+            path: isvc-template.yaml
+      - name: docker-storage
+        emptyDir: {}

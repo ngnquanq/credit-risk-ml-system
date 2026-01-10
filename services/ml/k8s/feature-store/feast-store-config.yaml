@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: feast-store-config
+  labels:
+    component: feature-store
+data:
+  feature_store.yaml: |
+    project: hc
+    registry: s3://feast-registry/feature_repo/registry.db
+    provider: local
+    online_store:
+      type: redis
+      connection_string: feast-redis:6379  # K8s service name
+    entity_key_serialization_version: 2

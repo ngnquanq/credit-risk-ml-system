@@ -1,0 +1,89 @@
+# Custom values for Jenkins deployment
+# Home Credit ML Platform - Automation Server
+
+controller:
+  # Resource allocation
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
+
+  # Admin credentials (change these for production!)
+  admin:
+    username: "admin"
+    password: "jenkins-admin-password"
+    createSecret: true
+
+  # Jenkins configuration as code (JCasC)
+  JCasC:
+    defaultConfig: true
+    configScripts:
+      welcome-message: |
+        jenkins:
+          systemMessage: "Home Credit ML Platform - Jenkins Automation Server\n\nManage CI/CD pipelines for ML model training, deployment, and monitoring."
+
+  # Install essential plugins
+  installPlugins:
+    - kubernetes:4360.v00e5a_da_34e42
+    - workflow-aggregator:600.vb_57cdd26fdd7
+    - git:5.7.1
+    - configuration-as-code:1909.vb_b_b_4b_b_76169c9
+    - github-branch-source:1906.v6b_4a_f1f2e779
+    - pipeline-stage-view:2.34
+    - blueocean:1.27.15
+    - docker-workflow:580.vc0c340686b_54
+    - prometheus:824.vb_83e3a_c4d6dd
+    - kubernetes-credentials-provider:1.274.v59052b_9e5c07
+
+  # Persistence
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: "20Gi"
+    accessMode: "ReadWriteOnce"
+
+  # Service configuration
+  serviceType: ClusterIP
+  servicePort: 8080
+  targetPort: 8080
+
+  # Ingress disabled by default
+  ingress:
+    enabled: false
+
+# Agent configuration
+agent:
+  enabled: true
+  namespace: automation
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+  image:
+    repository: "jenkins/inbound-agent"
+    tag: "3273.v4cfe589b_fd83-1"
+
+  workspaceVolume:
+    type: "EmptyDir"
+
+  podRetention: "OnFailure"
+  containerCap: 10
+
+# Prometheus monitoring
+prometheus:
+  enabled: true
+  serviceMonitorNamespace: monitoring
+  serviceMonitorAdditionalLabels:
+    release: kube-prometheus-stack
+
+# Network policy
+networkPolicy:
+  enabled: false

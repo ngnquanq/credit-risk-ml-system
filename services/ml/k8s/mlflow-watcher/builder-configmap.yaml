@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mlflow-watcher-builder-config
+data:
+  job-template.yaml: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      generateName: bento-build-
+      namespace: kserve
+    spec:
+      ttlSecondsAfterFinished: 1800
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: builder
+            image: python:3.11-slim
+            imagePullPolicy: IfNotPresent
+            env:
+            - name: MLFLOW_TRACKING_URI
+              value: http://mlflow.model-registry.svc.cluster.local:80
+            - name: MODEL_NAME
+              value: credit_risk_model
+            # The poller sets per-run values below:
+            # - name: MODEL_URI
+            #   value: models:/credit_risk_model/12
+            # - name: VERSION_TAG
+            #   value: v12
+            - name: APP_REPO
+              value: https://github.com/ngnquanq/credit-risk-ml-system.git
+            - name: APP_REF
+              value: feature/ml-model-v0.0
+            - name: APP_SUBPATH
+              value: application/scoring
+            - name: BENTO_BUCKET
+              value: bentoml-bundles
+            - name: BENTO_PREFIX
+              value: bentos
+            - name: AWS_REGION
+              value: us-east-1
+            - name: AWS_S3_ENDPOINT
+              value: http://serving-minio.model-serving.svc.cluster.local:9000
+            - name: AWS_ACCESS_KEY_ID
+              value: minio_user
+            - name: AWS_SECRET_ACCESS_KEY
+              value: minio_password
+            - name: AWS_S3_FORCE_PATH_STYLE
+              value: "true"
+            command: ["bash", "-lc"]
+            args:
+            - |
+              apt-get update && apt-get install -y git && \
+              pip install --no-cache-dir mlflow==2.14.3 bentoml boto3 gitpython cloudpickle pyyaml pandas==2.2.2 scikit-learn==1.5.1 xgboost==2.1.0 numpy==1.26.4 && \
+              python /app/build_and_upload.py
+            volumeMounts:
+            - name: script
+              mountPath: /app
+          volumes:
+          - name: script
+            configMap:
+              name: bento-builder-script
+  values.yaml: |
+    builder:
+      namespace: kserve
+      appRepo: https://github.com/ngnquanq/credit-risk-ml-system.git
+      appRef: main
+      appSubpath: application/scoring
+      mlflowTrackingUri: http://mlflow.model-registry.svc.cluster.local:80
+      modelName: credit_risk_model
+      bucket: bentoml-bundles
+      prefix: bentos
+      s3:
+        endpoint: http://serving-minio.model-serving.svc.cluster.local:9000
+        region: us-east-1
+        accessKeyId: minio_user
+        secretAccessKey: minio_password
+        forcePathStyle: true
+    runtime:
+      env:
+        SCORING_MODEL_SOURCE: local
+        SCORING_MODEL_PATH: bundle/model.joblib
+        AWS_S3_ENDPOINT: http://serving-minio.model-serving.svc.cluster.local:9000
+        AWS_REGION: us-east-1
+        AWS_S3_FORCE_PATH_STYLE: "true"
+        AWS_ACCESS_KEY_ID: minio_user
+        AWS_SECRET_ACCESS_KEY: minio_password

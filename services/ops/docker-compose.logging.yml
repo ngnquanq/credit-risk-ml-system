@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.17.0
+    container_name: docker_filebeat
+    user: root
+    hostname: filebeat-docker
+    volumes:
+      # Filebeat configuration
+      - ./filebeat.docker.yml:/usr/share/filebeat/filebeat.yml:ro
+      # Docker socket to discover containers
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Docker container logs
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # Filebeat data and logs
+      - filebeat_data:/usr/share/filebeat/data
+      - filebeat_logs:/var/log/filebeat
+    command: filebeat -e --strict.perms=false
+    networks:
+      - hc-network
+    restart: unless-stopped
+    labels:
+      logging.role: "log-shipper"
+      logging.target: "elasticsearch"
+      logging.type: "filebeat"
+    healthcheck:
+      test: ["CMD", "filebeat", "test", "config", "--strict.perms=false"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  hc-network:
+    external: true
+
+volumes:
+  filebeat_data:
+    driver: local
+  filebeat_logs:
+    driver: local

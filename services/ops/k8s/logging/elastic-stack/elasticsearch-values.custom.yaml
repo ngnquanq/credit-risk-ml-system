@@ -1,0 +1,57 @@
+# Elasticsearch Custom Configuration
+# Lightweight setup for development/single node cluster
+
+# Cluster settings
+replicas: 1  # Single node for development
+minimumMasterNodes: 1
+
+# Resource limits (adjust based on your needs)
+resources:
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+  limits:
+    cpu: "1000m"
+    memory: "2Gi"
+
+# Volume configuration
+volumeClaimTemplate:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+
+# Set password for development (security disabled but password needed for probes)
+secret:
+  enabled: true
+  password: "admin"  # Username will be 'elastic', password 'admin'
+
+createCert: false
+
+esConfig:
+  elasticsearch.yml: |
+    xpack.security.enabled: false
+    xpack.security.enrollment.enabled: false
+    xpack.security.http.ssl.enabled: false
+    xpack.security.transport.ssl.enabled: false
+
+# Service configuration - NodePort for access from Docker
+service:
+  type: NodePort
+  nodePort: 30920  # Expose on this port for Docker Filebeat
+  labels:
+    app: elasticsearch
+    component: logging
+
+# Anti-affinity disabled for single node
+antiAffinity: "soft"
+
+# Create namespace
+createNamespace: true
+
+# Protocol
+protocol: http
+httpPort: 9200
+
+# Accept yellow status for single-node cluster (default expects green)
+clusterHealthCheckParams: "wait_for_status=yellow&timeout=1s"

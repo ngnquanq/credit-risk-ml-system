@@ -1,0 +1,170 @@
+{{
+  config(
+    materialized='table',
+    description='Comprehensive previous application features aggregated at SK_ID_CURR level'
+  )
+}}
+
+WITH base AS (
+    SELECT
+        -- keys
+        SK_ID_CURR,
+        SK_ID_PREV,
+
+        -- normalize numeric fields to Float64 (works for numeric and string-encoded numerics)
+        CAST(AMT_APPLICATION, 'Nullable(Float64)') AS AMT_APPLICATION,
+        CAST(AMT_CREDIT, 'Nullable(Float64)') AS AMT_CREDIT,
+        CAST(AMT_ANNUITY, 'Nullable(Float64)') AS AMT_ANNUITY,
+        CAST(AMT_DOWN_PAYMENT, 'Nullable(Float64)') AS AMT_DOWN_PAYMENT,
+        CAST(RATE_DOWN_PAYMENT, 'Nullable(Float64)') AS RATE_DOWN_PAYMENT,
+        CAST(RATE_INTEREST_PRIMARY, 'Nullable(Float64)') AS RATE_INTEREST_PRIMARY,
+        CAST(DAYS_DECISION, 'Nullable(Float64)') AS DAYS_DECISION,
+        CAST(CNT_PAYMENT, 'Nullable(Float64)') AS CNT_PAYMENT,
+        CAST(AMT_GOODS_PRICE, 'Nullable(Float64)') AS AMT_GOODS_PRICE,
+        CAST(NFLAG_INSURED_ON_APPROVAL, 'Nullable(Float64)') AS NFLAG_INSURED_ON_APPROVAL,
+        CAST(NFLAG_LAST_APPL_IN_DAY, 'Nullable(Int8)') AS NFLAG_LAST_APPL_IN_DAY,
+
+        -- categorical fields kept as-is
+        NAME_CONTRACT_STATUS,
+        NAME_CONTRACT_TYPE,
+        NAME_PORTFOLIO,
+        NAME_CLIENT_TYPE,
+        NAME_PAYMENT_TYPE,
+        CHANNEL_TYPE,
+        NAME_GOODS_CATEGORY,
+        NAME_CASH_LOAN_PURPOSE,
+        NAME_YIELD_GROUP,
+        CODE_REJECT_REASON
+    FROM {{ source('application_dwh', 'previous_application') }}
+),
+agg AS (
+    SELECT
+        SK_ID_CURR,
+
+        /* === BASIC APPLICATION METRICS === */
+        count() AS PREV_APP_COUNT,
+        uniq(SK_ID_PREV) AS PREV_UNIQUE_APP_COUNT,
+
+        /* === APPROVAL PATTERNS === */
+        countIf(NAME_CONTRACT_STATUS = 'Approved') AS PREV_APPROVED_COUNT,
+        countIf(NAME_CONTRACT_STATUS = 'Refused') AS PREV_REFUSED_COUNT,
+        countIf(NAME_CONTRACT_STATUS = 'Canceled') AS PREV_CANCELED_COUNT,
+        
+        countIf(NAME_CONTRACT_STATUS = 'Approved') / nullIf(toFloat64(count()), 0) AS PREV_APPROVAL_RATE,
+        countIf(NAME_CONTRACT_STATUS = 'Refused') / nullIf(toFloat64(count()), 0) AS PREV_REFUSAL_RATE,
+        countIf(NAME_CONTRACT_STATUS = 'Canceled') / nullIf(toFloat64(count()), 0) AS PREV_CANCEL_RATE,
+
+        /* === CREDIT AMOUNT PATTERNS === */
+        sum(AMT_APPLICATION) AS PREV_AMT_APPLICATION_TOTAL,
+        avg(AMT_APPLICATION) AS PREV_AMT_APPLICATION_MEAN,
+        max(AMT_APPLICATION) AS PREV_AMT_APPLICATION_MAX,
+        stddevSamp(AMT_APPLICATION) AS PREV_AMT_APPLICATION_STD,
+
+        sum(AMT_CREDIT) AS PREV_AMT_CREDIT_TOTAL,
+        avg(AMT_CREDIT) AS PREV_AMT_CREDIT_MEAN,
+        max(AMT_CREDIT) AS PREV_AMT_CREDIT_MAX,
+        stddevSamp(AMT_CREDIT) AS PREV_AMT_CREDIT_STD,
+
+        /* Credit vs Application ratios */
+        avg(AMT_CREDIT / nullIf(AMT_APPLICATION, 0)) AS PREV_CREDIT_TO_APP_RATIO_MEAN,
+        min(AMT_CREDIT / nullIf(AMT_APPLICATION, 0)) AS PREV_CREDIT_TO_APP_RATIO_MIN,
+        max(AMT_CREDIT / nullIf(AMT_APPLICATION, 0)) AS PREV_CREDIT_TO_APP_RATIO_MAX,
+        stddevSamp(AMT_CREDIT / nullIf(AMT_APPLICATION, 0)) AS PREV_CREDIT_TO_APP_RATIO_STD,
+
+        /* Over/under approval patterns */
+        countIf(AMT_CREDIT > AMT_APPLICATION) AS PREV_OVER_APPROVED_COUNT,
+        countIf(AMT_CREDIT < AMT_APPLICATION) AS PREV_UNDER_APPROVED_COUNT,
+        countIf(AMT_CREDIT > AMT_APPLICATION) / nullIf(toFloat64(count()), 0) AS PREV_OVER_APPROVAL_RATIO,
+
+        /* === ANNUITY PATTERNS === */
+        avg(AMT_ANNUITY) AS PREV_ANNUITY_MEAN,
+        max(AMT_ANNUITY) AS PREV_ANNUITY_MAX,
+        stddevSamp(AMT_ANNUITY) AS PREV_ANNUITY_STD,
+        avg(AMT_ANNUITY / nullIf(AMT_CREDIT, 0)) AS PREV_ANNUITY_TO_CREDIT_RATIO,
+
+        /* === DOWN PAYMENT ANALYSIS === */
+        sum(AMT_DOWN_PAYMENT) AS PREV_DOWN_PAYMENT_TOTAL,
+        avg(AMT_DOWN_PAYMENT) AS PREV_DOWN_PAYMENT_MEAN,
+        max(AMT_DOWN_PAYMENT) AS PREV_DOWN_PAYMENT_MAX,
+        countIf(AMT_DOWN_PAYMENT > 0) AS PREV_WITH_DOWN_PAYMENT_COUNT,
+        countIf(AMT_DOWN_PAYMENT > 0) / nullIf(toFloat64(count()), 0) AS PREV_DOWN_PAYMENT_RATIO,
+        avg(RATE_DOWN_PAYMENT) AS PREV_DOWN_PAYMENT_RATE_MEAN,
+
+        /* === INTEREST RATE PATTERNS === */
+        avg(RATE_INTEREST_PRIMARY) AS PREV_INTEREST_RATE_MEAN,
+        max(RATE_INTEREST_PRIMARY) AS PREV_INTEREST_RATE_MAX,
+        min(RATE_INTEREST_PRIMARY) AS PREV_INTEREST_RATE_MIN,
+        stddevSamp(RATE_INTEREST_PRIMARY) AS PREV_INTEREST_RATE_STD,
+
+        /* === TEMPORAL PATTERNS === */
+        avg(DAYS_DECISION) AS PREV_DAYS_DECISION_MEAN,
+        min(DAYS_DECISION) AS PREV_DAYS_DECISION_MIN,
+        max(DAYS_DECISION) AS PREV_DAYS_DECISION_MAX,
+        stddevSamp(DAYS_DECISION) AS PREV_DAYS_DECISION_STD,
+
+        /* Time-based risk indicators */
+        countIf(DAYS_DECISION > -30) AS PREV_APPS_LAST_30D,
+        countIf(DAYS_DECISION > -90) AS PREV_APPS_LAST_90D,
+        countIf(DAYS_DECISION > -365) AS PREV_APPS_LAST_1Y,
+        countIf(DAYS_DECISION > -730) AS PREV_APPS_LAST_2Y,
+
+        /* Recent approval patterns */
+        countIf(DAYS_DECISION > -365 AND NAME_CONTRACT_STATUS = 'Approved') AS PREV_RECENT_APPROVED_1Y,
+        countIf(DAYS_DECISION > -90 AND NAME_CONTRACT_STATUS = 'Approved') AS PREV_RECENT_APPROVED_90D,
+
+        /* === CONTRACT TYPE PATTERNS === */
+        countIf(NAME_CONTRACT_TYPE = 'Cash loans') AS PREV_CASH_LOAN_COUNT,
+        countIf(NAME_CONTRACT_TYPE = 'Consumer loans') AS PREV_CONSUMER_LOAN_COUNT,
+        countIf(NAME_CONTRACT_TYPE = 'Revolving loans') AS PREV_REVOLVING_LOAN_COUNT,
+        countIf(NAME_CONTRACT_TYPE = 'Cash loans') / nullIf(toFloat64(count()), 0) AS PREV_CASH_LOAN_RATIO,
+
+        /* === PORTFOLIO DIVERSIFICATION === */
+        uniq(NAME_PORTFOLIO) AS PREV_PORTFOLIO_DIVERSITY,
+        countIf(NAME_PORTFOLIO = 'Cash') AS PREV_CASH_PORTFOLIO_COUNT,
+        countIf(NAME_PORTFOLIO = 'POS') AS PREV_POS_PORTFOLIO_COUNT,
+        countIf(NAME_PORTFOLIO = 'Cards') AS PREV_CARDS_PORTFOLIO_COUNT,
+        countIf(NAME_PORTFOLIO = 'Cash') / nullIf(toFloat64(count()), 0) AS PREV_CASH_PORTFOLIO_RATIO,
+
+        /* === CLIENT BEHAVIOR PATTERNS === */
+        countIf(NAME_CLIENT_TYPE = 'Repeater') AS PREV_REPEATER_APP_COUNT,
+        countIf(NAME_CLIENT_TYPE = 'New') AS PREV_NEW_CLIENT_APP_COUNT,
+        countIf(NAME_CLIENT_TYPE = 'Repeater') / nullIf(toFloat64(count()), 0) AS PREV_REPEATER_RATIO,
+
+        /* === CHANNEL AND PAYMENT ANALYSIS === */
+        uniq(CHANNEL_TYPE) AS PREV_CHANNEL_DIVERSITY,
+        uniq(NAME_PAYMENT_TYPE) AS PREV_PAYMENT_TYPE_DIVERSITY,
+        countIf(NAME_PAYMENT_TYPE = 'Cash through the bank') AS PREV_BANK_PAYMENT_COUNT,
+
+        /* === GOODS AND PURPOSE ANALYSIS === */
+        uniq(NAME_GOODS_CATEGORY) AS PREV_GOODS_DIVERSITY,
+        uniq(NAME_CASH_LOAN_PURPOSE) AS PREV_PURPOSE_DIVERSITY,
+
+        /* === ADVANCED RISK INDICATORS === */
+        countIf(NFLAG_LAST_APPL_IN_DAY = 0) AS PREV_MULTIPLE_SAME_DAY_COUNT,
+        avg(NFLAG_INSURED_ON_APPROVAL) AS PREV_INSURANCE_RATIO,
+        countIf(NAME_YIELD_GROUP = 'high') AS PREV_HIGH_YIELD_COUNT,
+        countIf(NAME_YIELD_GROUP = 'low_action') AS PREV_LOW_ACTION_COUNT,
+        countIf(NAME_YIELD_GROUP = 'middle') AS PREV_MIDDLE_YIELD_COUNT,
+
+        /* === REJECTION ANALYSIS === */
+        countIf(CODE_REJECT_REASON = 'HC') AS PREV_HC_REJECT_COUNT,
+        countIf(CODE_REJECT_REASON = 'LIMIT') AS PREV_LIMIT_REJECT_COUNT,
+        countIf(CODE_REJECT_REASON = 'SCO') AS PREV_SCO_REJECT_COUNT,
+        countIf(CODE_REJECT_REASON = 'CLIENT') AS PREV_CLIENT_REJECT_COUNT,
+
+        /* === PAYMENT TERMS ANALYSIS === */
+        avg(CNT_PAYMENT) AS PREV_PAYMENT_TERMS_MEAN,
+        max(CNT_PAYMENT) AS PREV_PAYMENT_TERMS_MAX,
+        min(CNT_PAYMENT) AS PREV_PAYMENT_TERMS_MIN,
+        stddevSamp(CNT_PAYMENT) AS PREV_PAYMENT_TERMS_STD,
+
+        /* === GOODS PRICE ANALYSIS === */
+        avg(AMT_GOODS_PRICE) AS PREV_GOODS_PRICE_MEAN,
+        max(AMT_GOODS_PRICE) AS PREV_GOODS_PRICE_MAX,
+        avg(AMT_GOODS_PRICE / nullIf(AMT_CREDIT, 0)) AS PREV_GOODS_TO_CREDIT_RATIO
+
+    FROM base
+    GROUP BY SK_ID_CURR
+)
+SELECT *
+FROM agg

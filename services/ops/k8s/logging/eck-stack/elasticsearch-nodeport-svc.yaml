@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch-nodeport
+  namespace: logging
+  labels:
+    app: elasticsearch
+    component: elasticsearch-nodeport
+  annotations:
+    description: "NodePort service for Docker Filebeat to push logs to Kubernetes Elasticsearch"
+spec:
+  type: NodePort
+  selector:
+    common.k8s.elastic.co/type: elasticsearch
+    elasticsearch.k8s.elastic.co/cluster-name: elasticsearch
+  ports:
+    - name: http
+      port: 9200
+      targetPort: 9200
+      nodePort: 30920
+      protocol: TCP

@@ -1,0 +1,40 @@
+ml_data_mart:
+  outputs:
+    gold:
+      type: clickhouse
+      host: "{{ env_var('DBT_CLICKHOUSE_HOST', 'localhost') }}"
+      port: 8123
+      user: default
+      password: ""
+      database: application_mart  # Gold layer - final analytical tables
+      schema: application_mart    # Must match database in ClickHouse
+      secure: false
+      connect_timeout: 10
+      send_receive_timeout: 300
+      
+    silver:
+      type: clickhouse
+      host: "{{ env_var('DBT_CLICKHOUSE_HOST', 'localhost') }}"  
+      port: 8123
+      user: default
+      password: ""
+      database: application_dwh   # Silver layer - raw data source
+      schema: application_dwh     # Must match database in ClickHouse
+      secure: false
+      connect_timeout: 10
+      send_receive_timeout: 300
+      
+    # Legacy dev name for backward compatibility
+    dev:
+      type: clickhouse
+      host: localhost
+      port: 8123
+      user: default
+      password: "clickhouse123"
+      database: application_mart
+      schema: application_mart
+      secure: false
+      connect_timeout: 10
+      send_receive_timeout: 300
+      
+  target: gold  # Default to gold layer (application_mart)

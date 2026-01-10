@@ -1,0 +1,129 @@
+x-superset-image: &superset-image apachesuperset.docker.scarf.sh/apache/superset:latest
+x-superset-volumes:
+  &superset-volumes # /app/pythonpath_docker will be appended to the PYTHONPATH in the final container
+  - ./docker:/app/docker
+  - superset_home:/app/superset_home
+
+
+networks:
+  hc-network:
+    external: true
+
+services:
+  redis:
+    image: redis:${REDIS_VERSION:-7}
+    container_name: superset_cache
+    restart: unless-stopped
+    volumes:
+      - redis:/data
+    networks:
+      - hc-network
+
+  db:
+    env_file:
+      - ./.env.ops
+    image: postgres:${POSTGRES_VERSION:-15}
+    container_name: superset_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - db_home:/var/lib/postgresql/data
+      - ./docker/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+    networks:
+      - hc-network
+
+  superset:
+    env_file:
+      - ./.env.ops
+    image: *superset-image
+    container_name: superset_app
+    command: ["/app/docker/docker-bootstrap.sh", "app-gunicorn"]
+    user: "root"
+    restart: unless-stopped
+    ports:
+      - ${SUPERSET_PORT:-8089}:8088
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+    volumes: *superset-volumes
+    environment:
+      SUPERSET_LOG_LEVEL: "${SUPERSET_LOG_LEVEL:-info}"
+      # Install extra DB drivers at container start (official Superset supports this)
+      PIP_ADDITIONAL_REQUIREMENTS: "clickhouse-connect==0.8.18 psycopg2-binary"
+    networks:
+      - hc-network
+
+  superset-init:
+    image: *superset-image
+    container_name: superset_init
+    command: ["/app/docker/docker-init.sh"]
+    env_file:
+      - ./.env.ops
+    depends_on:
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+    user: "root"
+    volumes: *superset-volumes
+    healthcheck:
+      disable: true
+    environment:
+      SUPERSET_LOAD_EXAMPLES: "${SUPERSET_LOAD_EXAMPLES:-yes}"
+      SUPERSET_LOG_LEVEL: "${SUPERSET_LOG_LEVEL:-info}"
+      PIP_ADDITIONAL_REQUIREMENTS: "clickhouse-connect==0.8.18 psycopg2-binary"
+    networks:
+      - hc-network
+
+  superset-worker:
+    image: *superset-image
+    container_name: superset_worker
+    command: ["/app/docker/docker-bootstrap.sh", "worker"]
+    env_file:
+      - ./.env.ops
+    restart: unless-stopped
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+    user: "root"
+    volumes: *superset-volumes
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A superset.tasks.celery_app:app inspect ping -d celery@$$HOSTNAME",
+        ]
+    environment:
+      SUPERSET_LOG_LEVEL: "${SUPERSET_LOG_LEVEL:-info}"
+      PIP_ADDITIONAL_REQUIREMENTS: "clickhouse-connect==0.8.18 psycopg2-binary"
+    networks:
+      - hc-network
+
+  superset-worker-beat:
+    image: *superset-image
+    container_name: superset_worker_beat
+    command: ["/app/docker/docker-bootstrap.sh", "beat"]
+    env_file:
+      - ./.env.ops
+    restart: unless-stopped
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+    user: "root"
+    volumes: *superset-volumes
+    healthcheck:
+      disable: true
+    environment:
+      SUPERSET_LOG_LEVEL: "${SUPERSET_LOG_LEVEL:-info}"
+      PIP_ADDITIONAL_REQUIREMENTS: "clickhouse-connect==0.8.18"
+    networks:
+      - hc-network
+
+volumes:
+  superset_home:
+    external: false
+  db_home:
+    external: false
+  redis:
+    external: false

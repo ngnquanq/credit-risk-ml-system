@@ -5,9 +5,18 @@ __pycache__/
 *$py.class
 # qodo extension
 .qodo/
+.cursor/
 
 # C extensions
 *.so
+
+# Model weight
+*.ckpt
+*.pkl
+
+# Model bundles (generated during build)
+bundle/
+application/scoring/bundle/
 
 # Distribution / packaging
 .Python
@@ -29,6 +38,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+.security/
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
@@ -39,6 +49,8 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
+# airflow logs
+/logs/
 # Unit test / coverage reports
 htmlcov/
 .tox/
@@ -54,6 +66,8 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# Catboost info
+/catboost_info/
 # Translations
 *.mo
 *.pot
@@ -211,6 +225,7 @@ __marimo__/
 
 # playground folder
 playground/
+.vscode/
 
 # pre commit 
 .pre-commit-config.yaml
@@ -219,9 +234,41 @@ playground/
 pyproject.toml
 
 # local folders/files
-data/
 .qodo
-
+*.csv
 # local secrets
 secrets/
 secret/
+
+# claude file
+CLAUDE.md
+.claude/
+.claudeignore
+
+# my file
+.developmentNote.md
+
+# Docker volume data
+services/data/.volumes/
+*/.volumes/
+
+
+services/data/scripts/dwh/.volumes/
+.mcp.json
+# video related stuffs
+*.mp4
+*.webm
+# Claude Code session artifacts
+managed_context/
+test_suite_analysis/
+
+# infrastructure as code becasue we dont use it now
+infrastructure/
+
+# Feast data
+application/feast/data/
+
+# Jenkins CI/CD artifacts
+jenkins_home/
+services/ops/scripts/automation/automation_helper/backups/
+*.bak

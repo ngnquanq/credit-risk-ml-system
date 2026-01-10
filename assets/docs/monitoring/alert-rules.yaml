@@ -1,0 +1,61 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: loan-decision-alerts
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+  - name: decision-api.slo
+    rules:
+    - alert: APIHighLatencyP95
+      expr: histogram_quantile(0.95, sum by (le)(rate(decision_latency_seconds_bucket[5m]))) > 0.3
+      for: 10m
+      labels: {severity: page}
+      annotations:
+        summary: Decision API p95 latency high
+        description: p95 latency > 300ms for 10m.
+    - alert: APIHighErrorRate
+      expr: (sum(rate(http_requests_total{job="api",status=~"5.."}[5m])) / sum(rate(http_requests_total{job="api"}[5m]))) > 0.002
+      for: 5m
+      labels: {severity: page}
+      annotations:
+        summary: Decision API error rate high
+        description: 5xx error rate > 0.2% for 5m.
+    - alert: AuditGapDetected
+      expr: (sum(rate(decision_responses_total[5m])) - sum(rate(audit_written_total[5m]))) > 5
+      for: 5m
+      labels: {severity: page}
+      annotations:
+        summary: Audit gap detected
+        description: Responses minus audits exceeds 5/min.
+    - alert: FallbackSpike
+      expr: (sum(rate(decision_path_total{path="fallback"}[10m])) / sum(rate(decision_responses_total[10m]))) >= 0.05
+      for: 10m
+      labels: {severity: page}
+      annotations:
+        summary: Fallback usage spiking
+        description: Fallback ratio ≥ 5% over 10m.
+  - name: data.slo
+    rules:
+    - alert: FeatureFreshnessBreach
+      expr: max(feast_featureview_max_lag_seconds) > 120
+      for: 5m
+      labels: {severity: page}
+      annotations:
+        summary: Feature freshness breach
+        description: One or more FeatureViews stale > 120s.
+    - alert: KafkaLagHigh
+      expr: max(kafka_consumergroup_lag) > 10000
+      for: 10m
+      labels: {severity: page}
+      annotations:
+        summary: Kafka consumer lag high
+        description: Lag above threshold for 10m.
+    - alert: RedisEvictions
+      expr: redis_memory_evicted_keys_total > 0
+      for: 5m
+      labels: {severity: page}
+      annotations:
+        summary: Redis evictions detected
+        description: Evictions indicate memory pressure; hit ratio may degrade.

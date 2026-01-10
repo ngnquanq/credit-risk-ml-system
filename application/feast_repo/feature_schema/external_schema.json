@@ -1,0 +1,230 @@
+[
+  {
+    "name": "AVG_DPD_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "AVG_ON_TIME_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_ACTIVE_COUNT",
+    "type": "Int64"
+  },
+  {
+    "name": "BUREAU_ACTIVE_CREDIT_SUM",
+    "type": "Float32"
+  },
+  {
+    "name": "BUREAU_ACTIVE_DEBT_SUM",
+    "type": "Float32"
+  },
+  {
+    "name": "BUREAU_ACTIVE_OVERDUE_SUM",
+    "type": "Float32"
+  },
+  {
+    "name": "BUREAU_ACTIVE_UTILIZATION_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_AMT_MAX_OVERDUE_EVER",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_AMT_OVERDUE_COUNT",
+    "type": "Int64"
+  },
+  {
+    "name": "BUREAU_AMT_OVERDUE_MAX",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_AMT_OVERDUE_MEAN",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_AMT_OVERDUE_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_AMT_OVERDUE_TOTAL",
+    "type": "Float32"
+  },
+  {
+    "name": "BUREAU_BAD_DEBT_COUNT",
+    "type": "Int64"
+  },
+  {
+    "name": "BUREAU_BAD_DEBT_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_CLOSED_COUNT",
+    "type": "Int64"
+  },
+  {
+    "name": "BUREAU_CREDIT_TYPES_COUNT",
+    "type": "Int64"
+  },
+  {
+    "name": "BUREAU_CREDIT_UTILIZATION_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_DEBT_TO_CREDIT_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_HIGH_RISK_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_HIGH_UTIL_COUNT",
+    "type": "Int64"
+  },
+  {
+    "name": "BUREAU_HIGH_UTIL_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_MAXED_OUT_COUNT",
+    "type": "Int64"
+  },
+  {
+    "name": "BUREAU_MAXED_OUT_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_OVERDUE_COUNT",
+    "type": "Int64"
+  },
+  {
+    "name": "BUREAU_OVERDUE_DAYS_MAX",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_OVERDUE_DAYS_MEAN",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_OVERDUE_DAYS_TOTAL",
+    "type": "Int64"
+  },
+  {
+    "name": "BUREAU_OVERDUE_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_OVERDUE_TO_CREDIT_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_PROLONG_COUNT",
+    "type": "Int64"
+  },
+  {
+    "name": "BUREAU_PROLONG_MAX",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_PROLONG_MEAN",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_PROLONG_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_PROLONG_TOTAL",
+    "type": "Int64"
+  },
+  {
+    "name": "BUREAU_SOLD_COUNT",
+    "type": "Int64"
+  },
+  {
+    "name": "BUREAU_SOLD_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "BUREAU_TOTAL_COUNT",
+    "type": "Int64"
+  },
+  {
+    "name": "BUREAU_WITH_BALANCE_COUNT",
+    "type": "Int64"
+  },
+  {
+    "name": "CLIENT_HAS_ANY_DPD_HISTORY",
+    "type": "Int64"
+  },
+  {
+    "name": "CLIENT_HAS_SEVERE_DPD_HISTORY",
+    "type": "Int64"
+  },
+  {
+    "name": "COUNT_BUREAUS_WITH_ANY_DPD",
+    "type": "Int64"
+  },
+  {
+    "name": "COUNT_BUREAUS_WITH_SEVERE_DPD",
+    "type": "Int64"
+  },
+  {
+    "name": "OVERALL_DPD_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "OVERALL_ON_TIME_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "OVERALL_SEVERE_DPD_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "TOTAL_DPD_ALL_BUREAUS",
+    "type": "Int64"
+  },
+  {
+    "name": "TOTAL_MONTHS_ALL_BUREAUS",
+    "type": "Int64"
+  },
+  {
+    "name": "TOTAL_MONTHS_ON_TIME",
+    "type": "Int64"
+  },
+  {
+    "name": "TOTAL_SEVERE_DPD_MONTHS",
+    "type": "Int64"
+  },
+  {
+    "name": "WORST_DPD_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "WORST_ON_TIME_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "WORST_SEVERE_DPD_RATIO",
+    "type": "String"
+  },
+  {
+    "name": "ext_source_1",
+    "type": "String"
+  },
+  {
+    "name": "ext_source_2",
+    "type": "String"
+  },
+  {
+    "name": "ext_source_3",
+    "type": "String"
+  },
+  {
+    "name": "sk_id_curr",
+    "type": "String"
+  }
+]

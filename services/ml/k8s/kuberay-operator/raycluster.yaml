@@ -1,0 +1,57 @@
+apiVersion: ray.io/v1alpha1
+kind: RayCluster
+metadata:
+  name: raycluster-k8s
+  namespace: ray
+spec:
+  rayVersion: "2.31.0"
+  enableInTreeAutoscaling: false
+  headGroupSpec:
+    headService:
+      metadata:
+        name: raycluster-k8s-head-svc
+      spec:
+        type: ClusterIP
+    rayStartParams:
+      dashboard-host: "0.0.0.0"
+      num-cpus: "2"
+    template:
+      spec:
+        containers:
+          - name: ray-head
+            image: rayproject/ray:2.31.0
+            imagePullPolicy: IfNotPresent
+            ports:
+              - containerPort: 6379   # GCS
+              - containerPort: 8265   # Dashboard
+              - containerPort: 10001  # Ray client/server
+            env:
+              - name: RAY_memory_monitor_refresh_ms
+                value: "0"
+            resources:
+              requests:
+                cpu: "1"
+                memory: "2Gi"
+              limits:
+                cpu: "2"
+                memory: "4Gi"
+  workerGroupSpecs:
+    - groupName: workers
+      replicas: 2
+      minReplicas: 2
+      maxReplicas: 2
+      rayStartParams:
+        num-cpus: "2"
+      template:
+        spec:
+          containers:
+            - name: ray-worker
+              image: rayproject/ray:2.31.0
+              imagePullPolicy: IfNotPresent
+              resources:
+                requests:
+                  cpu: "1"
+                  memory: "2Gi"
+                limits:
+                  cpu: "2"
+                  memory: "4Gi"

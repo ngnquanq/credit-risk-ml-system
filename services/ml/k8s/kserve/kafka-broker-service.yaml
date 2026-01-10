@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: broker
+  namespace: kserve
+spec:
+  ports:
+  - port: 29092
+    targetPort: 29092
+    protocol: TCP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: broker
+  namespace: kserve
+subsets:
+- addresses:
+  - ip: 192.168.49.1  # Minikube host IP (adjust if needed)
+  ports:
+  - port: 39092

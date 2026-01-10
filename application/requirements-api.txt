@@ -1,0 +1,31 @@
+# Core API Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# Pydantic for data validation and settings
+pydantic==2.8.2
+pydantic-settings==2.4.0
+
+# Database
+SQLAlchemy==2.0.43
+asyncpg==0.30.0
+clickhouse-connect==0.7.19
+
+# Logging
+loguru==0.7.2
+
+# Object Storage (MinIO)
+minio==7.2.0
+
+# Kafka Integration
+confluent-kafka==2.5.3
+kafka-python==2.2.15
+
+# Additional dependencies
+python-multipart==0.0.6
+
+# OpenTelemetry (Tracing)
+opentelemetry-api==1.22.0
+opentelemetry-sdk==1.22.0
+opentelemetry-exporter-otlp-proto-grpc==1.22.0
+opentelemetry-instrumentation-fastapi==0.43b0
