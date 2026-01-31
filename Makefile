@@ -35,7 +35,7 @@ MINIKUBE_PROFILE ?= mlops
 MINIKUBE_DRIVER ?= docker
 MINIKUBE_K8S_VERSION ?= v1.28.3
 MINIKUBE_CPUS ?= 16
-MINIKUBE_MEMORY ?= 20000
+MINIKUBE_MEMORY ?= 15000
 MINIKUBE_DISK ?= 80g
 K8S_CONTEXT ?= $(MINIKUBE_PROFILE)
 EXECUTE_K8S_APPLY ?= false
@@ -197,12 +197,15 @@ k8s-training-data-storage: ## Deploy training data storage (MinIO for versioned 
 # 	@echo "Load sample data: docker exec clickhouse_dwh clickhouse-client -q \"SET s3_truncate_on_insert=1; INSERT INTO FUNCTION s3('http://172.18.0.1:31900/training-data/snapshots/ds=2025-09-19/loan_applications.csv','minioadmin','minioadmin','CSVWithNames') SELECT a.*, t.TARGET FROM application_mart.mart_application AS a INNER JOIN application_mart.mart_application_train AS t ON a.SK_ID_CURR = t.SK_ID_CURR\""
 
 k8s-kubeflow: ## Deploy Kubeflow Pipelines for training orchestration
-	@echo "Deploying Kubeflow Pipelines v2.14.3..."
-	@export PIPELINE_VERSION=2.14.3 && \
-		kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=$$PIPELINE_VERSION" && \
-		kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io && \
-		kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/dev?ref=$$PIPELINE_VERSION" && \
-		kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref=$$PIPELINE_VERSION"
+	@echo "Deploying Kubeflow Pipelines v2.14.3 (using local manifests)..."
+	@echo "Installing cluster-scoped resources..."
+	kubectl apply -k services/ml/k8s/kubeflow/manifests/kustomize/cluster-scoped-resources
+	@echo "Waiting for CRDs to be established..."
+	kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io
+	@echo "Installing dev environment..."
+	kubectl apply -k services/ml/k8s/kubeflow/manifests/kustomize/env/dev
+	@echo "Installing platform-agnostic components..."
+	kubectl apply -k services/ml/k8s/kubeflow/manifests/kustomize/env/platform-agnostic
 	@echo "Patching MinIO deployment with valid image..."
 	@kubectl patch deployment minio -n kubeflow --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/image", "value":"minio/minio:RELEASE.2024-01-01T16-36-33Z"}]' || true
 	@echo "Removing GCP-specific proxy-agent (not needed for on-prem)..."
@@ -302,7 +305,9 @@ k8s-kserve: ## Deploy KServe for model serving infrastructure
 	@sleep 10
 	@echo ""
 	@echo "Installing KServe main components (creates Certificate and Issuer)..."
-	cd services/ml/k8s/kserve/kserve-main && (helm install kserve . -n kserve 2>/dev/null || echo "kserve already installed")
+	cd services/ml/k8s/kserve/kserve-main && (helm install kserve . -n kserve --set kserve.controller.knativeAddressableResolver.enabled=true 2>/dev/null || echo "kserve already installed")
+	@echo "Enabling Knative addressable resolver..."
+	cd services/ml/k8s/kserve/kserve-main && helm upgrade kserve . -n kserve --reuse-values --set kserve.controller.knativeAddressableResolver.enabled=true
 	@echo "Waiting for certificate to be issued and controller to be ready..."
 	@sleep 20
 	@kubectl wait --for=condition=available --timeout=120s deployment/kserve-controller-manager -n kserve || true
@@ -335,7 +340,8 @@ k8s-model-serving: ## Deploy model serving components (bundle storage + serving 
 	cd services/ml/k8s/model-serving/bundle-storage && \
 		helm upgrade --install serving-minio . -n model-serving -f values.internal.yaml
 	kubectl apply -f services/ml/k8s/model-serving/watcher-rbac.yaml
-	kubectl apply -f services/ml/k8s/model-serving/watcher-configmap.yaml
+	@echo "Generating serving-watcher ConfigMap from source files..."
+	kubectl create configmap serving-watcher -n model-serving --from-file=services/ml/k8s/kserve/serving-watcher/watcher.py --from-file=services/ml/k8s/kserve/serving-watcher/isvc-template-serverless.yaml --from-file=services/ml/k8s/kserve/serving-watcher/isvc-template.yaml --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply -f services/ml/k8s/model-serving/watcher-deployment.yaml
 	kubectl rollout restart -n model-serving deployment/serving-watcher
 	@echo "Model serving deployed (namespace: model-serving)"
@@ -361,7 +367,7 @@ k8s-monitoring: ## Deploy Prometheus + Grafana monitoring stack
 	@echo "Port-forward Grafana: kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80"
 	@echo "Default credentials: admin/prom-operator"
 
-k8s-ml-platform: ## Deploy complete ML platform (one-off setup: training storage, Kubeflow, Ray, registry, KServe, watchers, Feast, monitoring, logging)
+k8s-ml-platform: ## Deploy complete ML platform (one-off setup: training storage, Kubeflow, Ray, registry, Knative, KServe, watchers, Feast, monitoring, logging)
 	@echo "========================================="
 	@echo "Deploying Complete ML Platform to K8s"
 	@echo "========================================="
@@ -398,53 +404,62 @@ k8s-ml-platform: ## Deploy complete ML platform (one-off setup: training storage
 		exit 1; \
 	fi
 	@echo ""
-	@echo "Step 5/10: KServe serving infrastructure..."
+	@echo "Step 5/11: Knative stack (Serving + Eventing + Kafka)..."
+	@if $(MAKE) k8s-knative-stack; then \
+		echo "✅ Step 5/11 complete"; \
+	else \
+		echo "❌ Step 5/11 failed - aborting deployment"; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "Step 6/11: KServe serving infrastructure..."
 	@if $(MAKE) k8s-kserve; then \
-		echo "✅ Step 5/10 complete"; \
+		echo "✅ Step 6/11 complete"; \
 	else \
-		echo "❌ Step 5/10 failed - aborting deployment"; \
+		echo "❌ Step 6/11 failed - aborting deployment"; \
 		exit 1; \
 	fi
 	@echo ""
-	@echo "Step 6/10: MLflow watcher..."
+	@echo "Step 7/11: MLflow watcher..."
 	@if $(MAKE) k8s-mlflow-watcher; then \
-		echo "✅ Step 6/10 complete"; \
+		echo "✅ Step 7/11 complete"; \
 	else \
-		echo "❌ Step 6/10 failed - aborting deployment"; \
+		echo "❌ Step 7/11 failed - aborting deployment"; \
 		exit 1; \
 	fi
 	@echo ""
-	@echo "Step 7/10: Model serving components..."
+	@echo "Step 8/11: Model serving components..."
 	@if $(MAKE) k8s-model-serving; then \
-		echo "✅ Step 7/10 complete"; \
+		echo "✅ Step 8/11 complete"; \
 	else \
-		echo "❌ Step 7/10 failed - aborting deployment"; \
+		echo "❌ Step 8/11 failed - aborting deployment"; \
 		exit 1; \
 	fi
 	@echo ""
-	@echo "Step 8/10: Feast feature registry..."
+	@echo "Step 9/11: Feast feature registry..."
 	@if $(MAKE) k8s-feature-registry; then \
-		echo "✅ Step 8/10 complete"; \
+		echo "✅ Step 9/11 complete"; \
 	else \
-		echo "❌ Step 8/10 failed - aborting deployment"; \
+		echo "❌ Step 9/11 failed - aborting deployment"; \
 		exit 1; \
 	fi
 	@echo ""
-	@echo "Step 9/10: Monitoring stack..."
+	@echo "Step 10/11: Monitoring stack..."
 	@if $(MAKE) k8s-monitoring; then \
-		echo "✅ Step 9/10 complete"; \
+		echo "✅ Step 10/11 complete"; \
 	else \
-		echo "❌ Step 9/10 failed - aborting deployment"; \
+		echo "❌ Step 10/11 failed - aborting deployment"; \
 		exit 1; \
 	fi
 	@echo ""
-	@echo "Step 10/10: Logging stack..."
-	@if $(MAKE) k8s-logging; then \
-		echo "✅ Step 10/10 complete"; \
-	else \
-		echo "❌ Step 10/10 failed - aborting deployment"; \
-		exit 1; \
-	fi
+# Temp
+# 	@echo "Step 11/11: Logging stack..."
+# 	@if $(MAKE) k8s-logging; then \
+# 		echo "✅ Step 11/11 complete"; \
+# 	else \
+# 		echo "❌ Step 11/11 failed - aborting deployment"; \
+# 		exit 1; \
+# 	fi
 	@echo ""
 	@echo "Restart K8s gateway to update IPs..."
 	@if $(MAKE) restart-gateway; then \

@@ -94,5 +94,7 @@ spec:
             path: watcher.py
           - key: isvc-template.yaml
             path: isvc-template.yaml
+          - key: isvc-template-serverless.yaml
+            path: isvc-template-serverless.yaml
       - name: docker-storage
         emptyDir: {}
