@@ -248,12 +248,9 @@ CLAUDE.md
 # my file
 .developmentNote.md
 
-# Docker volume data
-services/data/.volumes/
-*/.volumes/
 
-
-services/data/scripts/dwh/.volumes/
+# Docker volume data — match at any depth under any subdirectory
+**/.volumes/
 .mcp.json
 # video related stuffs
 *.mp4
@@ -263,7 +260,7 @@ managed_context/
 test_suite_analysis/
 
 # infrastructure as code becasue we dont use it now
-infrastructure/
+infrastructure
 
 # Feast data
 application/feast/data/
@@ -272,3 +269,6 @@ application/feast/data/
 jenkins_home/
 services/ops/scripts/automation/automation_helper/backups/
 *.bak
+
+# AI agent rules
+.agent/

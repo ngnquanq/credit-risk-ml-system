@@ -1,0 +1,33 @@
+# dbt Transformation Job — Silver to Gold layer
+# Runs dbt against ClickHouse to create application_mart tables
+# Image: dbt-clickhouse:latest (built from ml_data_mart/Dockerfile)
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dbt-transform-gold
+  namespace: data-services
+  labels:
+    app: dbt-transform
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: dbt-transform
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: dbt
+          image: dbt-clickhouse:latest
+          imagePullPolicy: Never
+          env:
+            - name: DBT_CLICKHOUSE_HOST
+              value: "clickhouse-server.data-services.svc.cluster.local"
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m

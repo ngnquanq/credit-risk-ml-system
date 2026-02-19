@@ -1,0 +1,48 @@
+# Job: Submit Bureau Aggregation ETL
+# Uses -pyexec python3 to use local Python (already in image)
+# instead of uploading the 32MB Python archive via blob transfer.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: flink-submit-bureau
+  namespace: data-services
+  labels:
+    app: flink-submit
+    job: bureau-aggregation-etl
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        app: flink-submit
+        job: bureau-aggregation-etl
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: submit-bureau
+          image: flink-pyflink:latest
+          imagePullPolicy: Never
+          command:
+            - bash
+            - -lc
+            - |
+              echo "Waiting for Flink JobManager..."
+              until curl -sf http://flink-jobmanager:8081/overview > /dev/null 2>&1; do
+                sleep 5
+              done
+              echo "Submitting Bureau Aggregation ETL job..."
+              flink run -m flink-jobmanager:8081 -d \
+                -pyexec python3 \
+                -py /opt/app/jobs/bureau_aggregation_etl.py \
+                -pyfs /opt/app/jobs
+              echo "✅ Bureau Aggregation ETL job submitted"
+          envFrom:
+            - configMapRef:
+                name: flink-config
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 250m
+            limits:
+              memory: 1Gi
+              cpu: 500m

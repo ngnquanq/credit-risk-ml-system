@@ -48,7 +48,7 @@ with bentoml.importing():
         from kafka import KafkaConsumer as _KafkaConsumer, KafkaProducer as _KafkaProducer
         from opentelemetry import trace as _trace
         from opentelemetry.propagate import inject as _inject
-        from tracing import setup_tracing as _setup_tracing, extract_or_create_trace_context as _extract_or_create
+        from core.tracing import setup_tracing as _setup_tracing, extract_or_create_trace_context as _extract_or_create
     except Exception:  # pragma: no cover
         _KafkaConsumer = None  # type: ignore
         _KafkaProducer = None  # type: ignore

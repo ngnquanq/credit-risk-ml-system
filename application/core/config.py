@@ -77,6 +77,12 @@ class Settings(BaseSettings):
     kafka_request_topic: str = Field(default="bureau-requests", description="Kafka topic for bureau requests")
     kafka_response_topic: str = Field(default="bureau-responses", description="Kafka topic for bureau responses")
     
+    # Topic for submitting loan applications (Source of Truth for DWH and Scoring)
+    kafka_application_topic: str = Field(
+        default="hc.applications.public.loan_applications",
+        description="Kafka topic for new loan applications"
+    )
+    
     # Logging
     log_level: str = Field(default="INFO", description="Log level")
     log_format: str = Field(default="json", description="Log format: json or text")

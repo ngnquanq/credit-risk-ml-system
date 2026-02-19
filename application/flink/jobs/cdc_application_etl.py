@@ -114,7 +114,7 @@ def main():
             'topic' = '{source_topic}',
             'properties.bootstrap.servers' = '{bootstrap}',
             'properties.group.id' = 'flink-cdc-applications',
-            'scan.startup.mode' = 'latest-offset',
+            'scan.startup.mode' = 'earliest-offset',
             'format' = 'debezium-json',
             'debezium-json.schema-include' = 'true',
             'debezium-json.ignore-parse-errors' = 'true'

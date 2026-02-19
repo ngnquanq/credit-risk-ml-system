@@ -1,0 +1,166 @@
+# Flink Stream Processing - Session cluster (JobManager + TaskManager)
+# Image: flink-pyflink:latest (built from application/flink/Dockerfile)
+#
+# IMPORTANT: Both JobManager and TaskManager use the same image with PyFlink
+# pre-installed. The submit jobs (02/03) use -pyexec to avoid uploading the
+# 32MB Python archive via blob transfer (which was causing stuck DEPLOYING).
+---
+# Topic/environment configuration for Flink components
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flink-config
+  namespace: data-services
+data:
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-broker.data-services.svc.cluster.local:9092"
+  CDC_SOURCE_TOPIC: "hc.applications.public.loan_applications"
+  SINK_TOPIC_PII: "hc.application_pii"
+  SINK_TOPIC_FEATURES: "hc.application_features"
+  RAW_TOPIC_EXT: "hc.application_ext_raw"
+  SINK_TOPIC_EXT: "hc.application_ext"
+---
+# Flink JobManager Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flink-jobmanager
+  namespace: data-services
+  labels:
+    app: flink-jobmanager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flink-jobmanager
+  template:
+    metadata:
+      labels:
+        app: flink-jobmanager
+    spec:
+      containers:
+        - name: jobmanager
+          image: flink-pyflink:latest
+          imagePullPolicy: Never
+          command: ["/docker-entrypoint.sh"]
+          args: ["jobmanager"]
+          ports:
+            - containerPort: 6123
+              name: rpc
+            - containerPort: 6124
+              name: blob
+            - containerPort: 8081
+              name: webui
+          env:
+            - name: JOB_MANAGER_RPC_ADDRESS
+              value: "flink-jobmanager"
+            - name: FLINK_PROPERTIES
+              value: |
+                jobmanager.rpc.address: flink-jobmanager
+                blob.server.port: 6124
+                blob.client.socket.timeout: 300000
+                blob.fetch.retries: 10
+                blob.fetch.num-concurrent: 50
+                akka.ask.timeout: 120s
+                akka.framesize: 104857600
+                python.client.executable: python3
+                python.executable: python3
+                python.files: /opt/app/jobs/
+          envFrom:
+            - configMapRef:
+                name: flink-config
+          resources:
+            requests:
+              memory: 1Gi
+              cpu: 500m
+            limits:
+              memory: 2Gi
+              cpu: 1
+          readinessProbe:
+            httpGet:
+              path: /overview
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /overview
+              port: 8081
+            initialDelaySeconds: 60
+            periodSeconds: 15
+---
+# Flink JobManager Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: flink-jobmanager
+  namespace: data-services
+  labels:
+    app: flink-jobmanager
+spec:
+  type: ClusterIP
+  ports:
+    - name: rpc
+      port: 6123
+      targetPort: 6123
+    - name: blob
+      port: 6124
+      targetPort: 6124
+    - name: webui
+      port: 8081
+      targetPort: 8081
+  selector:
+    app: flink-jobmanager
+---
+# Flink TaskManager Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flink-taskmanager
+  namespace: data-services
+  labels:
+    app: flink-taskmanager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flink-taskmanager
+  template:
+    metadata:
+      labels:
+        app: flink-taskmanager
+    spec:
+      containers:
+        - name: taskmanager
+          image: flink-pyflink:latest
+          imagePullPolicy: Never
+          command: ["/docker-entrypoint.sh"]
+          args: ["taskmanager"]
+          env:
+            - name: JOB_MANAGER_RPC_ADDRESS
+              value: "flink-jobmanager"
+            - name: TASK_MANAGER_NUMBER_OF_TASK_SLOTS
+              value: "4"
+            - name: FLINK_PROPERTIES
+              value: |
+                jobmanager.rpc.address: flink-jobmanager
+                blob.server.port: 6124
+                blob.client.socket.timeout: 300000
+                blob.fetch.retries: 10
+                blob.fetch.num-concurrent: 50
+                akka.ask.timeout: 120s
+                akka.framesize: 104857600
+                python.client.executable: python3
+                python.executable: python3
+                python.files: /opt/app/jobs/
+                taskmanager.memory.process.size: 2048m
+                taskmanager.numberOfTaskSlots: 4
+          envFrom:
+            - configMapRef:
+                name: flink-config
+          resources:
+            requests:
+              memory: 2Gi
+              cpu: 500m
+            limits:
+              memory: 4Gi
+              cpu: 1

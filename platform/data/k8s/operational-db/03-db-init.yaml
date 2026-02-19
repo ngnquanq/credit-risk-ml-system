@@ -1,0 +1,141 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-init-scripts
+  namespace: data-services
+data:
+  init-ops-database.sql: |
+    -- ================================================================================
+    -- Minimal Operational DB Init (CDC Only)
+    -- Purpose: Create only the core tables used by the API and enable CDC
+    -- ================================================================================
+
+    -- Ensure replication permissions (required for Debezium logical replication)
+    ALTER USER ops_admin WITH REPLICATION;
+
+    -- Create core tables required by the application
+    \i /schemas/001_create_loan_applications.sql
+    \i /schemas/002_create_application_status_log.sql
+
+    -- Create CDC publication for Debezium
+    CREATE PUBLICATION debezium_pub FOR TABLE loan_applications;
+
+  001_create_loan_applications.sql: |
+    CREATE TABLE IF NOT EXISTS loan_applications (
+        -- Primary Key & Identity
+        sk_id_curr VARCHAR(255) PRIMARY KEY,
+        
+        -- Basic Demographics
+        code_gender CHAR(1) CHECK (code_gender IN ('M', 'F')),
+        birth_date DATE NOT NULL,
+        cnt_children INTEGER DEFAULT 0 CHECK (cnt_children >= 0),
+        
+        -- Financial Information
+        amt_income_total DECIMAL(15,2) NOT NULL CHECK (amt_income_total > 0),
+        amt_credit DECIMAL(15,2) NOT NULL CHECK (amt_credit > 0),
+        amt_annuity DECIMAL(15,2) CHECK (amt_annuity > 0),
+        amt_goods_price DECIMAL(15,2) CHECK (amt_goods_price >= 0),
+        
+        -- Employment & Personal Details
+        name_contract_type VARCHAR(50) DEFAULT 'Cash loans' CHECK (name_contract_type IN ('Cash loans', 'Revolving loans')),
+        name_income_type VARCHAR(50) CHECK (name_income_type IN ('Working', 'Commercial associate', 'Pensioner', 'State servant', 'Student', 'Businessman', 'Maternity leave')),
+        name_education_type VARCHAR(50) CHECK (name_education_type IN ('Secondary / secondary special', 'Higher education', 'Incomplete higher', 'Lower secondary', 'Academic degree')),
+        name_family_status VARCHAR(50) CHECK (name_family_status IN ('Single / not married', 'Married', 'Civil marriage', 'Widow', 'Separated')),
+        name_housing_type VARCHAR(50) CHECK (name_housing_type IN ('House / apartment', 'Rented apartment', 'With parents', 'Municipal apartment', 'Office apartment', 'Co-op apartment')),
+        
+        -- Employment Details
+        employment_start_date DATE,
+        occupation_type VARCHAR(100),
+        organization_type VARCHAR(100),
+        
+        -- Contact Information Flags
+        flag_mobil INTEGER DEFAULT 0 CHECK (flag_mobil IN (0, 1)),
+        flag_emp_phone INTEGER DEFAULT 0 CHECK (flag_emp_phone IN (0, 1)),
+        flag_work_phone INTEGER DEFAULT 0 CHECK (flag_work_phone IN (0, 1)),
+        flag_phone INTEGER DEFAULT 0 CHECK (flag_phone IN (0, 1)),
+        flag_email INTEGER DEFAULT 0 CHECK (flag_email IN (0, 1)),
+        
+        -- Asset Ownership
+        flag_own_car INTEGER DEFAULT 0 CHECK (flag_own_car IN (0, 1)),
+        flag_own_realty INTEGER DEFAULT 0 CHECK (flag_own_realty IN (0, 1)),
+        own_car_age INTEGER CHECK (own_car_age >= 0),
+        
+        -- Document Storage (MinIO Document IDs)
+        document_id_2 VARCHAR(255),
+        document_id_3 VARCHAR(255),
+        document_id_4 VARCHAR(255),
+        document_id_5 VARCHAR(255),
+        document_id_6 VARCHAR(255),
+        document_id_7 VARCHAR(255),
+        document_id_8 VARCHAR(255),
+        document_id_9 VARCHAR(255),
+        document_id_10 VARCHAR(255),
+        document_id_11 VARCHAR(255),
+        document_id_12 VARCHAR(255),
+        document_id_13 VARCHAR(255),
+        document_id_14 VARCHAR(255),
+        document_id_15 VARCHAR(255),
+        document_id_16 VARCHAR(255),
+        document_id_17 VARCHAR(255),
+        document_id_18 VARCHAR(255),
+        document_id_19 VARCHAR(255),
+        document_id_20 VARCHAR(255),
+        document_id_21 VARCHAR(255),
+        
+        -- Audit Fields
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_loan_applications_created_at ON loan_applications(created_at);
+    CREATE INDEX IF NOT EXISTS idx_loan_applications_sk_id ON loan_applications(sk_id_curr);
+
+    CREATE OR REPLACE FUNCTION update_updated_at_column()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        NEW.updated_at = NOW();
+        RETURN NEW;
+    END;
+    $$ language 'plpgsql';
+
+    CREATE TRIGGER update_loan_applications_updated_at 
+        BEFORE UPDATE ON loan_applications 
+        FOR EACH ROW 
+        EXECUTE FUNCTION update_updated_at_column();
+
+    COMMENT ON TABLE loan_applications IS 'Operational loan applications table.';
+
+  002_create_application_status_log.sql: |
+    CREATE TABLE IF NOT EXISTS application_status_log (
+        id BIGSERIAL PRIMARY KEY,
+        sk_id_curr VARCHAR(255) NOT NULL REFERENCES loan_applications(sk_id_curr) ON DELETE CASCADE,
+        
+        status VARCHAR(50) NOT NULL CHECK (status IN (
+            'submitted', 'pre_screening', 'pre_screening_passed', 'pre_screening_failed',
+            'document_verification', 'bureau_requested', 'bureau_received',
+            'feature_engineering', 'ml_scoring', 'scoring_completed',
+            'approved', 'rejected', 'manual_review', 'cancelled', 'error'
+        )),
+        
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+        created_by VARCHAR(100) NOT NULL,
+        metadata JSONB,
+        
+        CONSTRAINT valid_created_by CHECK (created_by != '')
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_application_status_log_sk_id_curr ON application_status_log(sk_id_curr, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_application_status_log_status ON application_status_log(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_application_status_log_created_at ON application_status_log(created_at DESC);
+
+    CREATE OR REPLACE VIEW current_application_status AS
+    SELECT DISTINCT ON (sk_id_curr) 
+        sk_id_curr,
+        status as current_status,
+        created_at as status_updated_at,
+        created_by as last_updated_by,
+        metadata
+    FROM application_status_log
+    ORDER BY sk_id_curr, created_at DESC;
+
+    COMMENT ON TABLE application_status_log IS 'Event sourcing log for application status changes.';

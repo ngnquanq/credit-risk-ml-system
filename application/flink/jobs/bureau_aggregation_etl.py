@@ -56,7 +56,7 @@ def main():
             'topic' = '{source_topic}',
             'properties.bootstrap.servers' = '{bootstrap}',
             'properties.group.id' = 'flink-bureau-aggregation',
-            'scan.startup.mode' = 'latest-offset',
+            'scan.startup.mode' = 'earliest-offset',
             'format' = 'raw',
             'raw.charset' = 'UTF-8'
         )

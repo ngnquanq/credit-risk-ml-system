@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+  namespace: api-gateway
+data:
+  # DB Connection (Cross-Namespace)
+  OPS_DB_HOST: "ops-postgres.data-services.svc.cluster.local"
+  OPS_DB_PORT: "5432"
+  OPS_DB_NAME: "operations"
+  OPS_DB_USER: "ops_admin"
+  
+  # API Configuration
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+  DEBUG: "false"
+  LOG_LEVEL: "INFO"
+  
+  # Platform Services (Assuming namespace 'data-services' or 'data-platform' - check Makefile or existing)
+  # Makefile deployed MinIO to 'training-data' namespace for training, but API uses 'data-minio-server'.
+  # I'll assume 'data-services' for now, user can correct.
+  MINIO_ENDPOINT: "data-minio-server.data-services.svc.cluster.local:9000"
+  MINIO_BUCKET: "loan-documents"
+  
+  # Kafka
+  APP_KAFKA_BOOTSTRAP_SERVERS: "kafka-broker.data-services.svc.cluster.local:29092"
