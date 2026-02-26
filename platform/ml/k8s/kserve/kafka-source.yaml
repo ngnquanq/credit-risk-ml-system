@@ -5,7 +5,7 @@ metadata:
   namespace: kserve
 spec:
   bootstrapServers:
-    - host.minikube.internal:39092
+    - kafka-broker.data-services.svc.cluster.local:9092
 
   topics:
     - hc.feature_ready
@@ -18,24 +18,15 @@ spec:
     ref:
       apiVersion: serving.kserve.io/v1beta1
       kind: InferenceService
-      name: credit-risk-latest  # Updated dynamically by watcher
+      name: credit-risk-v4  # Point to latest deployed version
     uri: /v1/score-by-id
 
   delivery:
     retry: 3
     backoffPolicy: exponential
     backoffDelay: PT1S
-    # TODO: Add DLQ after KafkaSink connectivity is resolved
-    # deadLetterSink:
-    #   ref:
-    #     apiVersion: eventing.knative.dev/v1alpha1
-    #     kind: KafkaSink
-    #     name: scoring-dlq-sink
-
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 200m
-      memory: 256Mi
+    deadLetterSink:
+      ref:
+        apiVersion: eventing.knative.dev/v1alpha1
+        kind: KafkaSink
+        name: scoring-dlq-sink

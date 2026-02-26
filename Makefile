@@ -61,6 +61,7 @@ help: ## Show this help message
 	@echo "  k8s-up                     - Start Minikube profile (mlops) with addons"
 	@echo "  k8s-ml-platform            - Deploy complete ML platform (one-off command)"
 	@echo "  k8s-training-data-storage  - Deploy training data storage (MinIO)"
+	@echo "  k8s-export-training-snapshot - Export ClickHouse data -> training MinIO (run after deploy)"
 	@echo "  k8s-kubeflow               - Deploy Kubeflow Pipelines"
 	@echo "  k8s-ray                    - Deploy Ray cluster for hyperparameter tuning"
 	@echo "  k8s-model-registry         - Deploy MLflow model registry"
@@ -77,10 +78,36 @@ help: ## Show this help message
 	@echo "  core-apply-migrations     - Apply core DB migrations (idempotent)"
 	@echo "  core-reset-db             - Drop and recreate core DB (destructive)"
 	@echo "  test-env                  - Test if .env variables are loaded (for debugging)"
+	@echo ""
+	@echo "Port-forward shortcuts (for local notebook / browser access):"
+	@echo "  pf-clickhouse             - ClickHouse HTTP API  -> localhost:8123"
+	@echo "  pf-mlflow                 - MLflow UI            -> localhost:5000"
+	@echo "  pf-minio-training         - MinIO training data  -> localhost:9000 (API) :9090 (console)"
+	@echo "  pf-kafka-ui               - Kafka UI             -> localhost:8080"
 
 # Network management
 create-network: ## Create the platform network
 	docker network create $(NETWORK_NAME) || true
+
+# ─── Port-forward shortcuts ────────────────────────────────────────────────────
+pf-clickhouse: ## Port-forward ClickHouse HTTP API to localhost:8123 (for local notebooks)
+	@echo "ClickHouse available at localhost:8123"
+	@echo "Python: clickhouse_connect.get_client(host='localhost', port=8123)"
+	kubectl port-forward -n data-services svc/clickhouse-server 8123:8123
+
+pf-mlflow: ## Port-forward MLflow UI to localhost:5000
+	@echo "MLflow UI available at http://localhost:5000"
+	kubectl port-forward -n model-registry svc/mlflow 5000:80
+
+pf-minio-training: ## Port-forward training MinIO API (9000) and console (9090) to localhost
+	@echo "MinIO API: localhost:9000  |  Console: http://localhost:9090"
+	@echo "Credentials: minioadmin / minioadmin"
+	kubectl port-forward -n training-data svc/training-minio 9000:9000 &
+	kubectl port-forward -n training-data svc/training-minio-console 9090:9090
+
+pf-kafka-ui: ## Port-forward Kafka UI to localhost:8080
+	@echo "Kafka UI available at http://localhost:8080"
+	kubectl port-forward -n data-services svc/kafka-ui 8080:8080
 
 # Full platform management
 up: create-network ## Start all services
@@ -260,8 +287,20 @@ k8s-training-data-storage: ## Deploy training data storage (MinIO for versioned 
 	helm upgrade --install training-minio ./platform/ml/k8s/training-data-storage -n training-data \
 		-f platform/ml/k8s/training-data-storage/minio.values.yaml
 	@echo "Training data storage deployed (namespace: training-data)"
-# 	Issue: this use Minikube IP which may not static, need to automatically track for the minikube IP first
-# 	@echo "Load sample data: docker exec clickhouse_dwh clickhouse-client -q \"SET s3_truncate_on_insert=1; INSERT INTO FUNCTION s3('http://172.18.0.1:31900/training-data/snapshots/ds=2025-09-19/loan_applications.csv','minioadmin','minioadmin','CSVWithNames') SELECT a.*, t.TARGET FROM application_mart.mart_application AS a INNER JOIN application_mart.mart_application_train AS t ON a.SK_ID_CURR = t.SK_ID_CURR\""
+	@echo "Run 'make k8s-export-training-snapshot' to load data from ClickHouse into MinIO."
+
+k8s-export-training-snapshot: ## Export training data from ClickHouse (k8s) to training MinIO for pipeline use
+	@echo "Exporting loan_applications snapshot from ClickHouse -> training MinIO..."
+	kubectl exec -n data-services clickhouse-server-0 -- clickhouse-client -q "\
+SET s3_truncate_on_insert=1; \
+INSERT INTO FUNCTION s3(\
+'http://training-minio.training-data.svc.cluster.local:9000/training-data/snapshots/ds=2025-09-19/loan_applications.csv',\
+'minioadmin','minioadmin','CSVWithNames') \
+SELECT a.*, t.TARGET \
+FROM application_mart.mart_application AS a \
+INNER JOIN application_mart.mart_application_train AS t \
+ON a.SK_ID_CURR = t.SK_ID_CURR"
+	@echo "Snapshot exported to s3://training-data/snapshots/ds=2025-09-19/loan_applications.csv"
 
 k8s-kubeflow: ## Deploy Kubeflow Pipelines for training orchestration
 	@echo "Deploying Kubeflow Pipelines v2.14.3 (using local manifests)..."

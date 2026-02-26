@@ -5,7 +5,7 @@ metadata:
   namespace: kserve
 spec:
   bootstrapServers:
-    - host.minikube.internal:39092
+    - kafka-broker.data-services.svc.cluster.local:9092
 
   topic: hc.scoring
 

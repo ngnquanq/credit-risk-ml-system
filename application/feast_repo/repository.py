@@ -49,6 +49,18 @@ def apply():
         local_registry_path.unlink()
 
     fs = FeatureStore(repo_path=str(repo_dir))
+
+    # Teardown first to clear any stale/conflicting feature view type registrations
+    # (e.g., old FeatureView entries that conflict with current StreamFeatureViews)
+    try:
+        print("🧹 Tearing down stale registry entries before apply...")
+        fs.teardown()
+        print("✅ Teardown complete")
+    except Exception as e:
+        print(f"⚠️  Teardown skipped (ok on first run): {e}")
+
+    # Re-init FeatureStore after teardown to get fresh registry handle
+    fs = FeatureStore(repo_path=str(repo_dir))
     fs.apply([
         customer,
         fv_application_features,

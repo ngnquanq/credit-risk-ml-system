@@ -33,7 +33,7 @@ spec:
       containers:
       - name: feast-stream
         # Built from application/feast/Dockerfile
-        image: ngnquanq/feast-repo:latest
+        image: ngnquanq/feast-repo:v17
         imagePullPolicy: Always
         workingDir: /work
         command:

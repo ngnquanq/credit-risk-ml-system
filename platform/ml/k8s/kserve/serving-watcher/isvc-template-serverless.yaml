@@ -71,11 +71,11 @@ spec:
 
         resources:
           requests:
-            cpu: "1500m"
-            memory: 768Mi
+            cpu: "500m"
+            memory: 256Mi
           limits:
-            cpu: "2000m"
-            memory: 1152Mi
+            cpu: "1000m"
+            memory: 512Mi
 
         livenessProbe:
           httpGet:

@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import logging
 import subprocess
@@ -153,6 +154,47 @@ def build_and_push_image(version: str) -> bool:
                         log.error("No packages found in bentofile.yaml")
                 else:
                     log.error(f"bentofile.yaml not found at {bentofile_path}")
+
+            # Patch requirements.txt: force exact protobuf version that feast 0.40+ needs.
+            # protobuf==4.25.8 satisfies both feast (needs >=4.25.0) AND
+            # opentelemetry-proto==1.22.0 (needs ~=4.21, i.e., >=4.21,<5).
+            if os.path.exists(env_python_requirements):
+                with open(env_python_requirements, 'r') as f:
+                    req_lines = f.read().splitlines()
+                # Remove any existing protobuf constraint to avoid version conflicts
+                req_lines = [l for l in req_lines if not l.strip().lower().startswith('protobuf')]
+                req_lines.append('protobuf==4.25.8')
+                with open(env_python_requirements, 'w') as f:
+                    f.write('\n'.join(req_lines) + '\n')
+                log.info("Patched requirements.txt: pinned protobuf==4.25.8")
+
+            # Patch Dockerfile: insert protobuf force-reinstall AS bentoml user, right after
+            # the USER bentoml instruction (not appended after ENTRYPOINT).
+            # This ensures the install targets ~/.local/lib/ which Python checks first at runtime.
+            with open(dockerfile_path, 'r') as f:
+                dockerfile_content = f.read()
+
+            protobuf_check_cmd = (
+                'RUN pip install --force-reinstall protobuf==4.25.8 && '
+                'python -c "import google.protobuf; '
+                'print(\'[BUILD CHECK] protobuf:\', google.protobuf.__version__, google.protobuf.__file__)"\n'
+            )
+
+            if 'USER bentoml' in dockerfile_content:
+                # Insert the force-reinstall immediately after the first "USER bentoml" line
+                dockerfile_content = dockerfile_content.replace(
+                    'USER bentoml\n',
+                    'USER bentoml\n' + protobuf_check_cmd,
+                    1  # Replace only the first occurrence
+                )
+                log.info("Dockerfile patched: protobuf force-reinstall inserted after USER bentoml")
+            else:
+                # Fallback: append with explicit USER bentoml
+                dockerfile_content += f'\nUSER bentoml\n{protobuf_check_cmd}'
+                log.info("Dockerfile patched: protobuf force-reinstall appended (USER bentoml not found inline)")
+
+            with open(dockerfile_path, 'w') as f:
+                f.write(dockerfile_content)
 
             # Login to Docker Hub if credentials provided
             username = os.getenv("DOCKER_USERNAME")

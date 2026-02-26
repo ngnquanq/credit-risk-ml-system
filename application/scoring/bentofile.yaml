@@ -23,6 +23,8 @@ python:
     - feast[redis]>=0.40  # Removed kafka extra - Knative handles Kafka
     # - kafka-python>=2.0.2  # Removed - Knative handles Kafka
     - boto3>=1.28
-    - opentelemetry-api==1.22.0
-    - opentelemetry-sdk==1.22.0
-    - opentelemetry-exporter-otlp-proto-grpc==1.22.0
+    # opentelemetry 1.27+ drops the protobuf~=4.21 pin from opentelemetry-proto,
+    # allowing protobuf>=4.25.0 which feast 0.40+ generated protos require.
+    - opentelemetry-api>=1.27.0
+    - opentelemetry-sdk>=1.27.0
+    - opentelemetry-exporter-otlp-proto-grpc>=1.27.0

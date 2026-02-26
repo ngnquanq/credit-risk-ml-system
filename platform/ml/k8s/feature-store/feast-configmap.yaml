@@ -5,10 +5,8 @@ metadata:
   labels:
     component: feature-store
 data:
-  # Kafka connection - Using socat gateway to reach Kafka in Docker network
-  # K8s pods connect to host.minikube.internal:39092 (Minikube host alias)
-  # Gateway forwards to 172.18.0.30:29092 (Kafka broker in hc-network)
-  FEAST_KAFKA_BROKERS: "host.minikube.internal:39092"
+  # Kafka connection - in-cluster Kafka service
+  FEAST_KAFKA_BROKERS: "kafka-broker.data-services.svc.cluster.local:9092"
 
   # Feast project name (using k8s-specific project to avoid registry conflicts)
   FEAST_PROJECT: "hc_k8s"
@@ -18,10 +16,8 @@ data:
   FEAST_TOPIC_EXTERNAL: "hc.application_ext"             # Stream 2: External bureau features
   FEAST_TOPIC_DWH: "hc.application_dwh"                  # Stream 3: Data warehouse features
 
-  # ClickHouse connection (for DWH schema inference)
-  # Using ClickHouse container IP on hc-network
-  # clickhouse_dwh container IP: 172.18.0.17
-  APP_CLICKHOUSE_HOST: "172.18.0.17"
+  # ClickHouse connection - in-cluster ClickHouse service
+  APP_CLICKHOUSE_HOST: "clickhouse-server.data-services.svc.cluster.local"
   APP_CLICKHOUSE_PORT: "8123"
   APP_CLICKHOUSE_DB_DWH: "application_mart"
 

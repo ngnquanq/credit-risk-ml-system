@@ -20,7 +20,7 @@ spec:
       containers:
       - name: feast-apply
         # Built from application/feast/Dockerfile
-        image: ngnquanq/feast-repo:latest
+        image: ngnquanq/feast-repo:v17
         imagePullPolicy: Always
         workingDir: /work
         command:
@@ -49,10 +49,10 @@ spec:
           subPath: feature_store.yaml
         resources:
           requests:
-            memory: "512Mi"
-            cpu: "200m"
+            memory: "128Mi"
+            cpu: "100m"
           limits:
-            memory: "1Gi"
+            memory: "512Mi"
             cpu: "500m"
       volumes:
       - name: feast-store-config

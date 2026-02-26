@@ -57,70 +57,10 @@ eck-kibana:
             memory: 1Gi
             cpu: 500m
 
-# Enable Beats (Filebeat) for log collection
+# Beats disabled - using standalone filebeat-manifest.yaml instead
+# (avoid duplicate Filebeat deployment)
 eck-beats:
-  enabled: true
-  version: 8.5.1
-  type: filebeat
-
-  # Reference to Elasticsearch
-  elasticsearchRef:
-    name: elasticsearch
-
-  # Filebeat configuration
-  config:
-    filebeat:
-      autodiscover:
-        providers:
-        - type: kubernetes
-          node: ${NODE_NAME}
-          hints:
-            enabled: true
-            default_config:
-              type: container
-              paths:
-              - /var/log/containers/*${data.kubernetes.container.id}.log
-    processors:
-    - add_cloud_metadata: {}
-    - add_host_metadata: {}
-
-  # Deploy as DaemonSet
-  daemonSet:
-    podTemplate:
-      spec:
-        serviceAccountName: filebeat
-        automountServiceAccountToken: true
-        terminationGracePeriodSeconds: 30
-        dnsPolicy: ClusterFirstWithHostNet
-        hostNetwork: true
-        containers:
-        - name: filebeat
-          securityContext:
-            runAsUser: 0
-          volumeMounts:
-          - name: varlogcontainers
-            mountPath: /var/log/containers
-          - name: varlogpods
-            mountPath: /var/log/pods
-          - name: varlibdockercontainers
-            mountPath: /var/lib/docker/containers
-          resources:
-            requests:
-              memory: 256Mi
-              cpu: 100m
-            limits:
-              memory: 512Mi
-              cpu: 500m
-        volumes:
-        - name: varlogcontainers
-          hostPath:
-            path: /var/log/containers
-        - name: varlogpods
-          hostPath:
-            path: /var/log/pods
-        - name: varlibdockercontainers
-          hostPath:
-            path: /var/lib/docker/containers
+  enabled: false
 
 # Disable other components (not needed for demo)
 eck-agent:

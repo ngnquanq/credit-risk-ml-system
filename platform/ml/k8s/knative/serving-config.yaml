@@ -9,3 +9,15 @@ data:
   revision-timeout-seconds: "300"
   container-concurrency-target-percentage: "70"
   container-concurrency: "100"
+---
+# Configure the default Kafka bootstrap server for the knative-eventing kafka-controller.
+# Without this, topic validation in KafkaSink falls back to 127.0.0.1:29092 and fails.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-kafka
+  namespace: knative-eventing
+data:
+  bootstrapServers: "kafka-broker.data-services.svc.cluster.local:9092"
+  default.topic.replication.factor: "1"
+  default.topic.partitions: "3"
