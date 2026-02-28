@@ -20,7 +20,9 @@ spec:
       containers:
         - name: dbt
           image: dbt-clickhouse:latest
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
+          command: ["dbt"]
+          args: ["run", "--project-dir", ".", "--profiles-dir", ".", "--target", "gold"]
           env:
             - name: DBT_CLICKHOUSE_HOST
               value: "clickhouse-server.data-services.svc.cluster.local"

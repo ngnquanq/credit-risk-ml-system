@@ -1,0 +1,38 @@
+{
+  "output": {
+    "filePath": "repomix-output.xml",
+    "style": "xml",
+    "removeComments": true,
+    "removeEmptyLines": true
+  },
+  "include": [
+    "application/**",
+    "platform/ml/k8s/**"
+  ],
+  "ignore": {
+    "customPatterns": [
+      "**/*.tpl",
+      "**/*.png",
+      "**/*.jpg",
+      "**/*.jar",
+      "**/charts/common/**",
+      "**/node_modules/**",
+      "**/__pycache__/**",
+      "**/.git/**",
+      "**/crds/**",
+      "**/NOTES.txt",
+      "**/.helmignore",
+      "**/Chart.lock",
+      "**/values.schema.json",
+      "**/*.gotmpl",
+      "platform/ml/k8s/**/*.yaml",
+      "!platform/ml/k8s/**/values.yaml",
+      "!platform/ml/k8s/**/feature_store.yaml",
+      "docker-compose*",
+      "data/**",
+      "notebook/**",
+      "infrastructure/**"
+    ],
+    "useGitignore": true
+  }
+}

@@ -122,10 +122,8 @@ data:
     CREATE DATABASE IF NOT EXISTS application_dwh;
     CREATE DATABASE IF NOT EXISTS application_external;
 
-    -- Views: bridge external bureau data into application_dwh
-    -- (dbt models reference application_dwh.bureau but data is loaded into application_external)
-    CREATE VIEW IF NOT EXISTS application_dwh.bureau AS SELECT * FROM application_external.bureau;
-    CREATE VIEW IF NOT EXISTS application_dwh.bureau_balance AS SELECT * FROM application_external.bureau_balance;
+    -- Views are created in load-data.sh after external tables are populated
+    -- (ClickHouse 25.6+ validates VIEW sources eagerly; tables must exist first)
 
   load-data.sh: |
     #!/bin/bash
@@ -151,15 +149,16 @@ data:
       local db="$1" table="$2" file="$3"
       local base=$(basename "$file")
 
-      # Copy into ClickHouse user_files so file() function can access it
-      cp "$file" /var/lib/clickhouse/user_files/ 2>/dev/null || true
+      # Infer schema using clickhouse-local (reads local file directly — no server FS needed)
+      local cols
+      cols=$(clickhouse-local -q \
+        "DESCRIBE TABLE file('${file}', 'CSVWithNames')" \
+        | awk -F'\t' '{print $1 " " $2}' | tr '\n' ',' | sed 's/,$//')
 
       local exists=$(ch "SELECT count() FROM system.tables WHERE database='${db}' AND name='${table}'")
       if [ "$exists" -eq 0 ]; then
         echo "  Creating table ${db}.${table} (schema inferred)..."
-        ch "CREATE TABLE ${db}.${table}
-            ENGINE = MergeTree ORDER BY tuple()
-            AS SELECT * FROM file('${base}', '${FORMAT}') LIMIT 0"
+        ch "CREATE TABLE IF NOT EXISTS ${db}.${table} (${cols}) ENGINE = MergeTree() ORDER BY tuple()"
       fi
 
       local current_rows=$(ch "SELECT count() FROM ${db}.${table}")
@@ -169,7 +168,9 @@ data:
       fi
 
       echo "  Loading $base → ${db}.${table}..."
-      ch "INSERT INTO ${db}.${table} SELECT * FROM file('${base}', '${FORMAT}')"
+      # Stream CSV via stdin — data never needs to exist on the server's filesystem
+      clickhouse-client --host "$CH_HOST" $FLAGS \
+        --query "INSERT INTO ${db}.${table} FORMAT CSVWithNames" < "$file"
       local rows=$(ch "SELECT count() FROM ${db}.${table}")
       echo "  ✅ ${db}.${table}: ${rows} rows"
     }
@@ -208,6 +209,13 @@ data:
         echo "  Skip: ${file} not found"
       fi
     done
+
+    # ── Bridge views (must exist before dbt runs) ──
+    echo ""
+    echo "═══ Creating bridge views in application_dwh ═══"
+    ch "CREATE OR REPLACE VIEW application_dwh.bureau AS SELECT * FROM application_external.bureau"
+    ch "CREATE OR REPLACE VIEW application_dwh.bureau_balance AS SELECT * FROM application_external.bureau_balance"
+    echo "  ✅ Views created"
 
     echo ""
     echo "═══ Summary ═══"
@@ -284,8 +292,6 @@ spec:
             - name: csv-data
               mountPath: /data
               readOnly: true
-            - name: ch-user-files
-              mountPath: /var/lib/clickhouse/user_files
       volumes:
         - name: init-scripts
           configMap:
@@ -295,5 +301,3 @@ spec:
           hostPath:
             path: /mnt/data
             type: Directory
-        - name: ch-user-files
-          emptyDir: {}

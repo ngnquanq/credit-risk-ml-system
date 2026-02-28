@@ -12,7 +12,7 @@ metadata:
     autoscaling.knative.dev/maxScale: "10"
     autoscaling.knative.dev/target: "100"
     autoscaling.knative.dev/metric: concurrency
-    autoscaling.knative.dev/class: kpa
+    autoscaling.knative.dev/class: kpa.autoscaling.knative.dev
     autoscaling.knative.dev/scale-down-delay: "30s"
 spec:
   predictor:

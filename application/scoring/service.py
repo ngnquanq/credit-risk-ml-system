@@ -36,7 +36,7 @@ KafkaProducer = None  # type: ignore
 # Import ALL dependencies that might not be available during `bentoml build`
 # These are installed after the build process reads bentofile.yaml
 with bentoml.importing():
-    from fastapi import FastAPI
+    from fastapi import FastAPI, Request
     from loguru import logger as _logger
     import pandas as _pd
     from config import settings as _settings
@@ -133,11 +133,31 @@ with bentoml.importing():
         return resp.model_dump()
 
     @app.post("/v1/score-by-id")
-    def score_by_id(req: ScoreByIdRequest) -> Dict[str, Any]:
+    async def score_by_id(request: Request) -> Dict[str, Any]:
         """Score by ID endpoint - Knative Eventing integration.
 
-        Returns prediction result for KafkaSink publishing.
+        Handles both plain JSON and CloudEvents-wrapped requests.
+        Parses raw body to tolerate missing Content-Type from KafkaSource dispatcher.
         """
+        from fastapi.responses import JSONResponse
+
+        # Parse raw body to handle missing/wrong Content-Type from KafkaSource
+        raw_body = await request.body()
+        try:
+            body = json.loads(raw_body)
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            return JSONResponse(status_code=422, content={"detail": f"Invalid JSON: {e}"})
+
+        # Unwrap CloudEvents envelope if present
+        if isinstance(body, dict) and "specversion" in body and "data" in body:
+            body = body["data"]
+
+        # Validate against schema
+        try:
+            req = ScoreByIdRequest(**body)
+        except Exception as e:
+            return JSONResponse(status_code=422, content={"detail": f"Validation error: {e}"})
+
         ensure_model_loaded()
         sk_id_curr = str(req.sk_id_curr)
 

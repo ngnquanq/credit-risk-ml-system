@@ -155,43 +155,38 @@ def build_and_push_image(version: str) -> bool:
                 else:
                     log.error(f"bentofile.yaml not found at {bentofile_path}")
 
-            # Patch requirements.txt: force exact protobuf version that feast 0.40+ needs.
-            # protobuf==4.25.8 satisfies both feast (needs >=4.25.0) AND
-            # opentelemetry-proto==1.22.0 (needs ~=4.21, i.e., >=4.21,<5).
+            # Patch requirements.txt: strip any existing protobuf pin so the main pip install
+            # can resolve deps without conflict. We do NOT pin here because
+            # opentelemetry-proto==1.22.0 (pinned by BentoML) requires protobuf<5.0, and
+            # adding protobuf==5.29.0 here causes ResolutionImpossible.
+            # The correct protobuf version is enforced below via Dockerfile force-reinstall
+            # with --no-deps (after the main install) so runtime_version is available for feast.
             if os.path.exists(env_python_requirements):
                 with open(env_python_requirements, 'r') as f:
                     req_lines = f.read().splitlines()
-                # Remove any existing protobuf constraint to avoid version conflicts
                 req_lines = [l for l in req_lines if not l.strip().lower().startswith('protobuf')]
-                req_lines.append('protobuf==4.25.8')
                 with open(env_python_requirements, 'w') as f:
                     f.write('\n'.join(req_lines) + '\n')
-                log.info("Patched requirements.txt: pinned protobuf==4.25.8")
+                log.info("Patched requirements.txt: removed protobuf constraint (will be set by Dockerfile)")
 
-            # Patch Dockerfile: insert protobuf force-reinstall AS bentoml user, right after
-            # the USER bentoml instruction (not appended after ENTRYPOINT).
-            # This ensures the install targets ~/.local/lib/ which Python checks first at runtime.
+            # Patch Dockerfile: force-reinstall protobuf 5.29.0 as root AFTER the main pip
+            # install, using --no-deps to bypass the opentelemetry-proto<5.0 constraint.
+            # This gives feast the runtime_version API it needs without breaking the install.
             with open(dockerfile_path, 'r') as f:
                 dockerfile_content = f.read()
 
-            protobuf_check_cmd = (
-                'RUN pip install --force-reinstall protobuf==4.25.8 && '
-                'python -c "import google.protobuf; '
-                'print(\'[BUILD CHECK] protobuf:\', google.protobuf.__version__, google.protobuf.__file__)"\n'
-            )
+            protobuf_pin_cmd = 'RUN pip install --force-reinstall --no-deps protobuf==5.29.0\n'
 
             if 'USER bentoml' in dockerfile_content:
-                # Insert the force-reinstall immediately after the first "USER bentoml" line
                 dockerfile_content = dockerfile_content.replace(
                     'USER bentoml\n',
-                    'USER bentoml\n' + protobuf_check_cmd,
+                    protobuf_pin_cmd + 'USER bentoml\n',
                     1  # Replace only the first occurrence
                 )
-                log.info("Dockerfile patched: protobuf force-reinstall inserted after USER bentoml")
+                log.info("Dockerfile patched: protobuf==5.29.0 force-reinstalled (--no-deps) before USER bentoml")
             else:
-                # Fallback: append with explicit USER bentoml
-                dockerfile_content += f'\nUSER bentoml\n{protobuf_check_cmd}'
-                log.info("Dockerfile patched: protobuf force-reinstall appended (USER bentoml not found inline)")
+                dockerfile_content = protobuf_pin_cmd + dockerfile_content
+                log.info("Dockerfile patched: protobuf==5.29.0 force-reinstalled (--no-deps, prepended)")
 
             with open(dockerfile_path, 'w') as f:
                 f.write(dockerfile_content)
@@ -253,7 +248,7 @@ def create_or_update_kafkasource(isvc_name: str, namespace: str) -> bool:
                 "namespace": namespace
             },
             "spec": {
-                "bootstrapServers": ["host.minikube.internal:39092"],
+                "bootstrapServers": ["kafka-broker.data-services.svc.cluster.local:9092"],
                 "topics": ["hc.feature_ready"],
                 "consumerGroup": "knative-scoring-consumer",
                 "consumers": 1,

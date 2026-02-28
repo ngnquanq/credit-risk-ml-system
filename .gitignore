@@ -273,3 +273,4 @@ services/ops/scripts/automation/automation_helper/backups/
 # AI agent rules
 .agent/
 .agents/
+.gitnexus

@@ -162,7 +162,8 @@ kserve:
 
       # -- DisableIstioVirtualHost controls whether to use istio as network layer for top level component routing or path based routing.
       # This configuration is only applicable for Serverless mode, when disabled Istio is no longer required.
-      disableIstioVirtualHost: false
+      # Set to true because this cluster uses Kourier, not Istio.
+      disableIstioVirtualHost: true
 
       # -- Whether to disable ingress creation for RawDeployment mode.
       disableIngressCreation: false
@@ -173,7 +174,8 @@ kserve:
 
         # -- localGatewayService specifies the hostname of the local gateway service.
 
-        gatewayService: knative-local-gateway.istio-system.svc.cluster.local
+        # Kourier internal service — used for cluster-local routing in Serverless mode without Istio.
+        gatewayService: kourier-internal.kourier-system.svc.cluster.local
 
         # -- knativeLocalGatewayService specifies the hostname of the Knative's local gateway service.
         # When unset, the value of "localGatewayService" will be used. When enabling strict mTLS in Istio, KServe local gateway should be created and pointed to the Knative local gateway.
@@ -181,7 +183,8 @@ kserve:
       # -- ingressGateway specifies the gateway which handles the network traffic from outside the cluster.
       ingressGateway:
         # -- enableGatewayApi controls whether to use the Gateway API for ingress routing instead of kuberetes Ingress.
-        enableGatewayApi: true
+        # Set to false; we use Kourier via Knative for Serverless mode, not a separate Gateway API resource.
+        enableGatewayApi: false
         # -- kserveGateway specifies the name and namespace of the Gateway which handles the network traffic from outside the cluster. 
         # This is only used when Gateway API is enabled. The gateway should be specified in format <gateway namespace>/<gateway name>
         kserveGateway: kserve/kserve-ingress-gateway
@@ -190,7 +193,7 @@ kserve:
         # -- gateway specifies the name and namespace of the Knative's ingress gateway.
         gateway: knative-serving/knative-ingress-gateway
         # -- class specifies the ingress class name. If Gateway API is enabled, this will not affect the ingress routing.
-        className: istio
+        className: kourier
 
     # -- The nodeSelector on Pods tells Kubernetes to schedule Pods on the nodes with matching labels.
     # For more information, see [Assigning Pods to Nodes](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/).

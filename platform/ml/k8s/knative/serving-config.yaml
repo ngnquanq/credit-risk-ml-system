@@ -21,3 +21,13 @@ data:
   bootstrapServers: "kafka-broker.data-services.svc.cluster.local:9092"
   default.topic.replication.factor: "1"
   default.topic.partitions: "3"
+---
+# Disable experimental features that could interfere with SKS lifecycle
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-features
+  namespace: knative-serving
+data:
+  multi-container: "disabled"
+  kubernetes.podspec-hostaliases: "disabled"

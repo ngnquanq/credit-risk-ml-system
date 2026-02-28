@@ -196,7 +196,8 @@ class FeastStreamProcessor:
             self.producer.send(
                 FEATURE_READY_TOPIC,
                 key=sk_id_curr,
-                value=event
+                value=event,
+                headers=[("content-type", b"application/json")]
             )
             logger.debug(f"Published feature_ready event for sk_id_curr={sk_id_curr}, source={source}")
         except Exception as e:

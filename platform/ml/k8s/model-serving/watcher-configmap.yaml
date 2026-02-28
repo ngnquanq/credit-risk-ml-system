@@ -6,6 +6,7 @@ metadata:
 data:
   watcher.py: |
     import os
+    import re
     import time
     import logging
     import subprocess
@@ -107,6 +108,93 @@ data:
                     log.error(f"Dockerfile not found at {dockerfile_path}")
                     return False
 
+                # Fix BentoML Dockerfile issues
+                log.info("Patching Dockerfile to fix $BENTO_PATH variable and uv command")
+                with open(dockerfile_path, 'r') as f:
+                    dockerfile_content = f.read()
+
+                # Replace $BENTO_PATH with the actual path
+                dockerfile_content = dockerfile_content.replace('$BENTO_PATH', '/home/bentoml/bento')
+
+                # Fix uv command - replace with regular pip install
+                dockerfile_content = dockerfile_content.replace(
+                    'uv --directory $INSTALL_ROOT pip install -r',
+                    'pip install --no-cache-dir -r'
+                )
+
+                with open(dockerfile_path, 'w') as f:
+                    f.write(dockerfile_content)
+                log.info("Dockerfile patched successfully")
+
+                # Debug: check for requirements.txt
+                env_python_path = os.path.join(bento_dir, "env/python")
+                env_python_requirements = os.path.join(env_python_path, "requirements.txt")
+
+                log.info(f"Checking for env/python/requirements.txt:")
+                log.info(f"  env/python exists: {os.path.exists(env_python_path)}")
+                log.info(f"  requirements.txt exists: {os.path.exists(env_python_requirements)}")
+
+                if os.path.exists(env_python_path):
+                    log.info(f"  Contents of env/python/:")
+                    for item in os.listdir(env_python_path):
+                        log.info(f"    - {item}")
+
+                # If requirements.txt doesn't exist, create it from bentofile.yaml
+                if not os.path.exists(env_python_requirements):
+                    log.info("requirements.txt not found, attempting to generate from bentofile.yaml")
+                    bentofile_path = os.path.join(bento_dir, "src/bentofile.yaml")
+                    if os.path.exists(bentofile_path):
+                        import yaml
+                        with open(bentofile_path, 'r') as f:
+                            bentofile = yaml.safe_load(f)
+
+                        packages = bentofile.get('python', {}).get('packages', [])
+                        if packages:
+                            os.makedirs(env_python_path, exist_ok=True)
+                            with open(env_python_requirements, 'w') as f:
+                                f.write('\n'.join(packages) + '\n')
+                            log.info(f"Created requirements.txt with {len(packages)} packages")
+                        else:
+                            log.error("No packages found in bentofile.yaml")
+                    else:
+                        log.error(f"bentofile.yaml not found at {bentofile_path}")
+
+                # Patch requirements.txt: strip any existing protobuf pin so the main pip install
+                # can resolve deps without conflict. We do NOT pin here because
+                # opentelemetry-proto==1.22.0 (pinned by BentoML) requires protobuf<5.0, and
+                # adding protobuf==5.29.0 here causes ResolutionImpossible.
+                # The correct protobuf version is enforced below via Dockerfile force-reinstall
+                # with --no-deps (after the main install) so runtime_version is available for feast.
+                if os.path.exists(env_python_requirements):
+                    with open(env_python_requirements, 'r') as f:
+                        req_lines = f.read().splitlines()
+                    req_lines = [l for l in req_lines if not l.strip().lower().startswith('protobuf')]
+                    with open(env_python_requirements, 'w') as f:
+                        f.write('\n'.join(req_lines) + '\n')
+                    log.info("Patched requirements.txt: removed protobuf constraint (will be set by Dockerfile)")
+
+                # Patch Dockerfile: force-reinstall protobuf 5.29.0 as root AFTER the main pip
+                # install, using --no-deps to bypass the opentelemetry-proto<5.0 constraint.
+                # This gives feast the runtime_version API it needs without breaking the install.
+                with open(dockerfile_path, 'r') as f:
+                    dockerfile_content = f.read()
+
+                protobuf_pin_cmd = 'RUN pip install --force-reinstall --no-deps protobuf==5.29.0\n'
+
+                if 'USER bentoml' in dockerfile_content:
+                    dockerfile_content = dockerfile_content.replace(
+                        'USER bentoml\n',
+                        protobuf_pin_cmd + 'USER bentoml\n',
+                        1
+                    )
+                    log.info("Dockerfile patched: protobuf==5.29.0 force-reinstalled (--no-deps) before USER bentoml")
+                else:
+                    dockerfile_content = protobuf_pin_cmd + dockerfile_content
+                    log.info("Dockerfile patched: protobuf==5.29.0 force-reinstalled (--no-deps, prepended)")
+
+                with open(dockerfile_path, 'w') as f:
+                    f.write(dockerfile_content)
+
                 # Login to Docker Hub if credentials provided
                 username = os.getenv("DOCKER_USERNAME")
                 password = os.getenv("DOCKER_PASSWORD")
@@ -127,7 +215,7 @@ data:
                 image_tag_latest = f"{REGISTRY_URL}/{IMAGE_NAME}:latest"
                 log.info(f"Building Docker image: {image_tag} and {image_tag_latest}")
                 result = subprocess.run(
-                    f"docker build -t {image_tag} -t {image_tag_latest} -f {dockerfile_path} {bento_dir}",
+                    f"docker build --no-cache -t {image_tag} -t {image_tag_latest} -f {dockerfile_path} {bento_dir}",
                     shell=True,
                     check=True
                 )
@@ -146,6 +234,92 @@ data:
             log.error(f"Failed to build/push image for {version}: {e}")
             return False
 
+
+    def create_or_update_kafkasource(isvc_name: str, namespace: str) -> bool:
+        """Create or update KafkaSource to route events to latest InferenceService."""
+        try:
+            k8s_config.load_incluster_config()
+            custom_api = k8s.CustomObjectsApi()
+
+            kafka_source_name = "feature-ready-source"
+
+            kafka_source = {
+                "apiVersion": "sources.knative.dev/v1beta1",
+                "kind": "KafkaSource",
+                "metadata": {
+                    "name": kafka_source_name,
+                    "namespace": namespace
+                },
+                "spec": {
+                    "bootstrapServers": ["kafka-broker.data-services.svc.cluster.local:9092"],
+                    "topics": ["hc.feature_ready"],
+                    "consumerGroup": "knative-scoring-consumer",
+                    "consumers": 1,
+                    "initialOffset": "latest",
+                    "sink": {
+                        "ref": {
+                            "apiVersion": "serving.kserve.io/v1beta1",
+                            "kind": "InferenceService",
+                            "name": isvc_name
+                        },
+                        "uri": "/v1/score-by-id"
+                    },
+                    "delivery": {
+                        "deadLetterSink": {
+                            "ref": {
+                                "apiVersion": "eventing.knative.dev/v1alpha1",
+                                "kind": "KafkaSink",
+                                "name": "scoring-dlq-sink"
+                            }
+                        },
+                        "retry": 3,
+                        "backoffPolicy": "exponential",
+                        "backoffDelay": "PT1S"
+                    },
+                    "resources": {
+                        "requests": {"cpu": "100m", "memory": "128Mi"},
+                        "limits": {"cpu": "200m", "memory": "256Mi"}
+                    }
+                }
+            }
+
+            try:
+                existing = custom_api.get_namespaced_custom_object(
+                    group="sources.knative.dev",
+                    version="v1beta1",
+                    namespace=namespace,
+                    plural="kafkasources",
+                    name=kafka_source_name
+                )
+                log.info(f"Updating KafkaSource {kafka_source_name} -> {isvc_name}")
+                custom_api.patch_namespaced_custom_object(
+                    group="sources.knative.dev",
+                    version="v1beta1",
+                    namespace=namespace,
+                    plural="kafkasources",
+                    name=kafka_source_name,
+                    body=kafka_source
+                )
+            except k8s.rest.ApiException as e:
+                if e.status == 404:
+                    log.info(f"Creating KafkaSource {kafka_source_name} -> {isvc_name}")
+                    custom_api.create_namespaced_custom_object(
+                        group="sources.knative.dev",
+                        version="v1beta1",
+                        namespace=namespace,
+                        plural="kafkasources",
+                        body=kafka_source
+                    )
+                else:
+                    raise
+
+            return True
+
+        except Exception as e:
+            log.error(f"Failed to create/update KafkaSource: {e}")
+            return False
+
+
     def create_or_update_inferenceservice(version: str) -> bool:
         """Create or update KServe InferenceService for a version."""
         try:
@@ -155,68 +329,23 @@ data:
             service_name = f"credit-risk-{version}"
             image_uri = f"{REGISTRY_URL}/{IMAGE_NAME}:latest"
 
-            # InferenceService manifest (RawDeployment mode - no Knative needed)
-            isvc = {
-                "apiVersion": "serving.kserve.io/v1beta1",
-                "kind": "InferenceService",
-                "metadata": {
-                    "name": service_name,
-                    "namespace": KSERVE_NAMESPACE,
-                    "labels": {
-                        "app": "credit-risk-scoring",
-                        "version": version,
-                    },
-                    "annotations": {
-                        "serving.kserve.io/deploymentMode": "RawDeployment"
-                    }
-                },
-                "spec": {
-                    "predictor": {
-                        "containers": [{
-                            "name": "kserve-container",
-                            "image": image_uri,
-                            "ports": [{
-                                "containerPort": 3000,
-                                "protocol": "TCP"
-                            }],
-                            "env": [
-                                {"name": "SCORING_MODEL_SOURCE", "value": "local"},
-                                {"name": "SCORING_MODEL_PATH", "value": "/home/bentoml/bento/src/bundle/model.joblib"},
-                                {"name": "SCORING_LOG_LEVEL", "value": "INFO"},
-                                {"name": "SCORING_FEAST_ENABLED", "value": "true"},
-                                {"name": "SCORING_FEAST_REDIS_URL", "value": "feast-redis.feature-registry.svc.cluster.local:6379"},
-                                {"name": "SCORING_FEAST_REGISTRY_URI", "value": "s3://feast-registry/feature_repo/registry.db"},
-                                {"name": "SCORING_FEAST_PROJECT", "value": "hc_k8s"},
-                                {"name": "SCORING_FEAST_PROVIDER", "value": "local"},
-                                {"name": "SCORING_FEAST_INLINE_CONFIG_ENABLED", "value": "true"},
-                                {"name": "FEAST_S3_ENDPOINT_URL", "value": "http://serving-minio.model-serving.svc.cluster.local:9000"},
-                                {"name": "AWS_S3_ENDPOINT", "value": "http://serving-minio.model-serving.svc.cluster.local:9000"},
-                                {"name": "AWS_ACCESS_KEY_ID", "value": "minio_user"},
-                                {"name": "AWS_SECRET_ACCESS_KEY", "value": "minio_password"},
-                                {"name": "AWS_DEFAULT_REGION", "value": "us-east-1"},
-                                {"name": "SCORING_ENABLE_KAFKA", "value": "true"},
-                                {"name": "SCORING_KAFKA_BOOTSTRAP_SERVERS", "value": "host.minikube.internal:39092"},
-                                {"name": "SCORING_LOAN_APPLICATION_TOPIC", "value": "hc.applications.public.loan_applications"},
-                                {"name": "SCORING_KAFKA_GROUP_ID", "value": "credit-risk-scoring"},
-                                {"name": "SCORING_FEAST_RETRY_ENABLED", "value": "true"},
-                                {"name": "SCORING_FEAST_RETRY_MAX_ATTEMPTS", "value": "15"},
-                                {"name": "SCORING_FEAST_RETRY_DELAY_MS", "value": "300"},
-                                {"name": "SCORING_FEAST_RETRY_BACKOFF_MULTIPLIER", "value": "1.0"},
-                            ],
-                            "resources": {
-                                "requests": {
-                                    "cpu": "500m",
-                                    "memory": "1Gi"
-                                },
-                                "limits": {
-                                    "cpu": "2",
-                                    "memory": "2Gi"
-                                }
-                            }
-                        }]
-                    }
-                }
-            }
+            # Load InferenceService template from YAML file (serverless mode)
+            template_path = os.path.join(os.path.dirname(__file__), "isvc-template-serverless.yaml")
+            with open(template_path, 'r') as f:
+                template_content = f.read()
+
+            # Substitute variables
+            from string import Template
+            template = Template(template_content)
+            yaml_content = template.substitute(
+                SERVICE_NAME=service_name,
+                NAMESPACE=KSERVE_NAMESPACE,
+                VERSION=version,
+                IMAGE_URI=image_uri
+            )
+
+            # Parse YAML to dictionary
+            isvc = yaml.safe_load(yaml_content)
 
             # Try to get existing InferenceService
             try:
@@ -227,7 +356,6 @@ data:
                     plural="inferenceservices",
                     name=service_name
                 )
-                # Update existing
                 log.info(f"Updating InferenceService {service_name}")
                 custom_api.patch_namespaced_custom_object(
                     group="serving.kserve.io",
@@ -239,7 +367,6 @@ data:
                 )
             except k8s.rest.ApiException as e:
                 if e.status == 404:
-                    # Create new
                     log.info(f"Creating InferenceService {service_name}")
                     custom_api.create_namespaced_custom_object(
                         group="serving.kserve.io",
@@ -286,7 +413,6 @@ data:
         """Reconcile serving state: ensure top-N versions are deployed."""
         global deployed_versions
 
-        # Get all available Bento versions from MinIO
         available_versions = list_bento_versions()
         if not available_versions:
             log.info("No Bento versions found in MinIO")
@@ -294,17 +420,23 @@ data:
 
         log.info(f"Found {len(available_versions)} Bento versions: {available_versions}")
 
-        # Determine top-N versions to deploy
         target_versions = set(available_versions[:MAX_ACTIVE_MODELS])
         log.info(f"Target versions to deploy: {target_versions}")
 
         # Deploy new versions
+        latest_version = None
         for version in target_versions:
             if version not in deployed_versions:
                 log.info(f"New version detected: {version}")
                 if build_and_push_image(version):
                     if create_or_update_inferenceservice(version):
                         deployed_versions.add(version)
+                        latest_version = version
+
+        # Update KafkaSource to point to latest version
+        if latest_version:
+            service_name = f"credit-risk-{latest_version}"
+            create_or_update_kafkasource(service_name, KSERVE_NAMESPACE)
 
         # Remove old versions
         versions_to_remove = deployed_versions - target_versions
@@ -362,15 +494,12 @@ data:
               - containerPort: 3000
                 protocol: TCP
             env:
-              # Model configuration
               - name: SCORING_MODEL_SOURCE
                 value: local
               - name: SCORING_MODEL_PATH
                 value: bundle/model.joblib
               - name: SCORING_LOG_LEVEL
                 value: INFO
-
-              # Feast configuration
               - name: SCORING_FEAST_ENABLED
                 value: "true"
               - name: SCORING_FEAST_REDIS_URL
@@ -383,8 +512,6 @@ data:
                 value: local
               - name: SCORING_FEAST_INLINE_CONFIG_ENABLED
                 value: "true"
-
-              # AWS/MinIO configuration
               - name: FEAST_S3_ENDPOINT_URL
                 value: http://serving-minio.model-serving.svc.cluster.local:9000
               - name: AWS_S3_ENDPOINT
@@ -395,8 +522,6 @@ data:
                 value: minio_password
               - name: AWS_DEFAULT_REGION
                 value: us-east-1
-
-              # Kafka configuration
               - name: SCORING_ENABLE_KAFKA
                 value: "true"
               - name: SCORING_KAFKA_BOOTSTRAP_SERVERS
@@ -409,11 +534,8 @@ data:
                 value: credit-risk-scoring
               - name: SCORING_SCORING_OUTPUT_TOPIC
                 value: hc.scoring
-
-              # Observability
               - name: OTEL_EXPORTER_OTLP_ENDPOINT
                 value: host.minikube.internal:30317
-
             resources:
               requests:
                 cpu: "1500m"
@@ -421,3 +543,83 @@ data:
               limits:
                 cpu: "2000m"
                 memory: 1152Mi
+
+  isvc-template-serverless.yaml: |
+    apiVersion: serving.kserve.io/v1beta1
+    kind: InferenceService
+    metadata:
+      name: ${SERVICE_NAME}
+      namespace: ${NAMESPACE}
+      labels:
+        app: credit-risk-scoring
+        version: ${VERSION}
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+        autoscaling.knative.dev/target: "100"
+        autoscaling.knative.dev/metric: concurrency
+        autoscaling.knative.dev/class: kpa.autoscaling.knative.dev
+        autoscaling.knative.dev/scale-down-delay: "30s"
+    spec:
+      predictor:
+        minReplicas: 1
+        maxReplicas: 10
+        containers:
+          - name: kserve-container
+            image: ${IMAGE_URI}
+            imagePullPolicy: Always
+            ports:
+              - containerPort: 3000
+                protocol: TCP
+            env:
+              - name: SCORING_MODEL_SOURCE
+                value: local
+              - name: SCORING_MODEL_PATH
+                value: bundle/model.joblib
+              - name: SCORING_LOG_LEVEL
+                value: INFO
+              - name: SCORING_FEAST_ENABLED
+                value: "true"
+              - name: SCORING_FEAST_REDIS_URL
+                value: feast-redis.feature-registry.svc.cluster.local:6379
+              - name: SCORING_FEAST_REGISTRY_URI
+                value: s3://feast-registry/feature_repo/registry.db
+              - name: SCORING_FEAST_PROJECT
+                value: hc
+              - name: SCORING_FEAST_PROVIDER
+                value: local
+              - name: SCORING_FEAST_INLINE_CONFIG_ENABLED
+                value: "true"
+              - name: FEAST_S3_ENDPOINT_URL
+                value: http://serving-minio.model-serving.svc.cluster.local:9000
+              - name: AWS_S3_ENDPOINT
+                value: http://serving-minio.model-serving.svc.cluster.local:9000
+              - name: AWS_ACCESS_KEY_ID
+                value: minio_user
+              - name: AWS_SECRET_ACCESS_KEY
+                value: minio_password
+              - name: AWS_DEFAULT_REGION
+                value: us-east-1
+              - name: SCORING_ENABLE_KAFKA
+                value: "false"
+              - name: OTEL_EXPORTER_OTLP_ENDPOINT
+                value: host.minikube.internal:30317
+            resources:
+              requests:
+                cpu: "500m"
+                memory: 256Mi
+              limits:
+                cpu: "1000m"
+                memory: 512Mi
+            livenessProbe:
+              httpGet:
+                path: /healthz
+                port: 3000
+              initialDelaySeconds: 30
+              periodSeconds: 10
+            readinessProbe:
+              httpGet:
+                path: /healthz
+                port: 3000
+              initialDelaySeconds: 10
+              periodSeconds: 5
