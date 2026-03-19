@@ -23,7 +23,7 @@ spec:
             - configMapRef:
                 name: mlflow-watcher-poller-env
           command: ["bash", "-lc"]
-          args: ["pip install --no-cache-dir mlflow==3.4.0 kubernetes==28.1.0 pyyaml==6.0.2 && python /app/poller.py"]
+          args: ["pip install --no-cache-dir mlflow==2.14.3 kubernetes==28.1.0 pyyaml==6.0.2 && python /app/poller.py"]
           env:
             - name: TARGET_NAMESPACE
               value: kserve

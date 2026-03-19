@@ -16,7 +16,7 @@ data:
         model_uri    = os.environ["MODEL_URI"]
         version_tag  = os.environ["VERSION_TAG"]
         app_repo     = os.environ["APP_REPO"]
-        app_ref      = os.environ.get("APP_REF", "feature/ml-model-v0.0")  # Use feature branch with sys.path fix
+        app_ref      = os.environ.get("APP_REF", "feature/the-grand-migration")
         app_local    = os.environ.get("APP_LOCAL_PATH")
         app_subpath  = os.environ.get("APP_SUBPATH", "application/scoring")
         bkt          = os.environ["BENTO_BUCKET"]
@@ -106,7 +106,7 @@ data:
             print(f"⚠ Failed to download feast_metadata.yaml: {e}")
             print("  Scoring will fall back to feature_registry.py")
         # Do not change mlflow.env; the runtime will set SCORING_* env vars
-        sh("pip install --no-cache-dir bentoml mlflow boto3 joblib gitpython pyyaml", cwd=repo_dir)
+        sh("pip install --no-cache-dir bentoml mlflow==2.14.3 boto3 joblib gitpython pyyaml scikit-learn==1.5.1 xgboost==2.1.0 numpy==1.26.4 pandas==2.2.2", cwd=repo_dir)
         sh(f"bentoml build --version {version_tag}", cwd=svc_dir)
         tag = f"credit_risk_scoring:{version_tag}"
         # Get Bento path using Python API instead of CLI

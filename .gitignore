@@ -51,6 +51,7 @@ pip-delete-this-directory.txt
 
 # airflow logs
 /logs/
+skills-lock.json
 # Unit test / coverage reports
 htmlcov/
 .tox/
@@ -274,3 +275,7 @@ services/ops/scripts/automation/automation_helper/backups/
 .agent/
 .agents/
 .gitnexus
+
+# Build artifacts
+repomix-output.xml
+.claude/settings.local.json

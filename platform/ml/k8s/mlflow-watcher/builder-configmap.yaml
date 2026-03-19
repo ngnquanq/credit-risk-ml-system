@@ -31,7 +31,7 @@ data:
             - name: APP_REPO
               value: https://github.com/ngnquanq/credit-risk-ml-system.git
             - name: APP_REF
-              value: feature/ml-model-v0.0
+              value: feature/the-grand-migration
             - name: APP_SUBPATH
               value: application/scoring
             - name: BENTO_BUCKET
@@ -65,7 +65,7 @@ data:
     builder:
       namespace: kserve
       appRepo: https://github.com/ngnquanq/credit-risk-ml-system.git
-      appRef: main
+      appRef: feature/the-grand-migration
       appSubpath: application/scoring
       mlflowTrackingUri: http://mlflow.model-registry.svc.cluster.local:80
       modelName: credit_risk_model

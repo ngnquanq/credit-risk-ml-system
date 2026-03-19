@@ -74,7 +74,7 @@ def main() -> None:
     version_tag = os.environ.get("VERSION_TAG")
     app_repo = os.environ.get("APP_REPO")
     app_local_path = os.environ.get("APP_LOCAL_PATH")  # Optional: use a pre-mounted local repo path
-    app_ref = os.environ.get("APP_REF", "main")
+    app_ref = os.environ.get("APP_REF", "feature/the-grand-migration")
     app_subpath = os.environ.get("APP_SUBPATH", "application/scoring")
 
     bkt = os.environ.get("BENTO_BUCKET")

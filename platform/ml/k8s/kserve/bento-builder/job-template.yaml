@@ -25,7 +25,7 @@ spec:
         - name: APP_REPO
           value: https://github.com/nhatquangta1991/home-credit-credit-risk-model-stability.git
         - name: APP_REF
-          value: main
+          value: feature/the-grand-migration
         # Use local repo mount instead of cloning
         - name: APP_LOCAL_PATH
           value: /repo-src
@@ -48,7 +48,7 @@ spec:
         command: ["bash", "-lc"]
         args:
         - |
-          pip install --no-cache-dir mlflow==3.4.0 bentoml boto3 gitpython joblib && \
+          pip install --no-cache-dir mlflow==2.14.3 bentoml boto3 gitpython cloudpickle pyyaml pandas==2.2.2 scikit-learn==1.5.1 xgboost==2.1.0 numpy==1.26.4 && \
           python /app/build_and_upload.py
         volumeMounts:
         - name: script

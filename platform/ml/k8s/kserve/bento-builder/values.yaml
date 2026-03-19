@@ -7,7 +7,7 @@ builder:
 
   # Source repo and path of the scoring service
   appRepo: https://github.com/nhatquangta2011/home-credit-credit-risk-model-stability.git
-  appRef: feature/ml-model-v0.0
+  appRef: feature/the-grand-migration
   appSubpath: application/scoring
   # Optional: if you mount the repo into the builder pod, set this to avoid git clone
   # appLocalPath: /some/mounted/path/home-credit-credit-risk-model-stability

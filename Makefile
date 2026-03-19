@@ -1,8 +1,8 @@
-.PHONY: help up down logs health deploy
+.PHONY: help
 
-# Home Credit ML Platform - Organized Docker Services
-NETWORK_NAME := hc-network
-COMPOSE_FILE := ./platform/docker-compose.yml
+# ─── LEGACY: Docker Compose variables (pre-K8s migration) ────────────────────
+# NETWORK_NAME := hc-network
+# COMPOSE_FILE := ./platform/docker-compose.yml
 
 # Load environment variables from root .env file
 ifneq (,$(wildcard .env))
@@ -10,26 +10,19 @@ ifneq (,$(wildcard .env))
     export
 endif
 
-# Core service files
-CORE_COMPOSE := ./platform/core/docker-compose.yml
-
-# Data platform service files
-DATA_STORAGE_COMPOSE := ./platform/data/docker-compose.storage.yml
-DATA_WAREHOUSE_COMPOSE := ./platform/data/docker-compose.warehouse.yml
-DATA_STREAMING_COMPOSE := ./platform/data/docker-compose.streaming.yml
-DATA_CDC_COMPOSE := ./platform/data/docker-compose.cdc.yml
-DATA_BATCH_COMPOSE := ./platform/data/docker-compose.batch.yml
-
-# ML platform service files
-ML_FEATURE_STORE_COMPOSE := ./platform/ml/docker-compose.feature-store.yml
-ML_REGISTRY_COMPOSE := ./platform/ml/docker-compose.registry.yml
-ML_SERVING_COMPOSE := ./platform/ml/docker-compose.serving.yml
-ML_BATCH_COMPOSE := ./platform/ml/docker-compose.batch.yml
-
-# Operations service files
-OPS_DASHBOARD_COMPOSE := ./platform/ops/docker-compose.dashboard.yml
-OPS_GATEWAY_COMPOSE := ./platform/ops/docker-compose.gateway.yml
-OPS_ORCHESTRATION_COMPOSE := ./platform/ops/docker-compose.orchestration.yml
+# CORE_COMPOSE := ./platform/core/docker-compose.yml
+# DATA_STORAGE_COMPOSE := ./platform/data/docker-compose.storage.yml
+# DATA_WAREHOUSE_COMPOSE := ./platform/data/docker-compose.warehouse.yml
+# DATA_STREAMING_COMPOSE := ./platform/data/docker-compose.streaming.yml
+# DATA_CDC_COMPOSE := ./platform/data/docker-compose.cdc.yml
+# DATA_BATCH_COMPOSE := ./platform/data/docker-compose.batch.yml
+# ML_FEATURE_STORE_COMPOSE := ./platform/ml/docker-compose.feature-store.yml
+# ML_REGISTRY_COMPOSE := ./platform/ml/docker-compose.registry.yml
+# ML_SERVING_COMPOSE := ./platform/ml/docker-compose.serving.yml
+# ML_BATCH_COMPOSE := ./platform/ml/docker-compose.batch.yml
+# OPS_DASHBOARD_COMPOSE := ./platform/ops/docker-compose.dashboard.yml
+# OPS_GATEWAY_COMPOSE := ./platform/ops/docker-compose.gateway.yml
+# OPS_ORCHESTRATION_COMPOSE := ./platform/ops/docker-compose.orchestration.yml
 
 MINIKUBE_PROFILE ?= mlops
 MINIKUBE_DRIVER ?= docker
@@ -38,13 +31,12 @@ MINIKUBE_CPUS ?= 20
 MINIKUBE_MEMORY ?= 24000
 MINIKUBE_DISK ?= 80g
 K8S_CONTEXT ?= $(MINIKUBE_PROFILE)
-EXECUTE_K8S_APPLY ?= false
+# EXECUTE_K8S_APPLY ?= false  # unused
 
 PYTHON := python
 
-# Network management
-create-network: ## Create the platform network
-	docker network create $(NETWORK_NAME) || true
+# create-network: ## Create the platform network
+# 	docker network create $(NETWORK_NAME) || true
 
 # ─── Port-forward shortcuts ────────────────────────────────────────────────────
 pf-clickhouse: ## Port-forward ClickHouse HTTP API to localhost:8123 (for local notebooks)
@@ -65,6 +57,9 @@ pf-minio-training: ## Port-forward training MinIO API (9000) and console (9090) 
 pf-kafka-ui: ## Port-forward Kafka UI to localhost:8080
 	@echo "Kafka UI available at http://localhost:8080"
 	kubectl port-forward -n data-services svc/kafka-ui 8080:8080
+
+# ─── LEGACY: Docker Compose targets (pre-K8s migration) ──────────────────────
+# Kept for reference. All services now run on K8s — see k8s-* targets below.
 
 # # Full platform management
 # up: create-network ## Start all services
@@ -453,6 +448,16 @@ k8s-sync-watcher-config: ## Sync serving-watcher ConfigMap from source files (us
 		--dry-run=client -o yaml | kubectl apply -f -
 	kubectl rollout restart -n model-serving deployment/serving-watcher
 
+k8s-sync-bento-builder-config: ## Sync bento-builder ConfigMap (use after editing build_and_upload.py)
+	kubectl apply -f platform/ml/k8s/kserve/bento-builder/configmap.yaml
+	@echo "Bento-builder ConfigMap synced"
+
+k8s-sync-mlflow-watcher-config: ## Sync mlflow-watcher builder config + restart (use after editing builder-configmap.yaml)
+	kubectl -n model-registry apply \
+		-f platform/ml/k8s/mlflow-watcher/builder-configmap.yaml
+	kubectl -n model-registry rollout restart deployment/mlflow-watcher
+	@echo "MLflow watcher builder config synced and restarted"
+
 k8s-feature-registry: build-feast-repo ## Deploy Feast feature registry + Redis online store
 	@echo "Deploying Feast feature registry..."
 	kubectl create ns feature-registry || true
@@ -471,9 +476,7 @@ k8s-monitoring: ## Deploy Prometheus + Grafana monitoring stack
 	@echo "Port-forward Grafana: kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80"
 	@echo "Default credentials: admin/prom-operator"
 
-## =========================================
-## Jenkins CI/CD Automation
-## =========================================
+# ─── LEGACY: Jenkins CI/CD Automation (pre-K8s migration) ─────────────────────
 
 # up-jenkins: ## Start Jenkins CI/CD server (Docker Compose)
 # 	@echo "Starting Jenkins automation server..."
