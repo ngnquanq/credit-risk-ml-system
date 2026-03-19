@@ -1,0 +1,92 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: ${SERVICE_NAME}
+  namespace: ${NAMESPACE}
+  labels:
+    app: credit-risk-scoring
+    version: ${VERSION}
+  annotations:
+    # Knative autoscaling
+    autoscaling.knative.dev/minScale: "1"
+    autoscaling.knative.dev/maxScale: "10"
+    autoscaling.knative.dev/target: "100"
+    autoscaling.knative.dev/metric: concurrency
+    autoscaling.knative.dev/class: kpa.autoscaling.knative.dev
+    autoscaling.knative.dev/scale-down-delay: "30s"
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 10
+
+    containers:
+      - name: kserve-container
+        image: ${IMAGE_URI}
+        imagePullPolicy: Always
+        ports:
+          - containerPort: 3000
+            protocol: TCP
+        env:
+          # Model configuration
+          - name: SCORING_MODEL_SOURCE
+            value: local
+          - name: SCORING_MODEL_PATH
+            value: bundle/model.joblib
+          - name: SCORING_LOG_LEVEL
+            value: INFO
+
+          # Feast configuration (UNCHANGED)
+          - name: SCORING_FEAST_ENABLED
+            value: "true"
+          - name: SCORING_FEAST_REDIS_URL
+            value: feast-redis.feature-registry.svc.cluster.local:6379
+          - name: SCORING_FEAST_REGISTRY_URI
+            value: s3://feast-registry/feature_repo/registry.db
+          - name: SCORING_FEAST_PROJECT
+            value: hc
+          - name: SCORING_FEAST_PROVIDER
+            value: local
+          - name: SCORING_FEAST_INLINE_CONFIG_ENABLED
+            value: "true"
+
+          # AWS/MinIO configuration (UNCHANGED)
+          - name: FEAST_S3_ENDPOINT_URL
+            value: http://serving-minio.model-serving.svc.cluster.local:9000
+          - name: AWS_S3_ENDPOINT
+            value: http://serving-minio.model-serving.svc.cluster.local:9000
+          - name: AWS_ACCESS_KEY_ID
+            value: minio_user
+          - name: AWS_SECRET_ACCESS_KEY
+            value: minio_password
+          - name: AWS_DEFAULT_REGION
+            value: us-east-1
+
+          # Kafka - DISABLED (event-driven via Knative)
+          - name: SCORING_ENABLE_KAFKA
+            value: "false"
+
+          # Observability
+          - name: OTEL_EXPORTER_OTLP_ENDPOINT
+            value: host.minikube.internal:30317
+
+        resources:
+          requests:
+            cpu: "500m"
+            memory: 256Mi
+          limits:
+            cpu: "1000m"
+            memory: 512Mi
+
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5

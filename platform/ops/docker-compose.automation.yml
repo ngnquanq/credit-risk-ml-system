@@ -1,0 +1,28 @@
+version: '3.9'
+
+services:
+  jenkins:
+    build:
+      context: ../..                
+      dockerfile: services/ops/scripts/automation/Dockerfile
+    container_name: jenkins
+    restart: unless-stopped
+    privileged: true
+    user: root
+    ports:
+      - "8071:8080"   # Jenkins web interface
+      - "50000:50000" # For Jenkins agents
+    volumes:
+      - jenkins_home:/var/jenkins_home          # Persistent Jenkins data
+      - /var/run/docker.sock:/var/run/docker.sock # Allow Jenkins to use Docker
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+    networks:
+      - hc-network
+
+volumes:
+  jenkins_home:
+
+networks:
+  hc-network:
+    external: true

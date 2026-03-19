@@ -1,0 +1,81 @@
+services:
+  # Primary operational database - optimized for transactional workloads (i.e data from the application - yall see later)
+  ops-postgres:
+    image: postgres:${POSTGRES_VERSION:-15-alpine}
+    container_name: ops_postgres
+    hostname: ops-postgres
+    env_file:
+      - ./.env.core
+    command: [
+      'postgres',
+      '-c', 'wal_level=${POSTGRES_WAL_LEVEL:-logical}',                       # Enable logical WAL for CDC
+      '-c', 'max_connections=${POSTGRES_MAX_CONNECTIONS:-200}',               # For concurrent connections
+      '-c', 'shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}',
+      '-c', 'effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}',
+      '-c', 'work_mem=${POSTGRES_WORK_MEM:-8MB}',
+      '-c', 'maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM:-128MB}',
+      '-c', 'checkpoint_timeout=15min',
+      '-c', 'random_page_cost=1.1',
+      '-c', 'max_wal_senders=10',
+      '-c', 'max_replication_slots=10'
+    ]
+    ports:
+      - "${OPS_POSTGRES_PORT:-5434}:5432"
+    environment:
+      POSTGRES_DB: ${OPS_DB_NAME:-operations}
+      POSTGRES_USER: ${OPS_DB_USER:-ops_admin}
+      POSTGRES_PASSWORD: ${OPS_DB_PASSWORD:-ops_password}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    volumes:
+      - ops_postgres_data:/var/lib/postgresql/data
+      - ./init-ops-database.sql:/docker-entrypoint-initdb.d/init-ops-database.sql
+      - ./schemas:/schemas:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${OPS_DB_USER:-ops_admin} -d ${OPS_DB_NAME:-operations}']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      hc-network:
+        aliases:
+          - ops-postgres
+          - postgres
+
+  # Connection pooler for high-concurrency scenarios
+  ops-pgbouncer:
+    image: pgbouncer/pgbouncer:latest
+    container_name: ops_pgbouncer
+    hostname: ops-pgbouncer
+    env_file:
+      - ./.env.core
+    # Using wrapper script to resolve hostname to IP (c-ares doesn't support Docker DNS)
+    entrypoint: ["/pgbouncer-entrypoint.sh"]
+    # environment:
+      # DATABASES_HOST: ops-postgres
+      # DATABASES_PORT: ${OPS_DB_PORT:-5432}
+      # DATABASES_USER: ${OPS_DB_USER:-ops_admin}
+      # DATABASES_PASSWORD: ${OPS_DB_PASSWORD:-ops_password}
+      # DATABASES_DBNAME: ${OPS_DB_NAME:-operations}
+      # POOL_MODE: transaction
+      # MAX_CLIENT_CONN: 1000
+      # DEFAULT_POOL_SIZE: 400
+      # AUTH_TYPE: md5
+      # AUTH_FILE: /etc/pgbouncer/userlist.txt
+    volumes:
+      - ./pgbouncer-entrypoint.sh:/pgbouncer-entrypoint.sh:ro
+      - ./pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini
+      - ./userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    ports:
+      - "${PGBOUNCER_PORT:-6432}:6432"
+    depends_on:
+      - ops-postgres
+    networks:
+      - hc-network
+
+volumes:
+  ops_postgres_data:
+
+networks:
+  hc-network:
+    external: true
+    name: ${NETWORK_NAME:-hc-network}

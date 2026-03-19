@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow-watcher
+  labels:
+    app: mlflow-watcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow-watcher
+  template:
+    metadata:
+      labels:
+        app: mlflow-watcher
+    spec:
+      serviceAccountName: mlflow-watcher
+      containers:
+        - name: poller
+          image: docker.io/python:3.11-slim
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: mlflow-watcher-poller-env
+          command: ["bash", "-lc"]
+          args: ["pip install --no-cache-dir mlflow==2.14.3 kubernetes==28.1.0 pyyaml==6.0.2 && python /app/poller.py"]
+          env:
+            - name: TARGET_NAMESPACE
+              value: kserve
+            - name: JOB_TEMPLATE_PATH
+              value: /configs/job-template.yaml
+            - name: VALUES_PATH
+              value: /configs/values.yaml
+          volumeMounts:
+            - name: poller-code
+              mountPath: /app
+            - name: builder-configs
+              mountPath: /configs
+      volumes:
+        - name: poller-code
+          configMap:
+            name: mlflow-watcher-poller
+            items:
+              - key: poller.py
+                path: poller.py
+        - name: builder-configs
+          configMap:
+            name: mlflow-watcher-builder-config

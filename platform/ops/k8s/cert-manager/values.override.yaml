@@ -1,0 +1,21 @@
+# Minimal, reproducible overrides for cert-manager
+# Use with your vendored chart directory, for example:
+#   helm upgrade --install cert-manager services/ml/k8s/vendor-charts/cert-manager \
+#     -n cert-manager -f services/ml/k8s/vendor-charts/cert-manager/values.override.yaml
+
+# Ensure CRDs are installed by Helm (needed for Issuer/Certificate kinds)
+installCRDs: true
+
+# Keep a small footprint suitable for dev clusters
+replicaCount: 1
+
+webhook:
+  replicaCount: 1
+
+cainjector:
+  replicaCount: 1
+
+# Metrics are enabled by default; leave as-is unless you need to disable
+# prometheus:
+#   enabled: false
+

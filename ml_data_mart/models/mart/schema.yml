@@ -1,0 +1,124 @@
+version: 2
+
+models:
+  - name: mart_credit_card_balance
+    description: "Credit card features aggregated at SK_ID_CURR level (utilization, payment behavior, delinquency, spending, temporal, limits)"
+    columns:
+      - name: SK_ID_CURR
+        description: "Application/customer ID"
+        tests: [not_null, unique]
+
+      - name: CC_MONTHS_COUNT
+        description: "Number of monthly balance records for the customer"
+        tests: [not_null]
+
+      - name: CC_CARDS_COUNT
+        description: "Number of unique credit cards (SK_ID_PREV) for the customer"
+
+      - name: CC_UTILIZATION_MEAN
+        description: "Average balance-to-limit ratio across months"
+
+      - name: CC_UTILIZATION_MAX
+        description: "Max balance-to-limit ratio across months"
+
+      - name: CC_HIGH_UTIL_RATIO
+        description: "Share of months with utilization > 0.8"
+
+      - name: CC_PAYMENT_RATIO_MEAN
+        description: "Average payment-to-balance ratio"
+
+      - name: CC_MIN_PAYMENT_RATIO
+        description: "Average payment vs minimum required ratio"
+
+      - name: CC_UNDERPAY_RATIO
+        description: "Share of months with payment below minimum"
+
+      - name: CC_NO_PAYMENT_RATIO
+        description: "Share of months with zero payment"
+
+      - name: CC_DPD_RATIO
+        description: "Share of months with DPD > 0"
+
+      - name: CC_SEVERE_DPD_RATIO
+        description: "Share of months with DPD > 60"
+
+      - name: CC_ATM_RATIO
+        description: "ATM drawings share of total drawings"
+
+      - name: CC_POS_RATIO
+        description: "POS drawings share of total drawings"
+
+      - name: CC_INACTIVE_RATIO
+        description: "Share of months with zero drawings (inactive)"
+
+      - name: CC_MAX_UTIL_EVER
+        description: "Max observed balance-to-limit ratio"
+
+  - name: mart_pos_cash_balance
+    description: "POS cash balance features aggregated to customer (SK_ID_CURR) level via loan-level step"
+    columns:
+      - name: SK_ID_CURR
+        description: "Application/customer ID"
+        tests: [not_null, unique]
+
+      - name: POS_COUNT_LOANS_TOTAL
+        description: "Total number of POS/CASH loans for the customer"
+        tests: [not_null]
+
+      - name: POS_MEAN_DPD_RATE
+        description: "Average share of months with DPD>0 across loans"
+
+      - name: POS_FLAG_ANY_DEMAND
+        description: "Any loan ever had DEMAND status (1/0)"
+
+      - name: POS_FLAG_ANY_SEVERE_DPD
+        description: "Any loan ever had severe DPD (>30) (1/0)"
+
+      - name: POS_RISK_SEGMENT
+        description: "Simplified risk segment derived from POS history"
+
+  - name: mart_previous_application
+    description: "Comprehensive previous application features aggregated at SK_ID_CURR level"
+    columns:
+      - name: SK_ID_CURR
+        description: "Application/customer ID"
+        tests: [not_null, unique]
+
+      - name: PREV_APP_COUNT
+        description: "Total number of previous applications"
+        tests: [not_null]
+
+      - name: PREV_APPROVAL_RATE
+        description: "Share of previous applications that were approved"
+
+      - name: PREV_REFUSAL_RATE
+        description: "Share of previous applications that were refused"
+
+      - name: PREV_CREDIT_TO_APP_RATIO_MEAN
+        description: "Average ratio of approved credit to requested application amount"
+
+      - name: PREV_REPEATER_RATIO
+        description: "Share of applications from repeater clients"
+
+  - name: mart_application
+    description: "Selected application features for modeling at SK_ID_CURR level"
+    columns:
+      - name: SK_ID_CURR
+        description: "Application/customer ID"
+        tests: [not_null, unique]
+
+  - name: mart_application_train
+    description: "Training target table for applications (SK_ID_CURR, TARGET)"
+    columns:
+      - name: SK_ID_CURR
+        tests: [not_null, unique]
+      - name: TARGET
+        tests: [not_null]
+
+  - name: mart_bureau_features
+    description: "Bureau and bureau_balance risk features aggregated at SK_ID_CURR level"
+    columns:
+      - name: SK_ID_CURR
+        tests: [not_null, unique]
+      - name: BUREAU_TOTAL_COUNT
+        description: "Total bureau records per client"

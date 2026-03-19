@@ -1,0 +1,51 @@
+version: 2
+
+models:
+  - name: stg_application_train
+    description: "Cleaned and standardized application training data with selected features"
+    columns:
+      - name: application_id
+        description: "Unique identifier for loan application"
+        tests:
+          - unique
+          - not_null
+          
+      - name: is_default
+        description: "Target variable: 1 if client had payment difficulties, 0 otherwise"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1]
+              
+      - name: loan_amount
+        description: "Credit amount of the loan"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+              
+      - name: external_score_1
+        description: "Normalized score from external data source 1"
+        
+      - name: external_score_2  
+        description: "Normalized score from external data source 2"
+        
+      - name: external_score_3
+        description: "Normalized score from external data source 3" 
+        
+      - name: age_years
+        description: "Client age in years (derived from days_birth)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "BETWEEN 18 AND 100"
+              config:
+                where: "age_years IS NOT NULL"
+                
+      - name: credit_income_ratio
+        description: "Ratio of loan amount to total income"
+        
+      - name: missing_all_external_scores
+        description: "Flag indicating if all external scores are missing"
+        tests:
+          - accepted_values:
+              values: [0, 1]

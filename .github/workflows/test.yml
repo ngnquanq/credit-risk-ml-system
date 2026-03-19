@@ -1,0 +1,129 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, feature/**]
+    paths:
+      - "application/**"
+      - "tests/**"
+      - "pyproject.toml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "application/**"
+      - "tests/**"
+      - "pyproject.toml"
+
+env:
+  PYTHONPATH: application
+
+jobs:
+  # ── Gate 1: Domain logic (pure business rules, zero I/O) ──────────────
+  domain:
+    name: "Domain & Workflows"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - run: pip install -e ".[test]"
+      - name: Run domain + workflow tests
+        run: |
+          pytest tests/unit/domain tests/unit/workflows \
+            --cov=domain/entities --cov=workflows \
+            --cov-fail-under=90 \
+            --tb=short -q
+
+  # ── Gate 2: Schemas & validation (Pydantic boundary) ──────────────────
+  schemas:
+    name: "Schemas & Validation"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - run: pip install -e ".[test]"
+      - name: Run schema tests
+        run: |
+          pytest tests/unit/schemas \
+            --cov=infrastructure/persistence/models/pydantic_schemas \
+            --cov-fail-under=90 \
+            --tb=short -q
+
+  # ── Gate 3: Scoring pipeline (model inference, feature engineering) ───
+  scoring:
+    name: "Scoring Pipeline"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - run: pip install -e ".[test]"
+      - name: Run scoring tests
+        run: |
+          pytest tests/unit/scoring \
+            --cov=scoring \
+            --cov-fail-under=60 \
+            --tb=short -q
+
+  # ── Gate 4: Infrastructure adapters (Kafka, ClickHouse, Postgres) ─────
+  infrastructure:
+    name: "Infrastructure Adapters"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - run: pip install -e ".[test]"
+      - name: Run infrastructure tests
+        run: |
+          pytest tests/unit/infrastructure \
+            --cov=infrastructure/external \
+            --cov=infrastructure/persistence \
+            --cov-fail-under=80 \
+            --tb=short -q
+
+  # ── Gate 5: Consumers (Kafka CDC processing) ─────────────────────────
+  consumers:
+    name: "Kafka Consumers"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - run: pip install -e ".[test]"
+      - name: Run consumer tests
+        run: |
+          pytest tests/unit/consumers \
+            --cov=entrypoints/bureau_consumer --cov=entrypoints/feature_consumer \
+            --cov=feast_repo/stream_processor \
+            --cov-fail-under=45 \
+            --tb=short -q
+
+  # ── Gate 6: Integration (API + Repository, in-memory DB) ─────────────
+  integration:
+    name: "Integration Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - run: pip install -e ".[test]"
+      - name: Run integration tests
+        run: |
+          pytest tests/integration \
+            --cov=entrypoints/api --cov=infrastructure/persistence \
+            --cov-fail-under=60 \
+            --tb=short -q

@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feast-stream
+  namespace: feature-registry
+  labels:
+    app: feast-stream
+    component: feature-store
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: feast-stream
+      project: home-credit
+      tier: ml-platform
+  template:
+    metadata:
+      labels:
+        app: feast-stream
+        component: feature-store
+        project: home-credit
+        tier: ml-platform
+    spec:
+      # Add host alias so Kafka broker hostname resolves to gateway
+      hostAliases:
+      - ip: "192.168.49.1"  # host.minikube.internal IP
+        hostnames:
+        - "host.minikube.internal"
+        - "broker"  # Kafka advertised listener hostname
+        - "kafka"
+      imagePullSecrets:
+      - name: dockerhub-creds
+      containers:
+      - name: feast-stream
+        # Built from application/feast/Dockerfile
+        image: ngnquanq/feast-repo:v18
+        imagePullPolicy: Always
+        workingDir: /work
+        command:
+        - /bin/sh
+        - -c
+        - |
+          # Add working directory to Python path for feast_repo imports
+          export PYTHONPATH=/work:$PYTHONPATH
+
+          # Sync feature views to S3 registry on startup
+          echo "Syncing Feast registry to S3..."
+          python repository.py
+
+          # Mark pod as healthy
+          touch /tmp/healthy
+
+          # Start stream processor
+          echo "Starting Feast stream processor..."
+          python repository.py stream
+        envFrom:
+        - configMapRef:
+            name: feast-config
+        env:
+        - name: FEAST_REGISTRY_URI
+          value: s3://feast-registry/feature_repo/registry.db
+        - name: AWS_ACCESS_KEY_ID
+          value: minio_user
+        - name: AWS_SECRET_ACCESS_KEY
+          value: minio_password
+        - name: AWS_DEFAULT_REGION
+          value: us-east-1
+        - name: AWS_S3_ENDPOINT
+          value: http://serving-minio.model-serving.svc.cluster.local:9000
+        - name: FEAST_S3_ENDPOINT_URL
+          value: http://serving-minio.model-serving.svc.cluster.local:9000
+        volumeMounts:
+        - name: feast-store-config
+          mountPath: /work/feature_store.yaml
+          subPath: feature_store.yaml
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "768Mi"
+            cpu: "1000m"
+        livenessProbe:
+          exec:
+            command:
+            - test
+            - -f
+            - /tmp/healthy
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          failureThreshold: 3
+      volumes:
+      - name: feast-store-config
+        configMap:
+          name: feast-store-config

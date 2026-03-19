@@ -1,0 +1,48 @@
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      hints.enabled: true
+      templates:
+        - config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+              data_stream.enabled: false  # Disable data streams, use indices
+              processors:
+                - add_docker_metadata:
+                    host: "unix:///var/run/docker.sock"
+                - decode_json_fields:
+                    fields: ["message"]
+                    target: "json"
+                    overwrite_keys: true
+                    max_depth: 2
+                - add_fields:
+                    target: ''
+                    fields:
+                      log_source: docker-hc-network
+                      environment: production
+
+# Elasticsearch output via k8s_gateway proxy (host network)
+# Gateway listens on host (39200) and forwards to K8s Elasticsearch (30920)
+output.elasticsearch:
+  hosts: ["http://172.18.0.1:39200"]  # hc-network gateway -> k8s_gateway -> Elasticsearch
+  index: "filebeat-docker-%{+yyyy.MM.dd}"
+  allow_older_versions: true
+
+setup.ilm.enabled: false
+setup.template.enabled: true
+setup.template.name: "filebeat-docker"
+setup.template.pattern: "filebeat-docker-*"
+setup.template.overwrite: true
+setup.template.settings:
+  index.number_of_shards: 1
+  index.number_of_replicas: 0
+
+# Logging
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644

@@ -1,0 +1,100 @@
+# Query Services - Consumer services that bridge Kafka and ClickHouse
+# Image: ngnquanq/credit-risk-consumers:latest (built from application/entrypoints/Dockerfile)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bureau-consumer
+  namespace: data-services
+  labels:
+    app: bureau-consumer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bureau-consumer
+  template:
+    metadata:
+      labels:
+        app: bureau-consumer
+    spec:
+      containers:
+      - name: consumer
+        image: ngnquanq/credit-risk-consumers:latest
+        imagePullPolicy: Never
+        command: ["python", "entrypoints/bureau_consumer.py"]
+        env:
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka-broker.data-services.svc.cluster.local:9092"
+        - name: CDC_SOURCE_TOPIC
+          value: "hc.applications.public.loan_applications"
+        - name: RAW_TOPIC_EXT
+          value: "hc.application_ext_raw"
+        - name: CONSUMER_GROUP_ID
+          value: "bureau-consumer-group"
+        - name: APP_CLICKHOUSE_HOST
+          value: "clickhouse-server.data-services.svc.cluster.local"
+        - name: APP_CLICKHOUSE_PORT
+          value: "8123"
+        - name: APP_CLICKHOUSE_USER
+          value: "default"
+        - name: APP_CLICKHOUSE_PASSWORD
+          value: ""
+        - name: APP_CLICKHOUSE_DB_EXTERNAL
+          value: "application_external"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feature-consumer
+  namespace: data-services
+  labels:
+    app: feature-consumer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: feature-consumer
+  template:
+    metadata:
+      labels:
+        app: feature-consumer
+    spec:
+      containers:
+      - name: consumer
+        image: ngnquanq/credit-risk-consumers:latest
+        imagePullPolicy: Never
+        command: ["python", "entrypoints/feature_consumer.py"]
+        env:
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka-broker.data-services.svc.cluster.local:9092"
+        - name: CDC_SOURCE_TOPIC
+          value: "hc.applications.public.loan_applications"
+        - name: SINK_TOPIC_DWH
+          value: "hc.application_dwh"
+        - name: CONSUMER_GROUP_ID
+          value: "feature-consumer-group"
+        - name: APP_CLICKHOUSE_HOST
+          value: "clickhouse-server.data-services.svc.cluster.local"
+        - name: APP_CLICKHOUSE_PORT
+          value: "8123"
+        - name: APP_CLICKHOUSE_USER
+          value: "default"
+        - name: APP_CLICKHOUSE_PASSWORD
+          value: ""
+        - name: APP_CLICKHOUSE_DB_DWH
+          value: "application_mart"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"

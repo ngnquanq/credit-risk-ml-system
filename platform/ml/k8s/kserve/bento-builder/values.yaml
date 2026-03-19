@@ -1,0 +1,38 @@
+# Static config for the Bento builder and runtime.
+# Dynamic per-release values (MODEL_URI, VERSION_TAG) are NOT stored here;
+# the poller injects them at runtime when creating the Job.
+
+builder:
+  namespace: kserve
+
+  # Source repo and path of the scoring service
+  appRepo: https://github.com/nhatquangta2011/home-credit-credit-risk-model-stability.git
+  appRef: feature/the-grand-migration
+  appSubpath: application/scoring
+  # Optional: if you mount the repo into the builder pod, set this to avoid git clone
+  # appLocalPath: /some/mounted/path/home-credit-credit-risk-model-stability
+
+  # MLflow tracking (cluster service URL)
+  mlflowTrackingUri: http://mlflow.model-registry.svc.cluster.local:80
+  modelName: credit_risk_model
+
+  # MinIO / S3 destination for built Bento bundles
+  bucket: bento-bundles
+  prefix: bentos
+  s3:
+    endpoint: http://minio.model-registry.svc.cluster.local:9000
+    accessKeyId: minioadmin
+    secretAccessKey: minioadmin
+    forcePathStyle: true
+
+runtime:
+  # Base env for KServe runtime container. Add these to your InferenceService
+  # so the service loads the packaged model and can read from MinIO.
+  env:
+    SCORING_MODEL_SOURCE: local
+    SCORING_MODEL_PATH: bundle/model.joblib
+    AWS_S3_ENDPOINT: http://minio.model-registry.svc.cluster.local:9000
+    AWS_REGION: us-east-1
+    AWS_S3_FORCE_PATH_STYLE: "true"
+    AWS_ACCESS_KEY_ID: CHANGEME_MINIO_KEY
+    AWS_SECRET_ACCESS_KEY: CHANGEME_MINIO_SECRET

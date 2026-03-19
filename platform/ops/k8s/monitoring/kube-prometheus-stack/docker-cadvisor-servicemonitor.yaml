@@ -1,0 +1,55 @@
+# External endpoint for Docker cAdvisor (running on host)
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: docker-cadvisor
+  namespace: monitoring
+  labels:
+    app: docker-cadvisor
+subsets:
+  - addresses:
+      - ip: 192.168.49.1  # Minikube host IP (host.minikube.internal resolves to this)
+    ports:
+      - name: metrics
+        port: 8099
+        protocol: TCP
+---
+# Headless service for the endpoint
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-cadvisor
+  namespace: monitoring
+  labels:
+    app: docker-cadvisor
+spec:
+  clusterIP: None
+  ports:
+    - name: metrics
+      port: 8099
+      protocol: TCP
+      targetPort: 8099
+---
+# ServiceMonitor to scrape Docker cAdvisor
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: docker-cadvisor
+  namespace: monitoring
+  labels:
+    app: docker-cadvisor
+spec:
+  selector:
+    matchLabels:
+      app: docker-cadvisor
+  endpoints:
+    - port: metrics
+      interval: 30s
+      metricRelabelings:
+        # SECURITY: Only keep metrics from hc-network containers
+        - sourceLabels: [name]
+          regex: '^(airflow-.*|bento_credit_risk|cdc-debezium|clickhouse_dwh|data-minio-server|debezium-ui|docker_cadvisor|dwh_features_reader|external_bureau_sink|flink_.*|hc_.*|hyperdx_.*|kafka_.*|mlflow-.*|ops_.*|superset_.*)$'
+          action: keep
+        # Add label to distinguish from kubelet cAdvisor
+        - targetLabel: cadvisor_source
+          replacement: 'docker-hc-network'

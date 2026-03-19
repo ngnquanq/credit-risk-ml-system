@@ -1,0 +1,35 @@
+fullnameOverride: minio
+
+auth:
+  rootUser: minio_user # Standardized across all MinIO instances
+  rootPassword: minio_password # Standardized across all MinIO instances
+  usePasswordFiles: false
+  useSecret: true
+  forceNewKeys: true
+defaultBuckets: "mlflow"
+
+service:
+  type: ClusterIP
+  ports:
+    api: 9000
+
+console:
+  enabled: true
+
+networkPolicy:
+  enabled: true
+  allowExternal: true
+  addExternalClientAccess: true
+
+persistence:
+  enabled: true
+  size: 10Gi #just store the model weight, not that heavy
+  storageClass: "standard" 
+  mountPath: /bitnami/minio/data 
+
+image:
+  debug: true
+  
+defaultInitContainers:
+  volumePermissions:
+    enabled: false

@@ -1,0 +1,66 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: bento-build-
+  namespace: kserve
+spec:
+  ttlSecondsAfterFinished: 1800
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: builder
+        image: python:3.11-slim
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: MLFLOW_TRACKING_URI
+          value: http://mlflow.model-registry.svc.cluster.local:80
+        - name: MODEL_NAME
+          value: credit_risk_model
+        # The poller should set these for each run:
+        # - name: MODEL_URI
+        #   value: models:/credit_risk_model/12
+        # - name: VERSION_TAG
+        #   value: v12
+        - name: APP_REPO
+          value: https://github.com/nhatquangta1991/home-credit-credit-risk-model-stability.git
+        - name: APP_REF
+          value: feature/the-grand-migration
+        # Use local repo mount instead of cloning
+        - name: APP_LOCAL_PATH
+          value: /repo-src
+        - name: APP_SUBPATH
+          value: application/scoring
+        - name: BENTO_BUCKET
+          value: bento-bundles
+        - name: BENTO_PREFIX
+          value: bentos
+        - name: AWS_REGION
+          value: us-east-1
+        - name: AWS_S3_ENDPOINT
+          value: http://minio.model-registry.svc.cluster.local:9000
+        - name: AWS_ACCESS_KEY_ID
+          value: CHANGEME_MINIO_KEY
+        - name: AWS_SECRET_ACCESS_KEY
+          value: CHANGEME_MINIO_SECRET
+        - name: AWS_S3_FORCE_PATH_STYLE
+          value: "true"
+        command: ["bash", "-lc"]
+        args:
+        - |
+          pip install --no-cache-dir mlflow==2.14.3 bentoml boto3 gitpython cloudpickle pyyaml pandas==2.2.2 scikit-learn==1.5.1 xgboost==2.1.0 numpy==1.26.4 && \
+          python /app/build_and_upload.py
+        volumeMounts:
+        - name: script
+          mountPath: /app
+        - name: repo-src
+          mountPath: /repo-src
+          readOnly: true
+      volumes:
+      - name: script
+        configMap:
+          name: bento-builder-script
+      - name: repo-src
+        hostPath:
+          path: /home/nhatquang/home-credit-credit-risk-model-stability
+          type: Directory

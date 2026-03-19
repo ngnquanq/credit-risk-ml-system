@@ -1,0 +1,66 @@
+version: 2
+
+sources:
+  - name: application_dwh
+    description: "Silver layer - Raw data loaded from CSV files"
+    database: application_dwh
+    schema: application_dwh
+    tables:
+      # Main application data
+      - name: application_train
+        description: "Training dataset with loan applications and target variable"
+        
+      - name: application_test
+        description: "Test dataset for final predictions"
+        
+      # Historical data tables  
+      - name: bureau
+        description: "Previous credits from other financial institutions"
+        
+      - name: bureau_balance
+        description: "Monthly balance snapshots of previous credits"
+        
+      - name: previous_application
+        description: "Previous applications for loans at Home Credit"
+        
+      - name: installments_payments
+        description: "Payment history for previous loans"
+        
+      - name: pos_cash_balance
+        description: "Monthly balance snapshots of previous POS and cash loans"
+        
+      - name: credit_card_balance
+        description: "Monthly balance snapshots of previous credit cards"
+        
+      # Pre-computed features (our analysis results)
+      - name: baseline_pos_bureau_cc
+        description: "Baseline features combined with POS, bureau, and credit card features"
+        
+      - name: previous_application_features
+        description: "Engineered features from previous applications"
+        
+      - name: bureau_risk_features
+        description: "Risk-focused features derived from bureau data"
+        
+      - name: credit_card_features
+        description: "Engineered features from credit card data"
+        
+      - name: pos_cash_balance_processing
+        description: "Processed POS cash balance features"
+        
+      # Feature selection analysis results
+      - name: feature_importance_analysis
+        description: "Feature importance rankings from ML analysis"
+        
+      - name: feature_tiers
+        description: "Features categorized into selection tiers (1-5)"
+        
+      - name: recommended_features
+        description: "Top 26 features achieving 0.77+ AUC with 90.5% reduction"
+        
+      - name: feature_selection_performance
+        description: "Performance comparison across different feature sets"
+        
+      # Metadata
+      - name: homecredit_columns_description
+        description: "Column descriptions and data dictionary"

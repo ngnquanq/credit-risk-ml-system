@@ -1,0 +1,303 @@
+# ClickHouse Initialization - Schema + Data Loading Jobs
+# Ensures reproducible setup from a clean deployment
+---
+# ConfigMap: Schema initialization SQL
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-init-scripts
+  namespace: data-services
+data:
+  init-schema.sql: |
+    -- OTel/HyperDX tables
+    CREATE DATABASE IF NOT EXISTS default;
+
+    CREATE TABLE IF NOT EXISTS default.otel_logs
+    (
+      `Timestamp` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+      `TimestampTime` DateTime DEFAULT toDateTime(Timestamp),
+      `TraceId` String CODEC(ZSTD(1)),
+      `SpanId` String CODEC(ZSTD(1)),
+      `TraceFlags` UInt8,
+      `SeverityText` LowCardinality(String) CODEC(ZSTD(1)),
+      `SeverityNumber` UInt8,
+      `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
+      `Body` String CODEC(ZSTD(1)),
+      `ResourceSchemaUrl` LowCardinality(String) CODEC(ZSTD(1)),
+      `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+      `ScopeSchemaUrl` LowCardinality(String) CODEC(ZSTD(1)),
+      `ScopeName` String CODEC(ZSTD(1)),
+      `ScopeVersion` LowCardinality(String) CODEC(ZSTD(1)),
+      `ScopeAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+      `LogAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+      INDEX idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
+      INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+      INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+      INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+      INDEX idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+      INDEX idx_log_attr_key mapKeys(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+      INDEX idx_log_attr_value mapValues(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+      INDEX idx_lower_body lower(Body) TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8
+    )
+    ENGINE = MergeTree
+    PARTITION BY toDate(TimestampTime)
+    PRIMARY KEY (ServiceName, TimestampTime)
+    ORDER BY (ServiceName, TimestampTime, Timestamp)
+    TTL TimestampTime + toIntervalDay(30)
+    SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+
+    CREATE TABLE IF NOT EXISTS default.otel_traces
+    (
+        `Timestamp` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+        `TraceId` String CODEC(ZSTD(1)),
+        `SpanId` String CODEC(ZSTD(1)),
+        `ParentSpanId` String CODEC(ZSTD(1)),
+        `TraceState` String CODEC(ZSTD(1)),
+        `SpanName` LowCardinality(String) CODEC(ZSTD(1)),
+        `SpanKind` LowCardinality(String) CODEC(ZSTD(1)),
+        `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
+        `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+        `ScopeName` String CODEC(ZSTD(1)),
+        `ScopeVersion` String CODEC(ZSTD(1)),
+        `SpanAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+        `Duration` UInt64 CODEC(ZSTD(1)),
+        `StatusCode` LowCardinality(String) CODEC(ZSTD(1)),
+        `StatusMessage` String CODEC(ZSTD(1)),
+        `Events.Timestamp` Array(DateTime64(9)) CODEC(ZSTD(1)),
+        `Events.Name` Array(LowCardinality(String)) CODEC(ZSTD(1)),
+        `Events.Attributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
+        `Links.TraceId` Array(String) CODEC(ZSTD(1)),
+        `Links.SpanId` Array(String) CODEC(ZSTD(1)),
+        `Links.TraceState` Array(String) CODEC(ZSTD(1)),
+        `Links.Attributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
+        INDEX idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
+        INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+        INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+        INDEX idx_span_attr_key mapKeys(SpanAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+        INDEX idx_span_attr_value mapValues(SpanAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+        INDEX idx_duration Duration TYPE minmax GRANULARITY 1,
+        INDEX idx_lower_span_name lower(SpanName) TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8
+    )
+    ENGINE = MergeTree
+    PARTITION BY toDate(Timestamp)
+    ORDER BY (ServiceName, SpanName, toDateTime(Timestamp))
+    TTL toDate(Timestamp) + toIntervalDay(30)
+    SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+
+    CREATE TABLE IF NOT EXISTS default.hyperdx_sessions
+    (
+        `Timestamp` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+        `TimestampTime` DateTime DEFAULT toDateTime(Timestamp),
+        `TraceId` String CODEC(ZSTD(1)),
+        `SpanId` String CODEC(ZSTD(1)),
+        `TraceFlags` UInt8,
+        `SeverityText` LowCardinality(String) CODEC(ZSTD(1)),
+        `SeverityNumber` UInt8,
+        `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
+        `Body` String CODEC(ZSTD(1)),
+        `ResourceSchemaUrl` LowCardinality(String) CODEC(ZSTD(1)),
+        `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+        `ScopeSchemaUrl` LowCardinality(String) CODEC(ZSTD(1)),
+        `ScopeName` String CODEC(ZSTD(1)),
+        `ScopeVersion` LowCardinality(String) CODEC(ZSTD(1)),
+        `ScopeAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+        `LogAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+        INDEX idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
+        INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+        INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+        INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+        INDEX idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+        INDEX idx_log_attr_key mapKeys(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+        INDEX idx_log_attr_value mapValues(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+        INDEX idx_body Body TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8
+    )
+    ENGINE = MergeTree
+    PARTITION BY toDate(TimestampTime)
+    PRIMARY KEY (ServiceName, TimestampTime)
+    ORDER BY (ServiceName, TimestampTime, Timestamp)
+    TTL TimestampTime + toIntervalDay(30)
+    SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+
+    -- DWH and External databases
+    CREATE DATABASE IF NOT EXISTS application_dwh;
+    CREATE DATABASE IF NOT EXISTS application_external;
+
+    -- Views are created in load-data.sh after external tables are populated
+    -- (ClickHouse 25.6+ validates VIEW sources eagerly; tables must exist first)
+
+  load-data.sh: |
+    #!/bin/bash
+    set -e
+
+    CH_HOST="clickhouse-server.data-services.svc.cluster.local"
+    DATA_DIR="/data"
+    FORMAT="CSVWithNames"
+    FLAGS="--date_time_input_format=best_effort --input_format_csv_empty_as_default=1"
+
+    ch() {
+      clickhouse-client --host "$CH_HOST" $FLAGS -n --query "$1"
+    }
+
+    echo "Waiting for ClickHouse to be ready..."
+    until clickhouse-client --host "$CH_HOST" --query "SELECT 1" >/dev/null 2>&1; do
+      echo "  ClickHouse not ready, retrying in 5s..."
+      sleep 5
+    done
+    echo "ClickHouse is ready."
+
+    load_csv() {
+      local db="$1" table="$2" file="$3"
+      local base=$(basename "$file")
+
+      # Infer schema using clickhouse-local (reads local file directly — no server FS needed)
+      local cols
+      cols=$(clickhouse-local -q \
+        "DESCRIBE TABLE file('${file}', 'CSVWithNames')" \
+        | awk -F'\t' '{print $1 " " $2}' | tr '\n' ',' | sed 's/,$//')
+
+      local exists=$(ch "SELECT count() FROM system.tables WHERE database='${db}' AND name='${table}'")
+      if [ "$exists" -eq 0 ]; then
+        echo "  Creating table ${db}.${table} (schema inferred)..."
+        ch "CREATE TABLE IF NOT EXISTS ${db}.${table} (${cols}) ENGINE = MergeTree() ORDER BY tuple()"
+      fi
+
+      local current_rows=$(ch "SELECT count() FROM ${db}.${table}")
+      if [ "$current_rows" -gt 0 ]; then
+        echo "  Skip: ${db}.${table} already has ${current_rows} rows"
+        return
+      fi
+
+      echo "  Loading $base → ${db}.${table}..."
+      # Stream CSV via stdin — data never needs to exist on the server's filesystem
+      clickhouse-client --host "$CH_HOST" $FLAGS \
+        --query "INSERT INTO ${db}.${table} FORMAT CSVWithNames" < "$file"
+      local rows=$(ch "SELECT count() FROM ${db}.${table}")
+      echo "  ✅ ${db}.${table}: ${rows} rows"
+    }
+
+    # ── Internal data (application_dwh) ──
+    echo ""
+    echo "═══ Loading internal data → application_dwh ═══"
+    for pair in \
+      "application_train.csv:application_train" \
+      "application_test.csv:application_test" \
+      "previous_application.csv:previous_application" \
+      "installments_payments.csv:installments_payments" \
+      "POS_CASH_balance.csv:pos_cash_balance" \
+      "credit_card_balance.csv:credit_card_balance"; do
+      file="${pair%%:*}"
+      table="${pair##*:}"
+      if [ -f "${DATA_DIR}/${file}" ]; then
+        load_csv "application_dwh" "$table" "${DATA_DIR}/${file}"
+      else
+        echo "  Skip: ${file} not found"
+      fi
+    done
+
+    # ── External data (application_external) ──
+    echo ""
+    echo "═══ Loading external data → application_external ═══"
+    for pair in \
+      "application_ext.csv:external_score" \
+      "bureau.csv:bureau" \
+      "bureau_balance.csv:bureau_balance"; do
+      file="${pair%%:*}"
+      table="${pair##*:}"
+      if [ -f "${DATA_DIR}/${file}" ]; then
+        load_csv "application_external" "$table" "${DATA_DIR}/${file}"
+      else
+        echo "  Skip: ${file} not found"
+      fi
+    done
+
+    # ── Bridge views (must exist before dbt runs) ──
+    echo ""
+    echo "═══ Creating bridge views in application_dwh ═══"
+    ch "CREATE OR REPLACE VIEW application_dwh.bureau AS SELECT * FROM application_external.bureau"
+    ch "CREATE OR REPLACE VIEW application_dwh.bureau_balance AS SELECT * FROM application_external.bureau_balance"
+    echo "  ✅ Views created"
+
+    echo ""
+    echo "═══ Summary ═══"
+    ch "SELECT database, name AS tbl, total_rows, formatReadableSize(total_bytes) AS size
+        FROM system.tables
+        WHERE database IN ('application_dwh', 'application_external')
+        ORDER BY database, name
+        FORMAT PrettyCompact"
+    echo ""
+    echo "✅ ClickHouse data loading complete!"
+---
+# Job: Schema initialization (runs clickhouse-client against the server)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: clickhouse-init-schema
+  namespace: data-services
+  labels:
+    app: clickhouse-init
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        app: clickhouse-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: init-schema
+          image: clickhouse/clickhouse-server:25.6-alpine
+          command:
+            - /bin/bash
+            - -c
+            - |
+              echo "Waiting for ClickHouse server..."
+              until clickhouse-client --host clickhouse-server.data-services.svc.cluster.local --query "SELECT 1" >/dev/null 2>&1; do
+                sleep 3
+              done
+              echo "Running schema init..."
+              clickhouse-client --host clickhouse-server.data-services.svc.cluster.local -n < /scripts/init-schema.sql
+              echo "✅ Schema initialization complete!"
+          volumeMounts:
+            - name: init-scripts
+              mountPath: /scripts
+      volumes:
+        - name: init-scripts
+          configMap:
+            name: clickhouse-init-scripts
+---
+# Job: Data loading (needs host CSV files mounted)
+# Requires: minikube mount $(pwd)/data:/mnt/data --profile=mlops
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: clickhouse-load-data
+  namespace: data-services
+  labels:
+    app: clickhouse-load-data
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: clickhouse-load-data
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: load-data
+          image: clickhouse/clickhouse-server:25.6-alpine
+          command: ["/bin/bash", "/scripts/load-data.sh"]
+          volumeMounts:
+            - name: init-scripts
+              mountPath: /scripts
+            - name: csv-data
+              mountPath: /data
+              readOnly: true
+      volumes:
+        - name: init-scripts
+          configMap:
+            name: clickhouse-init-scripts
+            defaultMode: 0755
+        - name: csv-data
+          hostPath:
+            path: /mnt/data
+            type: Directory

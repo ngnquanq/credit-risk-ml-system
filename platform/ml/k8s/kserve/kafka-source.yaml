@@ -1,0 +1,32 @@
+apiVersion: sources.knative.dev/v1beta1
+kind: KafkaSource
+metadata:
+  name: feature-ready-source
+  namespace: kserve
+spec:
+  bootstrapServers:
+    - kafka-broker.data-services.svc.cluster.local:9092
+
+  topics:
+    - hc.feature_ready
+
+  consumerGroup: knative-scoring-consumer
+  consumers: 1
+  initialOffset: latest
+
+  sink:
+    ref:
+      apiVersion: serving.kserve.io/v1beta1
+      kind: InferenceService
+      name: credit-risk-v4  # Point to latest deployed version
+    uri: /v1/score-by-id
+
+  delivery:
+    retry: 3
+    backoffPolicy: exponential
+    backoffDelay: PT1S
+    deadLetterSink:
+      ref:
+        apiVersion: eventing.knative.dev/v1alpha1
+        kind: KafkaSink
+        name: scoring-dlq-sink

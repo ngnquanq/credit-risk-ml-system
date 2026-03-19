@@ -1,0 +1,77 @@
+# ⚠️ DEPRECATED: This Docker Compose file is superseded by Kubernetes deployments
+# Use the K8s deployments in services/ml/k8s/model-serving/ and services/ml/k8s/kserve/ instead
+# This file is kept for reference/local development only
+services:
+
+  # BentoML Model Serving (with Feast integration)
+  credit-risk-service:
+    image: bentoml/credit-risk-model:v2  # Will be built from your bentofile.yaml
+    container_name: bento_credit_risk
+    ports:
+      - "${BENTO_SERVING_PORT:-3000}:3000"  # BentoML serving port
+    environment:
+      # Feast SDK: point to your Feast repo (mounted below)
+      - SCORING_FEAST_REPO_PATH=/work/feast
+      - SCORING_ENABLE_FEAST=true
+      - SCORING_ENABLE_KAFKA=true
+      - SCORING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
+      - SCORING_LOAN_APPLICATION_TOPIC=hc.applications.public.loan_applications
+      # Redis host is referenced inside feature_store.yaml as redis://feast_redis:6379/0
+      
+      # MLflow connection for model loading
+      - MLFLOW_TRACKING_URI=http://mlflow-server:5000
+      - MLFLOW_S3_ENDPOINT_URL=http://mlflow-minio:9006
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio_user}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minio_password}
+      
+      # Operational database for logging predictions
+      - OPS_DB_HOST=ops-postgres
+      - OPS_DB_PORT=5432
+      - OPS_DB_USER=ops_admin
+      - OPS_DB_PASSWORD=${OPS_DB_PASSWORD:-ops_password}
+      - OPS_DB_NAME=operations
+      
+      # BentoML configuration
+      - BENTOML_PORT=${BENTOML_PORT:-3000}
+      - BENTOML_HOST=${BENTOML_HOST:-0.0.0.0}
+      - BENTOML_WORKERS=${BENTOML_WORKERS:-4}
+      - BENTOML_TIMEOUT=${BENTOML_TIMEOUT:-30}  # Reduced for real-time
+      - BENTOML_LOG_LEVEL=${BENTOML_LOG_LEVEL:-info}
+      
+      # Model and inference configuration
+      - MODEL_NAME=${MODEL_NAME:-credit_risk_model}
+      - MODEL_VERSION=${MODEL_VERSION:-latest}
+      - PREDICTION_THRESHOLD=${PREDICTION_THRESHOLD:-0.5}
+      - ENABLE_FEATURE_LOGGING=${ENABLE_FEATURE_LOGGING:-true}
+      - ENABLE_PREDICTION_CACHING=${ENABLE_PREDICTION_CACHING:-true}
+      
+    volumes:
+      - bento_models:/home/bentoml/models
+      - ./bento_config:/home/bentoml/config
+      - ../../application/feast:/work/feast:rw
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - hc-network
+    depends_on: []
+    deploy:
+      resources:
+        limits:
+          memory: ${DEFAULT_MEMORY_LIMIT:-2G}
+          cpus: '${DEFAULT_CPU_LIMIT:-1.5}'
+        reservations:
+          memory: ${DEFAULT_MEMORY_RESERVATION:-1G}
+          cpus: '${DEFAULT_CPU_RESERVATION:-0.5}'
+
+volumes:
+  bento_models:
+
+networks:
+  hc-network:
+    external: true
+    name: ${NETWORK_NAME:-hc-network}

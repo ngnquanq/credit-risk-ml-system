@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ops-postgres
+  namespace: data-services
+  labels:
+    app: ops-postgres
+spec:
+  serviceName: "ops-postgres"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ops-postgres
+  template:
+    metadata:
+      labels:
+        app: ops-postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        args:
+          - "-c"
+          - "wal_level=logical"
+          - "-c"
+          - "max_replication_slots=4"
+          - "-c"
+          - "max_wal_senders=4"
+        ports:
+        - containerPort: 5432
+          name: postgres
+        envFrom:
+        - configMapRef:
+            name: db-config
+        - secretRef:
+            name: db-secrets
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+        - name: db-init
+          mountPath: /docker-entrypoint-initdb.d/init.sql
+          subPath: init-ops-database.sql
+        - name: db-schemas
+          mountPath: /schemas
+      volumes:
+      - name: db-init
+        configMap:
+          name: db-init-scripts
+      - name: db-schemas
+        configMap:
+          name: db-init-scripts
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ops-postgres
+  namespace: data-services
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: ops-postgres
+  clusterIP: None

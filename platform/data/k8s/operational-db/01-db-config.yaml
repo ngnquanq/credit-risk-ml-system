@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-config
+  namespace: data-services
+data:
+  POSTGRES_DB: "operations"
+  POSTGRES_USER: "ops_admin"
+  POSTGRES_WAL_LEVEL: "logical"
+  POSTGRES_MAX_CONNECTIONS: "500"

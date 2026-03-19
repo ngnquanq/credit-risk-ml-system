@@ -1,0 +1,66 @@
+# ⚠️ DEPRECATED: This Docker Compose file is superseded by Kubernetes deployments
+# Use the K8s deployments in services/ml/k8s/feature-store/ instead
+# This file is kept for reference/local development only
+services:
+  # One-shot: apply Feast repo definitions (entities + StreamFeatureViews)
+  feast-apply:
+    build:
+      context: ../../application/feast
+      dockerfile: Dockerfile
+    container_name: feast_apply
+    working_dir: /work/feast_repo
+    # Apply Feast definitions using the mounted repo
+    command: ["/bin/sh","-lc","python repository.py"]
+    environment:
+      # Kafka brokers using service DNS inside the network
+      FEAST_KAFKA_BROKERS: ${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
+      FEAST_PROJECT: ${FEAST_PROJECT:-hc}
+      # DWH schema inference (ClickHouse)
+      APP_CLICKHOUSE_HOST: ch-server
+      APP_CLICKHOUSE_PORT: 8123
+      APP_CLICKHOUSE_DB_DWH: application_mart
+      # All streams emit ts as event time
+      FEAST_TS_FIELD_APP: ${FEAST_TS_FIELD_APP:-ts}
+      FEAST_TS_FIELD_EXT: ${FEAST_TS_FIELD_EXT:-ts}
+      FEAST_TS_FIELD_DWH: ${FEAST_TS_FIELD_DWH:-ts}
+    volumes:
+      - ../../application/feast:/work/feast_repo:rw
+    networks:
+      - hc-network
+    restart: "no"
+  redis:
+    image: redis:7-alpine
+    container_name: feast_redis
+    ports:
+      - "6380:6379"
+    networks:
+      - hc-network
+
+  # Long-running stream materializer: Kafka -> Redis (Feast online store)
+  feast-stream:
+    build:
+      context: ../../application/feast
+      dockerfile: Dockerfile
+    container_name: feast_stream
+    working_dir: /work/feast_repo
+    command: ["/bin/sh","-lc","python repository.py stream"]
+    environment:
+      FEAST_KAFKA_BROKERS: ${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
+      FEAST_PROJECT: ${FEAST_PROJECT:-hc}
+      FEAST_TS_FIELD_APP: ${FEAST_TS_FIELD_APP:-ts}
+      FEAST_TS_FIELD_EXT: ${FEAST_TS_FIELD_EXT:-ts}
+      FEAST_TS_FIELD_DWH: ${FEAST_TS_FIELD_DWH:-ts}
+      APP_CLICKHOUSE_HOST: ch-server
+      APP_CLICKHOUSE_PORT: 8123
+      APP_CLICKHOUSE_DB_DWH: application_mart
+    volumes:
+      - ../../application/feast:/work/feast_repo:rw
+    depends_on:
+      - redis
+    networks:
+      - hc-network
+
+networks:
+  hc-network:
+    external: true
+    name: ${NETWORK_NAME:-hc-network}

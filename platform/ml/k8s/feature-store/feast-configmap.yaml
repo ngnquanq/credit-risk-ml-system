@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: feast-config
+  labels:
+    component: feature-store
+data:
+  # Kafka connection - in-cluster Kafka service
+  FEAST_KAFKA_BROKERS: "kafka-broker.data-services.svc.cluster.local:9092"
+
+  # Feast project name (using k8s-specific project to avoid registry conflicts)
+  FEAST_PROJECT: "hc_k8s"
+
+  # Kafka topics for the 3 feature streams
+  FEAST_TOPIC_APP_FEATURES: "hc.application_features"    # Stream 1: Flink-processed application data
+  FEAST_TOPIC_EXTERNAL: "hc.application_ext"             # Stream 2: External bureau features
+  FEAST_TOPIC_DWH: "hc.application_dwh"                  # Stream 3: Data warehouse features
+
+  # ClickHouse connection - in-cluster ClickHouse service
+  APP_CLICKHOUSE_HOST: "clickhouse-server.data-services.svc.cluster.local"
+  APP_CLICKHOUSE_PORT: "8123"
+  APP_CLICKHOUSE_DB_DWH: "application_mart"
+
+  # Timestamp field names for different data sources
+  FEAST_TS_FIELD_APP: "ts"
+  FEAST_TS_FIELD_EXT: "ts"
+  FEAST_TS_FIELD_DWH: "ts"
+
+  # Micro-batching configuration for Redis writes
+  FEAST_BATCH_SIZE: "200"          # Batch 200 messages before flushing
+  FEAST_BATCH_TIMEOUT_MS: "300"    # Or flush after 300ms timeout
+
+  # Worker thread pool size for parallel message processing
+  FEAST_MAX_WORKERS: "20"          # 20 workers per pod for I/O-bound queueing
+
+  # Feature readiness notification topic
+  FEAST_TOPIC_READY_FEATURE: "hc.feature_ready"
+
+  # Redis coordination settings (for 3-source feature aggregation)
+  # Using COORD prefix to avoid conflict with K8s auto-generated FEAST_REDIS_PORT env var
+  FEAST_REDIS_COORD_HOST: "feast-redis.feature-registry.svc.cluster.local"
+  FEAST_REDIS_COORD_PORT: "6379"
+  FEAST_COORDINATION_DB: "1"       # Use DB 1 for coordination (Feast uses DB 0)
+  FEAST_COORDINATION_TTL: "300"    # 5 minutes TTL for coordination keys

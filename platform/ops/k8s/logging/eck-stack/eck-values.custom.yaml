@@ -1,0 +1,79 @@
+# ECK Stack Custom Values - Development/Demo Configuration
+# Disables TLS/security for simplified demo setup
+
+# Elasticsearch Configuration
+eck-elasticsearch:
+  enabled: true
+  fullnameOverride: elasticsearch
+  version: 8.5.1
+
+  # Disable HTTP TLS for development
+  http:
+    tls:
+      selfSignedCertificate:
+        disabled: true
+
+  # Single node setup for demo
+  nodeSets:
+  - name: default
+    count: 1
+    config:
+      node.store.allow_mmap: false
+    podTemplate:
+      spec:
+        containers:
+        - name: elasticsearch
+          resources:
+            requests:
+              memory: 2Gi
+              cpu: 500m
+            limits:
+              memory: 2Gi
+              cpu: 1000m
+
+# Kibana Configuration
+eck-kibana:
+  enabled: true
+  elasticsearchRef:
+    name: elasticsearch
+  version: 8.5.1
+
+  # Disable HTTP TLS for development
+  http:
+    tls:
+      selfSignedCertificate:
+        disabled: true
+
+  count: 1
+  podTemplate:
+    spec:
+      containers:
+      - name: kibana
+        resources:
+          requests:
+            memory: 512Mi
+            cpu: 200m
+          limits:
+            memory: 1Gi
+            cpu: 500m
+
+# Beats disabled - using standalone filebeat-manifest.yaml instead
+# (avoid duplicate Filebeat deployment)
+eck-beats:
+  enabled: false
+
+# Disable other components (not needed for demo)
+eck-agent:
+  enabled: false
+
+eck-fleet-server:
+  enabled: false
+
+eck-logstash:
+  enabled: false
+
+eck-apm-server:
+  enabled: false
+
+eck-enterprise-search:
+  enabled: false

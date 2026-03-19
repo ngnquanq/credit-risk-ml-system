@@ -1,0 +1,62 @@
+# Kibana Custom Configuration
+
+# Mount dummy certificate secret (content not used, but template requires it)
+secretMounts: []
+
+# Disable all extra volumes and mounts
+extraVolumes: []
+extraVolumeMounts: []
+
+# Override environment variables to remove certificate and token references
+extraEnvs: []
+
+# Elasticsearch connection
+elasticsearchHosts: "http://elasticsearch-master:9200"
+
+# Point to dummy secrets (templates require these, but http connection doesn't use them)
+elasticsearchCertificateSecret: "elasticsearch-master-certs"
+elasticsearchCertificateAuthoritiesFile: ""
+elasticsearchCredentialSecret: ""
+
+# Server host configuration
+serverHost: "0.0.0.0"
+
+# Resource limits
+resources:
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "500m"
+    memory: "1Gi"
+
+# Service configuration - NodePort for browser access
+service:
+  type: NodePort
+  nodePort: 30561  # Access Kibana at http://localhost:30561
+  labels:
+    app: kibana
+    component: logging
+
+# Kibana configuration
+kibanaConfig:
+  kibana.yml: |
+    server.host: "0.0.0.0"
+    elasticsearch.hosts: ["http://elasticsearch-master:9200"]
+
+    # Timezone configuration (GMT+7 Hanoi Time)
+    server.defaultRoute: /app/discover
+    i18n.locale: "en"
+
+    # Encryption key for saved objects
+    xpack.encryptedSavedObjects.encryptionKey: "something_at_least_32_characters_long"
+
+# Health check settings
+healthCheckPath: "/app/kibana"
+
+# Replicas
+replicas: 1
+
+# Protocol
+protocol: http
+httpPort: 5601

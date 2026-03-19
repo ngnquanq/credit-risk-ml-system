@@ -1,0 +1,68 @@
+# ConfigMap: Kafka topic creation script (avoids YAML heredoc indentation issues)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-create-topics-script
+  namespace: data-services
+data:
+  create_topics.py: |
+    import os
+    from confluent_kafka.admin import AdminClient, NewTopic
+
+    def create_topics(bootstrap, topics):
+        admin = AdminClient({"bootstrap.servers": bootstrap})
+        cluster_md = admin.list_topics(timeout=10)
+        existing = set(cluster_md.topics.keys())
+        to_create = [t for t in topics if t not in existing]
+        if not to_create:
+            print("All topics exist.")
+            return
+        new_topics = [NewTopic(t, num_partitions=4, replication_factor=1) for t in to_create]
+        fs = admin.create_topics(new_topics)
+        for t, f in fs.items():
+            try:
+                f.result()
+                print(f"Created topic: {t}")
+            except Exception as e:
+                print(f"Failed to create topic {t}: {e}")
+
+    bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka-broker:9092")
+    topics = [
+        "hc.applications.public.loan_applications",
+        "hc.application_features",
+        "hc.application_ext_raw",
+        "hc.application_ext",
+        "hc.application_dwh",
+        "hc.scoring",
+        "hc.feature_ready"
+    ]
+    create_topics(bootstrap, topics)
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-create-topics
+  namespace: data-services
+spec:
+  template:
+    spec:
+      containers:
+      - name: create-topics
+        image: python:3.10-slim
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            pip install confluent-kafka
+            python /scripts/create_topics.py
+        env:
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka-broker:9092"
+        volumeMounts:
+        - name: script
+          mountPath: /scripts
+      volumes:
+      - name: script
+        configMap:
+          name: kafka-create-topics-script
+      restartPolicy: OnFailure
+  backoffLimit: 4

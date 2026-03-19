@@ -1,0 +1,101 @@
+services:
+  debezium:
+    image: debezium/connect:${DEBEZIUM_VERSION:-1.9}
+    container_name: cdc-debezium
+    env_file:
+      - ../core/.env.core
+      - ./.env.data
+    depends_on:
+      broker:
+        condition: service_healthy
+      schema-registry:
+        condition: service_started
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'curl',
+          '--silent',
+          '--fail',
+          '-X',
+          'GET',
+          'http://localhost:${DEBEZIUM_PORT:-8083}/connectors',
+        ]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "${DEBEZIUM_PORT:-8083}:8083"
+    environment:
+      # The below things is Kafka Related
+      BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
+      GROUP_ID: ${DEBEZIUM_GROUP_ID:-1}
+      CONFIG_STORAGE_TOPIC: ${DEBEZIUM_CONFIG_TOPIC:-connect_configs}
+      OFFSET_STORAGE_TOPIC: ${DEBEZIUM_OFFSET_TOPIC:-connect_offsets}
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      # Emit numeric decimals (avoid base64) and keep schemas enabled
+      KEY_CONVERTER_DECIMAL_FORMAT: NUMERIC
+      VALUE_CONVERTER_DECIMAL_FORMAT: NUMERIC
+      KEY_CONVERTER_SCHEMAS_ENABLE: 'true'
+      VALUE_CONVERTER_SCHEMAS_ENABLE: 'true'
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
+      CONNECT_TOPIC_CREATION_ENABLE: true
+      # The below things is Postgres Related
+      POSTGRES_HOSTNAME: ${OPS_DB_HOST:-ops-postgres}
+      POSTGRES_PORT: ${OPS_DB_PORT:-5432}  
+      POSTGRES_USER: ${OPS_DB_USER:-ops_admin}
+      POSTGRES_PASSWORD: ${OPS_DB_PASSWORD}
+      POSTGRES_DBNAME: ${OPS_DB_NAME:-operations}
+      
+      # CDC Topic Configuration
+      CDC_TOPIC_PREFIX: ${CDC_TOPIC_PREFIX:-hc.applications}
+      CDC_PUBLICATION_NAME: ${CDC_PUBLICATION_NAME:-debezium_pub}
+      CDC_SLOT_NAME: ${CDC_SLOT_NAME:-debezium_slot}
+      CDC_CONNECTOR_NAME: ${CDC_CONNECTOR_NAME:-postgres-application-connector}
+      CDC_PLUGIN_NAME: ${CDC_PLUGIN_NAME:-pgoutput}
+      CDC_SNAPSHOT_MODE: ${CDC_SNAPSHOT_MODE:-initial}
+    networks:
+      - hc-network
+
+  # Debezium UI
+  debezium-ui:
+    image: debezium/debezium-ui:${DEBEZIUM_UI_VERSION:-latest}
+    container_name: debezium-ui
+    env_file:
+      - ./.env.data
+    hostname: debezium-ui
+    depends_on:
+      debezium:
+        condition: service_healthy
+    ports:
+      - '${DEBEZIUM_UI_PORT:-8080}:8080'
+    environment:
+      KAFKA_CONNECT_URIS: http://debezium:${DEBEZIUM_PORT:-8083}
+    networks:
+      - hc-network
+
+  connector-init:
+    image: curlimages/curl:latest
+    container_name: cdc-connector-init
+    env_file:
+      - ../core/.env.core
+      - ./.env.data
+    depends_on:
+      debezium:
+        condition: service_healthy
+    volumes:
+      - ./scripts/cdc/create-connectors.sh:/create-connectors.sh:ro
+    command: sh /create-connectors.sh
+    networks:
+      - hc-network
+    restart: "no" 
+
+networks:
+  hc-network:
+    external: true
+    name: ${NETWORK_NAME:-hc-network}

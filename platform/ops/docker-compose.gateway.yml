@@ -1,0 +1,58 @@
+services:
+  # K8s Gateway Bridge
+  # Forwards Docker Compose traffic to K8s gateway (which then routes to K8s services)
+  # This bridges hc-network (Docker) to minikube network (K8s)
+  k8s-gateway:
+    image: alpine/socat:latest
+    container_name: k8s_gateway
+    network_mode: host  # Access both Docker and Minikube networks
+    environment:
+      - KAFKA_BROKER_IP=${KAFKA_BROKER_IP}  # Passed from Makefile (required)
+      - MINIKUBE_IP=${MINIKUBE_IP}  # Passed from Makefile (required)
+      - MINIKUBE_PROFILE=${MINIKUBE_PROFILE:-mlops}  # Minikube profile name
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Access to Docker socket for minikube IP detection
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        echo 'K8s Gateway Bridge starting (host network mode)...'
+
+        # Validate required environment variables
+        if [ -z "$${MINIKUBE_IP}" ]; then
+          echo "ERROR: MINIKUBE_IP not provided. Use 'make start-gateway' to start this service."
+          exit 1
+        fi
+
+        if [ -z "$${KAFKA_BROKER_IP}" ]; then
+          echo "ERROR: KAFKA_BROKER_IP not provided. Use 'make start-gateway' to start this service."
+          exit 1
+        fi
+
+        echo "Minikube IP: $${MINIKUBE_IP}"
+        echo "Kafka broker IP: $${KAFKA_BROKER_IP}"
+        echo ""
+
+        # Start socat relays
+        echo "Starting port forwarding..."
+        socat TCP-LISTEN:31900,reuseaddr,fork TCP:$${MINIKUBE_IP}:30900 &
+        socat TCP-LISTEN:31901,reuseaddr,fork TCP:$${MINIKUBE_IP}:30901 &
+        socat TCP-LISTEN:36379,reuseaddr,fork TCP:172.17.0.1:6379 &
+        socat TCP-LISTEN:39092,reuseaddr,fork TCP:$${KAFKA_BROKER_IP}:29092 &
+        socat TCP-LISTEN:39200,reuseaddr,fork TCP:$${MINIKUBE_IP}:30920 &
+        socat TCP-LISTEN:30317,reuseaddr,fork TCP:$${MINIKUBE_IP}:30317 &
+
+        echo 'Gateway ready - Port forwarding active:'
+        echo "  Docker:31900 -> Minikube($${MINIKUBE_IP}):30900 (training-minio S3)"
+        echo "  Docker:31901 -> Minikube($${MINIKUBE_IP}):30901 (minio-console)"
+        echo '  Host:36379 -> Docker:6379 (Feast Redis - K8s can connect)'
+        echo "  Host:39092 -> Kafka($${KAFKA_BROKER_IP}):29092 (K8s pods use host.minikube.internal:39092)"
+        echo "  Host:39200 -> Elasticsearch($${MINIKUBE_IP}):30920 (Docker Filebeat pushes logs)"
+        echo "  Host:30317 -> Minikube($${MINIKUBE_IP}):30317 (Jaeger OTLP - Docker can send traces)"
+        wait
+    restart: unless-stopped
+
+networks:
+  hc-network:
+    external: true
+    name: ${NETWORK_NAME:-hc-network}

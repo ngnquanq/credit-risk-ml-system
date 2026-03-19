@@ -1,0 +1,37 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: credit-risk-v5
+  namespace: kserve
+  labels:
+    app: credit-risk-scoring
+    version: v5
+  annotations:
+    serving.kserve.io/deploymentMode: RawDeployment
+spec:
+  predictor:
+    containers:
+    - name: kserve-container
+      image: docker.io/ngnquanq/credit-risk-scoring:latest
+      imagePullPolicy: Always
+      ports:
+      - containerPort: 3000
+        protocol: TCP
+      env:
+      - name: SCORING_MODEL_SOURCE
+        value: local
+      - name: SCORING_MODEL_PATH
+        value: bundle/model.pkl
+      - name: SCORING_LOG_LEVEL
+        value: INFO
+      - name: SCORING_FEAST_ENABLED
+        value: "false"
+      - name: SCORING_ENABLE_KAFKA
+        value: "false"
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: "2"
+          memory: 2Gi

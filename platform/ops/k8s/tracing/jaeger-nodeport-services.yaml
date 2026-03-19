@@ -1,0 +1,51 @@
+# NodePort services for Jaeger all-in-one
+# Exposes OTLP collector and Query UI to Docker services via gateway bridge
+
+---
+# OTLP Collector NodePort (for receiving traces)
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-collector-nodeport
+  namespace: observability
+  labels:
+    app: jaeger
+    component: collector-nodeport
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: all-in-one
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      nodePort: 30317  # Docker services send to localhost:30317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      nodePort: 30318  # Alternative HTTP endpoint
+      protocol: TCP
+
+---
+# Query UI NodePort (for viewing traces)
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-query-nodeport
+  namespace: observability
+  labels:
+    app: jaeger
+    component: query-nodeport
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: all-in-one
+  ports:
+    - name: http-query
+      port: 16686
+      targetPort: 16686
+      nodePort: 30686  # Access UI at http://localhost:30686
+      protocol: TCP

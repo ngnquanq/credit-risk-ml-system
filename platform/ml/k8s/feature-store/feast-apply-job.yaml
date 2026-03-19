@@ -1,0 +1,60 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: feast-apply
+  namespace: feature-registry
+  labels:
+    app: feast-apply
+    component: feature-store
+spec:
+  ttlSecondsAfterFinished: 600  # Cleanup after 10 minutes
+  template:
+    metadata:
+      labels:
+        app: feast-apply
+        component: feature-store
+    spec:
+      restartPolicy: OnFailure
+      imagePullSecrets:
+      - name: dockerhub-creds
+      containers:
+      - name: feast-apply
+        # Built from application/feast/Dockerfile
+        image: ngnquanq/feast-repo:v18
+        imagePullPolicy: Always
+        workingDir: /work
+        command:
+        - /bin/sh
+        - -lc
+        - python repository.py
+        envFrom:
+        - configMapRef:
+            name: feast-config
+        env:
+        - name: FEAST_REGISTRY_URI
+          value: s3://feast-registry/feature_repo/registry.db
+        - name: AWS_ACCESS_KEY_ID
+          value: minio_user
+        - name: AWS_SECRET_ACCESS_KEY
+          value: minio_password
+        - name: AWS_DEFAULT_REGION
+          value: us-east-1
+        - name: AWS_S3_ENDPOINT
+          value: http://serving-minio.model-serving.svc.cluster.local:9000
+        - name: FEAST_S3_ENDPOINT_URL
+          value: http://serving-minio.model-serving.svc.cluster.local:9000
+        volumeMounts:
+        - name: feast-store-config
+          mountPath: /work/feature_store.yaml
+          subPath: feature_store.yaml
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: feast-store-config
+        configMap:
+          name: feast-store-config
