@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import json
+import uuid
 import threading
 import os
 import tempfile
@@ -132,6 +133,20 @@ with bentoml.importing():
         )
         return resp.model_dump()
 
+    def _cloudevent_response(data: dict, sk_id_curr: str) -> JSONResponse:
+        """Wrap response in CloudEvent headers so Knative Sequence forwards the reply."""
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            content=data,
+            headers={
+                "ce-specversion": "1.0",
+                "ce-type": "dev.knative.scoring.response",
+                "ce-source": "/scoring/credit-risk-v3",
+                "ce-id": str(uuid.uuid4()),
+                "ce-subject": sk_id_curr,
+            },
+        )
+
     @app.post("/v1/score-by-id")
     async def score_by_id(request: Request) -> Dict[str, Any]:
         """Score by ID endpoint - Knative Eventing integration.
@@ -171,14 +186,12 @@ with bentoml.importing():
                 "decision": result["decision"]
             })
 
-            # Return result directly - KafkaSink will handle CloudEvents wrapping
-            # CRITICAL: Include sk_id_curr at top level for KafkaSink key extraction
-            return result
+            return _cloudevent_response(result, sk_id_curr)
 
         except bentoml.exceptions.BentoMLException as e:
             # Feature not found - return "under-review" decision
             logger.warning(f"Feature fetch failed for {sk_id_curr}: {e}")
-            return {
+            return _cloudevent_response({
                 "sk_id_curr": sk_id_curr,
                 "probability": None,
                 "decision": "under-review",
@@ -187,7 +200,7 @@ with bentoml.importing():
                 "version": MODEL_VERSION,
                 "ts": datetime.utcnow().isoformat() + "Z",
                 "reason": "feature_data_unavailable"
-            }
+            }, sk_id_curr)
 
 
 # Defer model loading to runtime to avoid failures during `bentoml build`
