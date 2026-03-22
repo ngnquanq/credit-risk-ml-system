@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgbouncer-config
+  namespace: data-services
+  labels:
+    app: ops-pgbouncer
+data:
+  pgbouncer.ini: |
+    ;; PgBouncer Configuration for K8s — Transaction Pooling
+    ;; Sits in front of ops-postgres to multiplex connections for load tests
+
+    [databases]
+    operations = host=ops-postgres.data-services.svc.cluster.local port=5432 dbname=operations user=ops_admin password=ops_password
+
+    [pgbouncer]
+    ;; Network configuration
+    listen_addr = 0.0.0.0
+    listen_port = 6432
+
+    ;; Authentication
+    auth_type = md5
+    auth_file = /etc/pgbouncer/userlist.txt
+
+    ;; Pooling mode — transaction is best for load tests (releases conn after each txn)
+    pool_mode = transaction
+
+    ;; Connection limits
+    max_client_conn = 1000
+    default_pool_size = 200
+    reserve_pool_size = 50
+    reserve_pool_timeout = 5
+    max_db_connections = 300
+
+    ;; Timeouts (in seconds)
+    server_idle_timeout = 600
+    server_lifetime = 3600
+    query_timeout = 0
+    query_wait_timeout = 120
+
+    ;; PostgreSQL compatibility
+    ignore_startup_parameters = extra_float_digits
+
+    ;; Admin access
+    admin_users = postgres
+
+  userlist.txt: |
+    "ops_admin" "md5d7e311dc7f97d795bc47866c50e4ef36"

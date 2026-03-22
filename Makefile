@@ -58,6 +58,15 @@ pf-kafka-ui: ## Port-forward Kafka UI to localhost:8080
 	@echo "Kafka UI available at http://localhost:8080"
 	kubectl port-forward -n data-services svc/kafka-ui 8080:8080
 
+pf-postgres: ## Port-forward PgBouncer to localhost:6432 (connection-pooled access to ops-postgres)
+	@echo "PostgreSQL available at localhost:6432 (via PgBouncer)"
+	@echo "psql: PGPASSWORD=ops_password psql -h localhost -p 6432 -U ops_admin -d operations"
+	kubectl port-forward -n data-services svc/ops-pgbouncer 6432:6432
+
+pf-kafka: ## Port-forward Kafka broker to localhost:9092 (for load tests / local consumers)
+	@echo "Kafka broker available at localhost:9092"
+	kubectl port-forward -n data-services svc/kafka-broker 9092:9092
+
 # ─── LEGACY: Docker Compose targets (pre-K8s migration) ──────────────────────
 # Kept for reference. All services now run on K8s — see k8s-* targets below.
 
@@ -513,6 +522,15 @@ k8s-monitoring: ## Deploy Prometheus + Grafana monitoring stack
 # 	@echo "Building Flink Docker image..."
 # 	@cd application/flink && docker build -t hc-flink-jobs:$(shell git rev-parse --short HEAD) .
 # 	@echo "✅ Image built: hc-flink-jobs:$(shell git rev-parse --short HEAD)"
+
+k8s-pgbouncer: ## Deploy PgBouncer connection pooler in front of ops-postgres
+	@echo "Deploying PgBouncer..."
+	kubectl apply -f platform/data/k8s/operational-db/05-pgbouncer-config.yaml
+	kubectl apply -f platform/data/k8s/operational-db/06-pgbouncer.yaml
+	@echo "Waiting for PgBouncer to be ready..."
+	kubectl rollout status deployment/ops-pgbouncer -n data-services --timeout=120s
+	@echo "✅ PgBouncer deployed (ops-pgbouncer.data-services:6432)"
+	@echo "Port-forward: kubectl port-forward -n data-services svc/ops-pgbouncer 6432:6432"
 
 k8s-logging: ## Deploy ECK logging stack (Elasticsearch + Kibana + Filebeat)
 	@echo "Deploying ECK logging stack..."

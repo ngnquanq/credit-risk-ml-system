@@ -5,6 +5,9 @@ This script simulates concurrent users submitting loan applications
 using real customer IDs from application_train.csv.
 
 Usage:
+    # Port-forward the API service first:
+    #   kubectl port-forward -n api-gateway svc/api-service 8000:80
+
     # Web UI mode
     locust -f tests/locustfile.py --host=http://localhost:8000
 
@@ -175,7 +178,7 @@ if __name__ == "__main__":
     print("="*70)
     print("")
     print("Quick Start:")
-    print("  1. Start API server: docker compose up api-gateway")
+    print("  1. Port-forward API: kubectl port-forward -n api-gateway svc/api-service 8000:80")
     print("  2. Run Locust Web UI: locust -f tests/locustfile.py --host=http://localhost:8000")
     print("  3. Open browser: http://localhost:8089")
     print("")
