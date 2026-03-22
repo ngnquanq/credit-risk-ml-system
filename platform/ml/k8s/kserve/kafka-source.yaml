@@ -16,10 +16,9 @@ spec:
 
   sink:
     ref:
-      apiVersion: serving.kserve.io/v1beta1
-      kind: InferenceService
-      name: credit-risk-v4  # Point to latest deployed version
-    uri: /v1/score-by-id
+      apiVersion: flows.knative.dev/v1
+      kind: Sequence
+      name: scoring-pipeline
 
   delivery:
     retry: 3

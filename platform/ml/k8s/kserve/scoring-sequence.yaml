@@ -1,0 +1,17 @@
+apiVersion: flows.knative.dev/v1
+kind: Sequence
+metadata:
+  name: scoring-pipeline
+  namespace: kserve
+spec:
+  steps:
+    - ref:
+        apiVersion: serving.kserve.io/v1beta1
+        kind: InferenceService
+        name: credit-risk-v3
+      uri: /v1/score-by-id
+  reply:
+    ref:
+      apiVersion: eventing.knative.dev/v1alpha1
+      kind: KafkaSink
+      name: scoring-output-sink

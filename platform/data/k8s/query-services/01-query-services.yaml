@@ -9,7 +9,7 @@ metadata:
   labels:
     app: bureau-consumer
 spec:
-  replicas: 1
+  replicas: 4
   selector:
     matchLabels:
       app: bureau-consumer
@@ -44,11 +44,11 @@ spec:
           value: "application_external"
         resources:
           requests:
-            memory: "128Mi"
-            cpu: "100m"
-          limits:
             memory: "256Mi"
             cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -58,7 +58,7 @@ metadata:
   labels:
     app: feature-consumer
 spec:
-  replicas: 1
+  replicas: 4
   selector:
     matchLabels:
       app: feature-consumer
@@ -93,8 +93,8 @@ spec:
           value: "application_mart"
         resources:
           requests:
-            memory: "128Mi"
-            cpu: "100m"
-          limits:
             memory: "256Mi"
             cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
