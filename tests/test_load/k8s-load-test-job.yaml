@@ -1,0 +1,61 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: locust-e2e-load-test
+  namespace: data-services
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: locust-load-test
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: locust
+          image: python:3.11-slim
+          command:
+            - bash
+            - -c
+            - |
+              pip install --quiet locust psycopg2-binary kafka-python &&
+              cd /test-files &&
+              locust -f locustfile_e2e_prediction.py \
+                --host=kafka-broker.data-services.svc.cluster.local:9092 \
+                --users 50 \
+                --spawn-rate 10 \
+                --run-time 5m \
+                --headless \
+                --html /tmp/e2e_report.html \
+                --csv /tmp/e2e_report
+          env:
+            - name: OPS_DB_HOST
+              value: ops-pgbouncer.data-services.svc.cluster.local
+            - name: OPS_DB_PORT
+              value: "6432"
+            - name: OPS_DB_NAME
+              value: operations
+            - name: OPS_DB_USER
+              value: ops_admin
+            - name: OPS_DB_PASSWORD
+              value: ops_password
+          volumeMounts:
+            - name: test-files
+              mountPath: /test-files
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+      volumes:
+        - name: test-files
+          configMap:
+            name: locust-test-files
+---
+# Create the ConfigMap from the test files before running the Job:
+#   kubectl create configmap locust-test-files \
+#     --from-file=locustfile_e2e_prediction.py=tests/test_load/locustfile_e2e_prediction.py \
+#     -n data-services

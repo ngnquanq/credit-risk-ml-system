@@ -17,6 +17,7 @@ Flink Processing (bureau_aggregation_etl.py):
 """
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import time
 import json
 import os
@@ -142,65 +143,82 @@ class ExternalBureauService:
             logger.error(f"Error extracting sk_id_curr from CDC: {e}")
             return None
 
+    async def _process_single(self, sk_id_curr: str, parent_context) -> Optional[tuple]:
+        """Process a single message: query ClickHouse under a trace span."""
+        async with self._semaphore:
+            try:
+                with tracer.start_as_current_span("external_bureau_process", context=parent_context) as span:
+                    span.set_attribute("sk_id_curr", sk_id_curr)
+                    raw_data = await self.fetch_and_prepare_raw_data(sk_id_curr)
+                    trace_headers = {}
+                    inject(trace_headers)
+                    return raw_data, trace_headers
+            except Exception as e:
+                logger.error(f"Error processing {sk_id_curr}: {e}")
+                return None
+
     async def run(self):
-        """Main service loop."""
-        logger.info("Starting External Bureau Service...")
+        """Main service loop with batch polling and concurrent ClickHouse queries."""
+        BATCH_SIZE = int(os.getenv("CONSUMER_BATCH_SIZE", "50"))
+        CONCURRENCY = int(os.getenv("CH_BUREAU_POOL_SIZE", "20"))
+        loop = asyncio.get_running_loop()
+        loop.set_default_executor(ThreadPoolExecutor(max_workers=CONCURRENCY))
+        self._semaphore = asyncio.Semaphore(CONCURRENCY)
+        logger.info(f"Starting External Bureau Service (batch_size={BATCH_SIZE}, concurrency={CONCURRENCY})...")
 
         try:
             self.consumer.subscribe([self.source_topic])
 
             while True:
-                msg = self.consumer.poll(timeout=1.0)
-
-                if msg is None:
+                messages = self.consumer.consume(num_messages=BATCH_SIZE, timeout=0.5)
+                if not messages:
                     continue
 
-                if msg.error():
-                    logger.error(f"Consumer error: {msg.error()}")
-                    continue
-
-                try:
-                    # Parse CDC message
-                    cdc_data = json.loads(msg.value().decode('utf-8'))
-                    sk_id_curr = self._extract_sk_id_curr_from_cdc(cdc_data)
-
-                    if not sk_id_curr:
-                        logger.warning("Could not extract sk_id_curr from CDC message")
+                # Parse batch: extract sk_id_curr and trace context for each message
+                tasks = []
+                for msg in messages:
+                    if msg.error():
+                        logger.error(f"Consumer error: {msg.error()}")
                         continue
+                    try:
+                        cdc_data = json.loads(msg.value().decode('utf-8'))
+                        sk_id_curr = self._extract_sk_id_curr_from_cdc(cdc_data)
+                        if not sk_id_curr:
+                            continue
+                        headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v
+                                       for k, v in (msg.headers() or [])}
+                        parent_context = extract_or_create_trace_context(headers_dict, sk_id_curr)
+                        tasks.append((sk_id_curr, parent_context))
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Failed to parse CDC message: {e}")
+                    except Exception as e:
+                        logger.error(f"Error parsing message: {e}")
 
-                    # Extract or create deterministic trace context based on SK_ID_CURR
-                    headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v
-                                   for k, v in (msg.headers() or [])}
-                    parent_context = extract_or_create_trace_context(headers_dict, sk_id_curr)
+                if not tasks:
+                    continue
 
-                    # Start span with parent context (unified trace per SK_ID_CURR)
-                    with tracer.start_as_current_span("external_bureau_process", context=parent_context) as span:
-                        span.set_attribute("sk_id_curr", sk_id_curr)
+                # Run all ClickHouse queries concurrently
+                results = await asyncio.gather(
+                    *[self._process_single(sk_id, ctx) for sk_id, ctx in tasks],
+                    return_exceptions=True
+                )
 
-                        # Fetch raw bureau data from ClickHouse
-                        raw_data = await self.fetch_and_prepare_raw_data(sk_id_curr)
-
-                        # Publish raw data to hc.application_ext_raw (for Flink aggregation)
-                        if raw_data:
-                            # Inject trace context into headers
-                            trace_headers = {}
-                            inject(trace_headers)
-                            kafka_headers = [(k, v.encode('utf-8') if isinstance(v, str) else v)
-                                           for k, v in trace_headers.items()]
-
-                            self.producer.produce(
-                                topic=self.raw_topic,
-                                key=str(sk_id_curr).encode('utf-8'),
-                                value=json.dumps(raw_data).encode('utf-8'),
-                                headers=kafka_headers,
-                                callback=self._delivery_callback
-                            )
-                            self.producer.poll(0)  # Non-blocking poll
-
-                except json.JSONDecodeError as e:
-                    logger.error(f"Failed to parse CDC message: {e}")
-                except Exception as e:
-                    logger.error(f"Error processing message: {e}")
+                # Produce results
+                for (sk_id, _), result in zip(tasks, results):
+                    if isinstance(result, Exception) or result is None:
+                        continue
+                    raw_data, trace_headers = result
+                    if raw_data:
+                        kafka_headers = [(k, v.encode('utf-8') if isinstance(v, str) else v)
+                                       for k, v in trace_headers.items()]
+                        self.producer.produce(
+                            topic=self.raw_topic,
+                            key=str(sk_id).encode('utf-8'),
+                            value=json.dumps(raw_data).encode('utf-8'),
+                            headers=kafka_headers,
+                            callback=self._delivery_callback
+                        )
+                self.producer.flush()
 
         except KeyboardInterrupt:
             logger.info("Shutting down External Bureau Service...")

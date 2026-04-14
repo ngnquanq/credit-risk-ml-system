@@ -65,6 +65,13 @@ spec:
           value: "2"
         - name: KSERVE_NAMESPACE
           value: kserve
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
         volumeMounts:
         - name: watcher-code
           mountPath: /app
@@ -74,6 +81,13 @@ spec:
         image: docker:27-dind
         securityContext:
           privileged: true
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
         env:
         - name: DOCKER_TLS_CERTDIR
           value: ""

@@ -41,4 +41,4 @@ data:
   FEAST_REDIS_COORD_HOST: "feast-redis.feature-registry.svc.cluster.local"
   FEAST_REDIS_COORD_PORT: "6379"
   FEAST_COORDINATION_DB: "1"       # Use DB 1 for coordination (Feast uses DB 0)
-  FEAST_COORDINATION_TTL: "300"    # 5 minutes TTL for coordination keys
+  FEAST_COORDINATION_TTL: "3600"   # 1 hour TTL — must exceed the throughput spread between fastest (Flink/application) and slowest (ClickHouse-dependent) source pipelines

@@ -40,39 +40,61 @@ This load test measures the **complete real-time ML prediction pipeline** from l
 
 ### Prerequisites
 
-1. **Full pipeline running**:
+1. **K8s pods healthy**:
    ```bash
-   # Docker services
-   docker ps | grep -E "postgres|kafka|flink|clickhouse|bureau"
-
-   # Kubernetes services
+   kubectl get pods -n data-services
    kubectl get pods -n kserve | grep credit-risk
    kubectl get pods -n feature-registry | grep feast
    ```
 
-2. **Dependencies installed**:
+2. **Port-forwards active** (the shell scripts start these automatically, but for manual runs):
+   ```bash
+   # Option A: Use Makefile shortcuts (each blocks the terminal)
+   make pf-postgres   # localhost:6432 → ops-pgbouncer (connection-pooled)
+   make pf-kafka      # localhost:9092 → kafka-broker
+
+   # Option B: Manual
+   kubectl port-forward -n data-services svc/ops-pgbouncer 6432:6432
+   kubectl port-forward -n data-services svc/kafka-broker 9092:9092
+   ```
+
+3. **Dependencies installed**:
    ```bash
    pip install locust psycopg2-binary kafka-python
    ```
 
 ### Run Load Test
 
-**Option 1: Quick Test (50 users, 5 minutes)**
+**Option 1: Quick Test (50 users, 5 minutes)** — starts port-forwards automatically
 ```bash
-./tests/run_e2e_load_test.sh
+./tests/test_load/run_e2e_load_test.sh
 ```
 
 **Option 2: Custom Configuration**
 ```bash
-USERS=100 SPAWN_RATE=20 RUN_TIME=10m ./tests/run_e2e_load_test.sh
+USERS=100 SPAWN_RATE=20 RUN_TIME=10m ./tests/test_load/run_e2e_load_test.sh
 ```
 
-**Option 3: Manual Locust Command**
+**Option 3: Manual Locust Command** (requires port-forwards running separately)
 ```bash
-locust -f tests/locustfile_e2e_prediction.py \
-       --host=localhost:39092 \
+locust -f tests/test_load/locustfile_e2e_prediction.py \
+       --host=localhost:9092 \
        --users 50 --spawn-rate 10 --run-time 5m --headless \
        --html reports/e2e_test.html --csv reports/e2e_test
+```
+
+**Option 4: In-Cluster (K8s Job)** — runs inside the cluster, no port-forwards needed
+```bash
+# Create ConfigMap with test files
+kubectl create configmap locust-test-files \
+  --from-file=locustfile_e2e_prediction.py=tests/test_load/locustfile_e2e_prediction.py \
+  -n data-services
+
+# Launch the Job
+kubectl apply -f tests/test_load/k8s-load-test-job.yaml
+
+# Watch logs
+kubectl logs -f -n data-services job/locust-e2e-load-test
 ```
 
 ---
@@ -91,7 +113,7 @@ locust -f tests/locustfile_e2e_prediction.py \
 
 ### 3. Throughput
 - **Metric**: Requests/second (RPS) the system can handle
-- **Expected**: 50-100 RPS sustained
+- **Expected**: 100-150 RPS sustained (with PgBouncer connection pooling)
 - **Measures**: System capacity
 
 ---
@@ -132,15 +154,15 @@ E2E         End-to-End Prediction        4800        1800 ms 2500 ms 3500 ms 190
 End-to-End Prediction Latency:
   P50: ~1.8 seconds
   P95: ~2.5 seconds
-  P99: ~3.5 seconds
+  P99: ~3.5 seconds (can reach ~450ms for DB-only P99 under sustained load)
 
-Throughput: ~50 RPS sustained
+Throughput: ~100-150 RPS sustained (with PgBouncer connection pooling)
 Success Rate: > 95%
 ```
 
 ### Resume-Ready Statement
 
-> "Architected real-time ML pipeline processing **50+ loan applications per second** with **P95 latency under 3 seconds** from submission to prediction, leveraging Apache Flink for distributed feature engineering and Feast/Redis for sub-10ms feature retrieval"
+> "Architected real-time ML pipeline processing **100+ loan applications per second** with **P95 latency under 3 seconds** from submission to prediction, leveraging Apache Flink for distributed feature engineering and Feast/Redis for sub-10ms feature retrieval"
 
 ---
 
@@ -152,10 +174,10 @@ Success Rate: > 95%
 # Check if KServe predictor is consuming
 kubectl logs -n kserve credit-risk-v13-predictor-xxx --tail=50
 
-# Check Kafka topic has predictions
-docker exec kafka_broker kafka-console-consumer \
-    --bootstrap-server localhost:9092 --topic hc.scoring \
-    --from-beginning --max-messages 10
+# Check Kafka topic has predictions (exec into the broker pod)
+kubectl exec -n data-services deploy/kafka-broker -- \
+    kafka-console-consumer --bootstrap-server localhost:9092 \
+    --topic hc.scoring --from-beginning --max-messages 10
 ```
 
 ### Issue: High latency (> 5 seconds)
@@ -171,7 +193,7 @@ Possible bottlenecks:
 Scaling options:
 1. **Increase Flink parallelism**: Add more task managers
 2. **Scale KServe predictor**: Increase replica count
-3. **Optimize PostgreSQL**: Connection pooling (PgBouncer)
+3. **Optimize PostgreSQL**: Ensure PgBouncer is deployed (`make k8s-pgbouncer`)
 4. **Scale Kafka**: Add more partitions
 
 ---
@@ -180,20 +202,20 @@ Scaling options:
 
 ### 1. Smoke Test (Validation)
 ```bash
-locust -f tests/locustfile_e2e_prediction.py --host=localhost:39092 \
+locust -f tests/locustfile_e2e_prediction.py --host=localhost:9092 \
        --users 10 --spawn-rate 5 --run-time 1m --headless
 ```
 
 ### 2. Load Test (Capacity)
 ```bash
-locust -f tests/locustfile_e2e_prediction.py --host=localhost:39092 \
+locust -f tests/locustfile_e2e_prediction.py --host=localhost:9092 \
        --users 100 --spawn-rate 20 --run-time 10m --headless \
        --html reports/load_test.html
 ```
 
 ### 3. Stress Test (Limits)
 ```bash
-locust -f tests/locustfile_e2e_prediction.py --host=localhost:39092 \
+locust -f tests/locustfile_e2e_prediction.py --host=localhost:9092 \
        --users 200 --spawn-rate 50 --run-time 15m --headless \
        --html reports/stress_test.html
 ```
@@ -247,7 +269,7 @@ grep "Aggregated" reports/e2e_prediction_*_stats.csv
 
 # Example output for resume:
 # - Processed 5,000 loan applications
-# - Sustained throughput: 50 RPS
+# - Sustained throughput: 100-150 RPS
 # - P50 latency: 1.8s
 # - P95 latency: 2.5s
 # - P99 latency: 3.5s

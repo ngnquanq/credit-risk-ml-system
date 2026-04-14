@@ -1,0 +1,23 @@
+apiVersion: flows.knative.dev/v1
+kind: Sequence
+metadata:
+  name: scoring-pipeline
+  namespace: kserve
+spec:
+  channelTemplate:
+    apiVersion: messaging.knative.dev/v1beta1
+    kind: KafkaChannel
+    spec:
+      numPartitions: 4
+      replicationFactor: 1
+  steps:
+    - ref:
+        apiVersion: serving.kserve.io/v1beta1
+        kind: InferenceService
+        name: credit-risk-v1  # Placeholder — serving-watcher patches this dynamically
+      uri: /v1/score-by-id
+  reply:
+    ref:
+      apiVersion: eventing.knative.dev/v1alpha1
+      kind: KafkaSink
+      name: scoring-output-sink

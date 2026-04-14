@@ -19,6 +19,7 @@ Usage:
 """
 
 import csv
+import os
 import random
 import time
 import psycopg2
@@ -239,7 +240,7 @@ def on_test_start(environment, **kwargs):
     """Initialize monitors when test starts."""
     global prediction_monitor, topic_monitor
 
-    kafka_bootstrap = environment.host or "localhost:39092"
+    kafka_bootstrap = environment.host or "localhost:9092"
     # Extract just the hostname:port if URL provided
     if "://" in kafka_bootstrap:
         kafka_bootstrap = kafka_bootstrap.split("://")[1]
@@ -281,11 +282,11 @@ class PredictionPipelineUser(User):
 
     customer_ids = []
     db_config = {
-        'host': 'localhost',
-        'port': 6432,  # PgBouncer connection pooler (transaction mode)
-        'database': 'operations',
-        'user': 'ops_admin',
-        'password': 'ops_password'
+        'host': os.environ.get('OPS_DB_HOST', 'localhost'),
+        'port': int(os.environ.get('OPS_DB_PORT', '5432')),
+        'database': os.environ.get('OPS_DB_NAME', 'operations'),
+        'user': os.environ.get('OPS_DB_USER', 'ops_admin'),
+        'password': os.environ.get('OPS_DB_PASSWORD', 'ops_password'),
     }
 
     def on_start(self):
@@ -418,13 +419,13 @@ if __name__ == "__main__":
     print("  2. End-to-end prediction latency (PostgreSQL → Prediction)")
     print("")
     print("Prerequisites:")
-    print("  - PostgreSQL running on localhost:5434")
-    print("  - Kafka running (for Kafka monitor)")
+    print("  - Port-forward PgBouncer: kubectl port-forward -n data-services svc/ops-pgbouncer 6432:6432")
+    print("  - Port-forward Kafka:    kubectl port-forward -n data-services svc/kafka-broker 9092:9092")
     print("  - Full pipeline active (CDC, Flink, Feast, KServe)")
     print("")
     print("Run:")
     print("  locust -f tests/locustfile_e2e_prediction.py \\")
-    print("         --host=localhost:39092 \\")  # Kafka bootstrap for monitor
+    print("         --host=localhost:9092 \\")  # Kafka bootstrap for monitor
     print("         --users 50 --spawn-rate 10 --run-time 5m --headless \\")
     print("         --html reports/e2e_prediction_test.html")
     print("")

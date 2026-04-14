@@ -8,15 +8,15 @@ metadata:
     version: ${VERSION}
   annotations:
     # Knative autoscaling
-    autoscaling.knative.dev/minScale: "1"
-    autoscaling.knative.dev/maxScale: "10"
-    autoscaling.knative.dev/target: "100"
+    autoscaling.knative.dev/min-scale: "3"
+    autoscaling.knative.dev/max-scale: "10"
+    autoscaling.knative.dev/target: "50"
     autoscaling.knative.dev/metric: concurrency
     autoscaling.knative.dev/class: kpa.autoscaling.knative.dev
     autoscaling.knative.dev/scale-down-delay: "30s"
 spec:
   predictor:
-    minReplicas: 1
+    minReplicas: 3
     maxReplicas: 10
 
     containers:

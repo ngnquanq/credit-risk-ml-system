@@ -39,11 +39,11 @@ spec:
               value: "http://schema-registry.data-services.svc.cluster.local:8081"
           resources:
             requests:
-              memory: 256Mi
-              cpu: 100m
+              memory: 128Mi
+              cpu: 50m
             limits:
-              memory: 512Mi
-              cpu: 250m
+              memory: 256Mi
+              cpu: 150m
           readinessProbe:
             httpGet:
               path: /actuator/health

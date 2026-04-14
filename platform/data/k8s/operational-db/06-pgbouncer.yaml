@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ops-pgbouncer
+  namespace: data-services
+  labels:
+    app: ops-pgbouncer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ops-pgbouncer
+  template:
+    metadata:
+      labels:
+        app: ops-pgbouncer
+    spec:
+      containers:
+        - name: pgbouncer
+          image: edoburu/pgbouncer:v1.25.1-p0
+          ports:
+            - containerPort: 6432
+              protocol: TCP
+          volumeMounts:
+            - name: pgbouncer-config
+              mountPath: /etc/pgbouncer/pgbouncer.ini
+              subPath: pgbouncer.ini
+            - name: pgbouncer-config
+              mountPath: /etc/pgbouncer/userlist.txt
+              subPath: userlist.txt
+          readinessProbe:
+            tcpSocket:
+              port: 6432
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 6432
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: pgbouncer-config
+          configMap:
+            name: pgbouncer-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ops-pgbouncer
+  namespace: data-services
+  labels:
+    app: ops-pgbouncer
+spec:
+  selector:
+    app: ops-pgbouncer
+  ports:
+    - port: 6432
+      targetPort: 6432
+      protocol: TCP
+  type: ClusterIP
