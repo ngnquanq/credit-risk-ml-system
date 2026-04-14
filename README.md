@@ -21,7 +21,11 @@ AUC was chosen over accuracy due to the class imbalance (91.9% repay / 8.1% defa
 
 ## Architecture
 
+![System Architecture](assets/READMEimg/systemarch.png)
 
+**Data flow**: Loan application → PostgreSQL → Debezium CDC → Kafka → three parallel feature streams (Flink application features, bureau consumer → Flink aggregation, DWH feature consumer) → Feast materializes all three to Redis → `hc.feature_ready` event → Knative Sequence → KServe inference → `hc.scoring` topic.
+
+See [`docs/architecture/system-overview.md`](docs/architecture/system-overview.md) for the component table and [`docs/adr/`](docs/adr/) for the reasoning behind each technology choice.
 
 ## Quick Start (ML-only)
 
@@ -30,11 +34,18 @@ If you just want to explore the model and notebooks without deploying the full K
 ```bash
 pip install -r requirements.txt
 
+# Step 1: generate the merged feature dataset from raw Kaggle CSVs
+# (raw files: application_train.csv, bureau.csv, bureau_balance.csv,
+#  previous_application.csv, POS_CASH_balance.csv, credit_card_balance.csv)
+jupyter notebook notebook/08_prepare_data.ipynb
+
+# Step 2: train and register the model
 python application/training/train_register.py \
     --data data/complete_feature_dataset.csv \
     --experiment credit-risk \
     --register-name credit_risk_model
 
+# Step 3: explore evaluation results
 jupyter notebook notebook/model_evaluation.ipynb
 ```
 
@@ -57,6 +68,31 @@ jupyter notebook notebook/model_evaluation.ipynb
 - **Disk**: 80 GB free
 
 **Data:** Download the [Home Credit Default Risk dataset](https://www.kaggle.com/c/home-credit-default-risk) (~3 GB) and place CSV files in `data/`.
+
+## Local Development (no Kubernetes)
+
+If you don't have 32 GB RAM or just want to run and modify the API locally:
+
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Copy and edit environment variables
+cp .env.example .env
+# Edit .env — at minimum set OPS_DB_HOST, OPS_DB_PASSWORD, KAFKA_BOOTSTRAP_SERVERS
+
+# 3. Start required backing services (Postgres + Kafka only)
+docker compose -f platform/core/docker-compose.dev.yml up -d   # if available
+# or point .env at existing services
+
+# 4. Run the API
+PYTHONPATH=application uvicorn application.entrypoints.api.main:app --reload --port 8000
+
+# 5. Run tests (no infrastructure needed — uses SQLite in-memory)
+PYTHONPATH=application pytest tests/unit tests/integration -v
+```
+
+> **What you can do locally**: submit loans via the REST API, run the training script, explore all notebooks, and run the full test suite. What requires K8s: Kafka CDC pipeline, Flink jobs, Feast materialization, KServe inference.
 
 ## Full Stack Deployment
 
