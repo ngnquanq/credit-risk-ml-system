@@ -141,7 +141,7 @@ with bentoml.importing():
             headers={
                 "ce-specversion": "1.0",
                 "ce-type": "dev.knative.scoring.response",
-                "ce-source": "/scoring/credit-risk-v3",
+                "ce-source": f"/scoring/{os.environ.get('HOSTNAME', 'credit-risk').split('-predictor')[0]}",
                 "ce-id": str(uuid.uuid4()),
                 "ce-subject": sk_id_curr,
             },

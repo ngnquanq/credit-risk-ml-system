@@ -265,10 +265,11 @@ def ray_tune_hyperparams(
     base_image="python:3.11-slim",
     packages_to_install=[
         "pandas==2.2.2",
+        "numpy==1.26.4",
         "scikit-learn==1.5.1",
         "xgboost==2.1.0",
         "mlflow==2.14.3",
-        "pyyaml==6.0.1",  
+        "pyyaml==6.0.1",
     ],
 )
 def train_and_register(
@@ -282,24 +283,79 @@ def train_and_register(
     aws_access_key_id: str,
     aws_secret_access_key: str,
     entity_key: str = "SK_ID_CURR",
+    n_bootstrap: int = 1000,
+    ci_level: float = 0.95,
+    decision_threshold: float = 0.3,
 ) -> str:
     """
     Train with provided params and register to MLflow.
+    Evaluates metrics using bootstrap resampling to produce confidence intervals.
     Logs simplified feast_metadata.yaml (serving discovers feature views dynamically).
     """
     import os
     import json
     import yaml
+    import numpy as np
     import pandas as pd
     from sklearn.compose import ColumnTransformer
     from sklearn.impute import SimpleImputer
     from sklearn.model_selection import train_test_split
     from sklearn.pipeline import Pipeline
     from sklearn.preprocessing import OrdinalEncoder, FunctionTransformer
-    from sklearn.metrics import roc_auc_score
+    from sklearn.metrics import roc_auc_score, precision_score, recall_score
     from xgboost import XGBClassifier
     import mlflow
     import mlflow.sklearn
+
+    def bootstrap_evaluate(y_true, y_proba, n_bootstrap, ci_level, threshold):
+        """Compute metrics with bootstrap confidence intervals.
+
+        Resamples the test set predictions with replacement ``n_bootstrap``
+        times and computes AUC, accuracy, precision, and recall on each
+        sample.  Returns point estimates and CI bounds for every metric.
+        """
+        rng = np.random.RandomState(42)
+        n = len(y_true)
+        y_true = np.asarray(y_true)
+        y_proba = np.asarray(y_proba)
+        y_pred = (y_proba >= threshold).astype(int)
+
+        aucs, accs, precisions, recalls = [], [], [], []
+
+        for _ in range(n_bootstrap):
+            idx = rng.randint(0, n, size=n)
+            bt_true = y_true[idx]
+            bt_proba = y_proba[idx]
+            bt_pred = y_pred[idx]
+
+            # Skip degenerate samples (single class)
+            if len(np.unique(bt_true)) < 2:
+                continue
+
+            aucs.append(float(roc_auc_score(bt_true, bt_proba)))
+            accs.append(float((bt_pred == bt_true).mean()))
+            precisions.append(float(precision_score(bt_true, bt_pred, zero_division=0)))
+            recalls.append(float(recall_score(bt_true, bt_pred, zero_division=0)))
+
+        alpha = 1 - ci_level
+        lo = alpha / 2 * 100
+        hi = (1 - alpha / 2) * 100
+
+        def summarize(values):
+            arr = np.array(values)
+            return {
+                "mean": float(np.mean(arr)),
+                "std": float(np.std(arr)),
+                "lower": float(np.percentile(arr, lo)),
+                "upper": float(np.percentile(arr, hi)),
+            }
+
+        return {
+            "auc": summarize(aucs),
+            "accuracy": summarize(accs),
+            "precision": summarize(precisions),
+            "recall": summarize(recalls),
+        }
 
     os.environ["MLFLOW_TRACKING_URI"] = mlflow_tracking_uri
     os.environ["MLFLOW_S3_ENDPOINT_URL"] = mlflow_s3_endpoint_url
@@ -356,12 +412,39 @@ def train_and_register(
 
     pipe.fit(X_train, y_train)
     proba = pipe.predict_proba(X_test)[:, 1]
+
+    # Point estimates
     auc = float(roc_auc_score(y_test, proba))
+    preds = (proba >= decision_threshold).astype(int)
+    accuracy = float((preds == y_test.to_numpy()).mean())
+
+    # Bootstrap confidence intervals
+    print(f"Running {n_bootstrap} bootstrap iterations for {ci_level*100:.0f}% CI...")
+    boot = bootstrap_evaluate(y_test.to_numpy(), proba, n_bootstrap, ci_level, decision_threshold)
+    print(f"  AUC: {auc:.4f} [{boot['auc']['lower']:.4f}, {boot['auc']['upper']:.4f}]")
+    print(f"  Accuracy@{decision_threshold}: {accuracy:.4f} [{boot['accuracy']['lower']:.4f}, {boot['accuracy']['upper']:.4f}]")
+    print(f"  Precision@{decision_threshold}: {boot['precision']['mean']:.4f} [{boot['precision']['lower']:.4f}, {boot['precision']['upper']:.4f}]")
+    print(f"  Recall@{decision_threshold}: {boot['recall']['mean']:.4f} [{boot['recall']['lower']:.4f}, {boot['recall']['upper']:.4f}]")
 
     mlflow.set_experiment(experiment)
     with mlflow.start_run() as run:
         mlflow.log_params(base)
+        mlflow.log_params({
+            "n_bootstrap": n_bootstrap,
+            "ci_level": ci_level,
+            "decision_threshold": decision_threshold,
+        })
+
+        # Point estimates
         mlflow.log_metric("auc", auc)
+        mlflow.log_metric("accuracy", accuracy)
+
+        # Bootstrap CI for each metric
+        for metric_name, stats in boot.items():
+            mlflow.log_metric(f"{metric_name}_mean", stats["mean"])
+            mlflow.log_metric(f"{metric_name}_std", stats["std"])
+            mlflow.log_metric(f"{metric_name}_ci_lower", stats["lower"])
+            mlflow.log_metric(f"{metric_name}_ci_upper", stats["upper"])
 
         input_example = X_train.iloc[:1]
         model_info = mlflow.sklearn.log_model(
@@ -382,16 +465,27 @@ def train_and_register(
             },
             "training_date": pd.Timestamp.now().isoformat(),
         }
-        # v32
-        # v34
         # Log as YAML artifact
         with open("feast_metadata.yaml", "w") as f:
             yaml.dump(feast_metadata, f, default_flow_style=False)
         mlflow.log_artifact("feast_metadata.yaml")
 
-        print(f"✅ Logged feast_metadata.yaml with {len(FEATURES)} features")
+        # Log bootstrap summary as artifact for detailed review
+        boot_summary = {
+            "n_bootstrap": n_bootstrap,
+            "ci_level": ci_level,
+            "decision_threshold": decision_threshold,
+            "metrics": boot,
+        }
+        with open("bootstrap_metrics.yaml", "w") as f:
+            yaml.dump(boot_summary, f, default_flow_style=False)
+        mlflow.log_artifact("bootstrap_metrics.yaml")
 
-        # Transition to stage (same as before)
+        print(f"Logged feast_metadata.yaml with {len(FEATURES)} features")
+        print(f"Logged bootstrap_metrics.yaml ({n_bootstrap} iterations, {ci_level*100:.0f}% CI)")
+
+        # Promote to stage via tag (MLflow 3.x compatible)
+        # Setting tag stage=Production triggers the MLflow Watcher → Bento build → KServe deploy
         if stage:
             client = mlflow.tracking.MlflowClient()
             version = None
@@ -400,12 +494,18 @@ def train_and_register(
                     version = v.version
                     break
             if version is not None:
-                client.transition_model_version_stage(
-                    name=register_name,
-                    version=str(version),
-                    stage=stage,
-                    archive_existing_versions=False,
-                )
+                client.set_model_version_tag(register_name, version, "stage", stage)
+                print(f"Promoted version {version} to stage={stage} (MLflow Watcher will trigger)")
+                try:
+                    client.set_registered_model_alias(register_name, "champion", version)
+                    print(f"Set alias 'champion' -> version {version}")
+                except Exception as e:
+                    print(f"Warning: could not set alias: {e}")
+            else:
+                print(f"Warning: could not find registered version for run {run.info.run_id}")
+        else:
+            print(f"Stage not set — model registered but NOT promoted (MLflow Watcher will not trigger)")
+            print(f"To promote later, run: python promote_model.py --version <N>")
         return run.info.run_id
 
 
@@ -420,13 +520,17 @@ def training_pipeline(
     aws_secret_access_key: str = "minioadmin",
     experiment: str = "credit-risk",
     register_name: str = "credit_risk_model",
-    stage: str = "Production",
+    stage: str = "",  # Set to "Production" to auto-promote and trigger MLflow Watcher; leave empty to register only
     # Ray tuning parameters (exposed in UI)
     ray_address: str = "",  # run locally by default for faster POC
     ray_num_samples: int = 1,  # Reduced from 4 for faster training
     ray_cpus_per_trial: float = 1,
     ray_gpus_per_trial: float = 0.0,
     entity_key: str = "sk_id_curr",  # Changed to lowercase to invalidate cache
+    # Bootstrap evaluation parameters
+    n_bootstrap: int = 1000,
+    ci_level: float = 0.95,
+    decision_threshold: float = 0.3,
 ):
     snap = fetch_minio_snapshot(
         s3_endpoint=s3_endpoint,
@@ -454,4 +558,7 @@ def training_pipeline(
         aws_access_key_id=aws_access_key_id,
         aws_secret_access_key=aws_secret_access_key,
         entity_key=entity_key,
+        n_bootstrap=n_bootstrap,
+        ci_level=ci_level,
+        decision_threshold=decision_threshold,
     ).set_caching_options(False)

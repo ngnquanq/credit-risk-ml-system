@@ -15,6 +15,7 @@ Records of significant architectural decisions. Each ADR captures **why** a deci
 | [0007](0007-flink-for-stream-processing.md) | Flink for Stream Processing | Accepted |
 | [0008](0008-load-test-pipeline-bottleneck-fixes.md) | Load Test Pipeline Bottleneck Fixes | Accepted |
 | [0009](0009-model-training-and-promotion-pipeline.md) | Automated Model Training and Promotion Pipeline | Accepted |
+| [0010](0010-knative-sequence-scoring-pipeline.md) | Knative Sequence for Scoring Pipeline Reply Routing | Accepted |
 
 ## Creating a New ADR
 

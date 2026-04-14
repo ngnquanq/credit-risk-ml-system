@@ -32,6 +32,7 @@ spec:
               done
               echo "Submitting CDC Application ETL job..."
               flink run -m flink-jobmanager:8081 -d \
+                -p 4 \
                 -pyexec python3 \
                 -py /opt/app/jobs/cdc_application_etl.py \
                 -pyfs /opt/app/jobs

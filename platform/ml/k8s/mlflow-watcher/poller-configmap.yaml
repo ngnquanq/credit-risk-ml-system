@@ -27,7 +27,11 @@ data:
     VALUES_PATH = os.getenv("VALUES_PATH", "/configs/values.yaml")
 
     def _stage(v) -> str:
-        return (getattr(v, "current_stage", None) or (v.tags or {}).get("stage") or "").lower()
+        cs = getattr(v, "current_stage", None)
+        # MLflow 3.x returns the string "None" instead of Python None
+        if cs and cs != "None":
+            return cs.lower()
+        return ((v.tags or {}).get("stage") or "").lower()
 
     def _is_production(v) -> bool:
         return _stage(v) == REQUIRED_STAGE.lower()

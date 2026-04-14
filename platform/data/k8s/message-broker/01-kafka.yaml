@@ -81,11 +81,11 @@ spec:
               value: "-Xms512m -Xmx1g"
           resources:
             requests:
-              memory: 1Gi
-              cpu: 250m
+              memory: 1536Mi
+              cpu: 500m
             limits:
-              memory: 2Gi
-              cpu: 1
+              memory: 2560Mi
+              cpu: 2
           volumeMounts:
             - name: kafka-data
               mountPath: /var/lib/kafka/data

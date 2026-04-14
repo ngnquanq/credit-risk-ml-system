@@ -34,6 +34,7 @@ data:
         "hc.application_ext",
         "hc.application_dwh",
         "hc.scoring",
+        "hc.scoring.dlq",
         "hc.feature_ready"
     ]
     create_topics(bootstrap, topics)

@@ -4,10 +4,13 @@
 #    aws_access_key_id: str [Default: 'minioadmin']
 #    aws_secret_access_key: str [Default: 'minioadmin']
 #    bucket: str [Default: 'training-data']
+#    ci_level: float [Default: 0.95]
+#    decision_threshold: float [Default: 0.3]
 #    entity_key: str [Default: 'sk_id_curr']
 #    experiment: str [Default: 'credit-risk']
 #    mlflow_s3_endpoint_url: str [Default: 'http://minio.model-registry.svc.cluster.local:9000']
 #    mlflow_tracking_uri: str [Default: 'http://mlflow.model-registry.svc.cluster.local:80']
+#    n_bootstrap: int [Default: 1000.0]
 #    object_key: str [Default: 'snapshots/ds=2025-09-19/loan_applications.csv']
 #    ray_address: str [Default: '']
 #    ray_cpus_per_trial: float [Default: 1.0]
@@ -81,6 +84,14 @@ components:
           parameterType: STRING
         best_params_json:
           parameterType: STRING
+        ci_level:
+          defaultValue: 0.95
+          isOptional: true
+          parameterType: NUMBER_DOUBLE
+        decision_threshold:
+          defaultValue: 0.3
+          isOptional: true
+          parameterType: NUMBER_DOUBLE
         entity_key:
           defaultValue: SK_ID_CURR
           isOptional: true
@@ -91,6 +102,10 @@ components:
           parameterType: STRING
         mlflow_tracking_uri:
           parameterType: STRING
+        n_bootstrap:
+          defaultValue: 1000.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
         register_name:
           parameterType: STRING
         stage:
@@ -266,10 +281,10 @@ deploymentSpec:
         - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
           \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
           \ python3 -m pip install --quiet --no-warn-script-location 'pandas==2.2.2'\
-          \ 'scikit-learn==1.5.1' 'xgboost==2.1.0' 'mlflow==2.14.3' 'pyyaml==6.0.1'\
-          \  &&  python3 -m pip install --quiet --no-warn-script-location 'kfp==2.14.3'\
-          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
-          $0\" \"$@\"\n"
+          \ 'numpy==1.26.4' 'scikit-learn==1.5.1' 'xgboost==2.1.0' 'mlflow==2.14.3'\
+          \ 'pyyaml==6.0.1'  &&  python3 -m pip install --quiet --no-warn-script-location\
+          \ 'kfp==2.14.3' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"\
+          3.9\"' && \"$0\" \"$@\"\n"
         - sh
         - -ec
         - 'program_path=$(mktemp -d)
@@ -285,15 +300,43 @@ deploymentSpec:
           \ str,\n    experiment: str,\n    register_name: str,\n    stage: str,\n\
           \    mlflow_tracking_uri: str,\n    mlflow_s3_endpoint_url: str,\n    aws_access_key_id:\
           \ str,\n    aws_secret_access_key: str,\n    entity_key: str = \"SK_ID_CURR\"\
-          ,\n) -> str:\n    \"\"\"\n    Train with provided params and register to\
-          \ MLflow.\n    Logs simplified feast_metadata.yaml (serving discovers feature\
-          \ views dynamically).\n    \"\"\"\n    import os\n    import json\n    import\
-          \ yaml\n    import pandas as pd\n    from sklearn.compose import ColumnTransformer\n\
-          \    from sklearn.impute import SimpleImputer\n    from sklearn.model_selection\
+          ,\n    n_bootstrap: int = 1000,\n    ci_level: float = 0.95,\n    decision_threshold:\
+          \ float = 0.3,\n) -> str:\n    \"\"\"\n    Train with provided params and\
+          \ register to MLflow.\n    Evaluates metrics using bootstrap resampling\
+          \ to produce confidence intervals.\n    Logs simplified feast_metadata.yaml\
+          \ (serving discovers feature views dynamically).\n    \"\"\"\n    import\
+          \ os\n    import json\n    import yaml\n    import numpy as np\n    import\
+          \ pandas as pd\n    from sklearn.compose import ColumnTransformer\n    from\
+          \ sklearn.impute import SimpleImputer\n    from sklearn.model_selection\
           \ import train_test_split\n    from sklearn.pipeline import Pipeline\n \
           \   from sklearn.preprocessing import OrdinalEncoder, FunctionTransformer\n\
-          \    from sklearn.metrics import roc_auc_score\n    from xgboost import\
-          \ XGBClassifier\n    import mlflow\n    import mlflow.sklearn\n\n    os.environ[\"\
+          \    from sklearn.metrics import roc_auc_score, precision_score, recall_score\n\
+          \    from xgboost import XGBClassifier\n    import mlflow\n    import mlflow.sklearn\n\
+          \n    def bootstrap_evaluate(y_true, y_proba, n_bootstrap, ci_level, threshold):\n\
+          \        \"\"\"Compute metrics with bootstrap confidence intervals.\n\n\
+          \        Resamples the test set predictions with replacement ``n_bootstrap``\n\
+          \        times and computes AUC, accuracy, precision, and recall on each\n\
+          \        sample.  Returns point estimates and CI bounds for every metric.\n\
+          \        \"\"\"\n        rng = np.random.RandomState(42)\n        n = len(y_true)\n\
+          \        y_true = np.asarray(y_true)\n        y_proba = np.asarray(y_proba)\n\
+          \        y_pred = (y_proba >= threshold).astype(int)\n\n        aucs, accs,\
+          \ precisions, recalls = [], [], [], []\n\n        for _ in range(n_bootstrap):\n\
+          \            idx = rng.randint(0, n, size=n)\n            bt_true = y_true[idx]\n\
+          \            bt_proba = y_proba[idx]\n            bt_pred = y_pred[idx]\n\
+          \n            # Skip degenerate samples (single class)\n            if len(np.unique(bt_true))\
+          \ < 2:\n                continue\n\n            aucs.append(float(roc_auc_score(bt_true,\
+          \ bt_proba)))\n            accs.append(float((bt_pred == bt_true).mean()))\n\
+          \            precisions.append(float(precision_score(bt_true, bt_pred, zero_division=0)))\n\
+          \            recalls.append(float(recall_score(bt_true, bt_pred, zero_division=0)))\n\
+          \n        alpha = 1 - ci_level\n        lo = alpha / 2 * 100\n        hi\
+          \ = (1 - alpha / 2) * 100\n\n        def summarize(values):\n          \
+          \  arr = np.array(values)\n            return {\n                \"mean\"\
+          : float(np.mean(arr)),\n                \"std\": float(np.std(arr)),\n \
+          \               \"lower\": float(np.percentile(arr, lo)),\n            \
+          \    \"upper\": float(np.percentile(arr, hi)),\n            }\n\n      \
+          \  return {\n            \"auc\": summarize(aucs),\n            \"accuracy\"\
+          : summarize(accs),\n            \"precision\": summarize(precisions),\n\
+          \            \"recall\": summarize(recalls),\n        }\n\n    os.environ[\"\
           MLFLOW_TRACKING_URI\"] = mlflow_tracking_uri\n    os.environ[\"MLFLOW_S3_ENDPOINT_URL\"\
           ] = mlflow_s3_endpoint_url\n    os.environ[\"AWS_ACCESS_KEY_ID\"] = aws_access_key_id\n\
           \    os.environ[\"AWS_SECRET_ACCESS_KEY\"] = aws_secret_access_key\n\n \
@@ -320,10 +363,31 @@ deploymentSpec:
           \        eval_metric=\"logloss\",\n        n_jobs=-1,\n        random_state=42,\n\
           \    )\n    base.update(params)\n    clf = XGBClassifier(**base)\n    pipe\
           \ = Pipeline([(\"pre\", pre), (\"clf\", clf)])\n\n    pipe.fit(X_train,\
-          \ y_train)\n    proba = pipe.predict_proba(X_test)[:, 1]\n    auc = float(roc_auc_score(y_test,\
-          \ proba))\n\n    mlflow.set_experiment(experiment)\n    with mlflow.start_run()\
-          \ as run:\n        mlflow.log_params(base)\n        mlflow.log_metric(\"\
-          auc\", auc)\n\n        input_example = X_train.iloc[:1]\n        model_info\
+          \ y_train)\n    proba = pipe.predict_proba(X_test)[:, 1]\n\n    # Point\
+          \ estimates\n    auc = float(roc_auc_score(y_test, proba))\n    preds =\
+          \ (proba >= decision_threshold).astype(int)\n    accuracy = float((preds\
+          \ == y_test.to_numpy()).mean())\n\n    # Bootstrap confidence intervals\n\
+          \    print(f\"Running {n_bootstrap} bootstrap iterations for {ci_level*100:.0f}%\
+          \ CI...\")\n    boot = bootstrap_evaluate(y_test.to_numpy(), proba, n_bootstrap,\
+          \ ci_level, decision_threshold)\n    print(f\"  AUC: {auc:.4f} [{boot['auc']['lower']:.4f},\
+          \ {boot['auc']['upper']:.4f}]\")\n    print(f\"  Accuracy@{decision_threshold}:\
+          \ {accuracy:.4f} [{boot['accuracy']['lower']:.4f}, {boot['accuracy']['upper']:.4f}]\"\
+          )\n    print(f\"  Precision@{decision_threshold}: {boot['precision']['mean']:.4f}\
+          \ [{boot['precision']['lower']:.4f}, {boot['precision']['upper']:.4f}]\"\
+          )\n    print(f\"  Recall@{decision_threshold}: {boot['recall']['mean']:.4f}\
+          \ [{boot['recall']['lower']:.4f}, {boot['recall']['upper']:.4f}]\")\n\n\
+          \    mlflow.set_experiment(experiment)\n    with mlflow.start_run() as run:\n\
+          \        mlflow.log_params(base)\n        mlflow.log_params({\n        \
+          \    \"n_bootstrap\": n_bootstrap,\n            \"ci_level\": ci_level,\n\
+          \            \"decision_threshold\": decision_threshold,\n        })\n\n\
+          \        # Point estimates\n        mlflow.log_metric(\"auc\", auc)\n  \
+          \      mlflow.log_metric(\"accuracy\", accuracy)\n\n        # Bootstrap\
+          \ CI for each metric\n        for metric_name, stats in boot.items():\n\
+          \            mlflow.log_metric(f\"{metric_name}_mean\", stats[\"mean\"])\n\
+          \            mlflow.log_metric(f\"{metric_name}_std\", stats[\"std\"])\n\
+          \            mlflow.log_metric(f\"{metric_name}_ci_lower\", stats[\"lower\"\
+          ])\n            mlflow.log_metric(f\"{metric_name}_ci_upper\", stats[\"\
+          upper\"])\n\n        input_example = X_train.iloc[:1]\n        model_info\
           \ = mlflow.sklearn.log_model(\n            sk_model=pipe,\n            artifact_path=\"\
           model\",\n            input_example=input_example,\n            registered_model_name=register_name,\n\
           \        )\n        feast_metadata = {\n            \"selected_features\"\
@@ -335,19 +399,27 @@ deploymentSpec:
           \          \"model_signature\": {\n                \"inputs\": list(X_train.columns),\n\
           \                \"output\": \"binary_classification\",\n            },\n\
           \            \"training_date\": pd.Timestamp.now().isoformat(),\n      \
-          \  }\n        # v32\n        # v34\n        # Log as YAML artifact\n   \
-          \     with open(\"feast_metadata.yaml\", \"w\") as f:\n            yaml.dump(feast_metadata,\
-          \ f, default_flow_style=False)\n        mlflow.log_artifact(\"feast_metadata.yaml\"\
-          )\n\n        print(f\"\u2705 Logged feast_metadata.yaml with {len(FEATURES)}\
-          \ features\")\n\n        # Transition to stage (same as before)\n      \
-          \  if stage:\n            client = mlflow.tracking.MlflowClient()\n    \
-          \        version = None\n            for v in client.search_model_versions(f\"\
+          \  }\n        # Log as YAML artifact\n        with open(\"feast_metadata.yaml\"\
+          , \"w\") as f:\n            yaml.dump(feast_metadata, f, default_flow_style=False)\n\
+          \        mlflow.log_artifact(\"feast_metadata.yaml\")\n\n        # Log bootstrap\
+          \ summary as artifact for detailed review\n        boot_summary = {\n  \
+          \          \"n_bootstrap\": n_bootstrap,\n            \"ci_level\": ci_level,\n\
+          \            \"decision_threshold\": decision_threshold,\n            \"\
+          metrics\": boot,\n        }\n        with open(\"bootstrap_metrics.yaml\"\
+          , \"w\") as f:\n            yaml.dump(boot_summary, f, default_flow_style=False)\n\
+          \        mlflow.log_artifact(\"bootstrap_metrics.yaml\")\n\n        print(f\"\
+          Logged feast_metadata.yaml with {len(FEATURES)} features\")\n        print(f\"\
+          Logged bootstrap_metrics.yaml ({n_bootstrap} iterations, {ci_level*100:.0f}%\
+          \ CI)\")\n\n        # Transition to stage via tag (MLflow 3.x compatible)\n\
+          \        if stage:\n            client = mlflow.tracking.MlflowClient()\n\
+          \            version = None\n            for v in client.search_model_versions(f\"\
           name='{register_name}'\"):\n                if v.run_id == run.info.run_id:\n\
           \                    version = v.version\n                    break\n  \
-          \          if version is not None:\n                client.transition_model_version_stage(\n\
-          \                    name=register_name,\n                    version=str(version),\n\
-          \                    stage=stage,\n                    archive_existing_versions=False,\n\
-          \                )\n        return run.info.run_id\n\n"
+          \          if version is not None:\n                client.set_model_version_tag(register_name,\
+          \ version, \"stage\", stage)\n                try:\n                   \
+          \ client.set_registered_model_alias(register_name, \"champion\", version)\n\
+          \                except Exception as e:\n                    print(f\"Warning:\
+          \ could not set alias: {e}\")\n        return run.info.run_id\n\n"
         image: python:3.11-slim
 pipelineInfo:
   name: credit-risk-training-pipeline
@@ -417,6 +489,10 @@ root:
               taskOutputParameter:
                 outputParameterKey: Output
                 producerTask: ray-tune-hyperparams
+            ci_level:
+              componentInputParameter: ci_level
+            decision_threshold:
+              componentInputParameter: decision_threshold
             entity_key:
               componentInputParameter: entity_key
             experiment:
@@ -425,6 +501,8 @@ root:
               componentInputParameter: mlflow_s3_endpoint_url
             mlflow_tracking_uri:
               componentInputParameter: mlflow_tracking_uri
+            n_bootstrap:
+              componentInputParameter: n_bootstrap
             register_name:
               componentInputParameter: register_name
             stage:
@@ -445,6 +523,14 @@ root:
         defaultValue: training-data
         isOptional: true
         parameterType: STRING
+      ci_level:
+        defaultValue: 0.95
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+      decision_threshold:
+        defaultValue: 0.3
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
       entity_key:
         defaultValue: sk_id_curr
         isOptional: true
@@ -461,6 +547,10 @@ root:
         defaultValue: http://mlflow.model-registry.svc.cluster.local:80
         isOptional: true
         parameterType: STRING
+      n_bootstrap:
+        defaultValue: 1000.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
       object_key:
         defaultValue: snapshots/ds=2025-09-19/loan_applications.csv
         isOptional: true

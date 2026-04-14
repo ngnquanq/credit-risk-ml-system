@@ -11,7 +11,7 @@ spec:
     - hc.feature_ready
 
   consumerGroup: knative-scoring-consumer
-  consumers: 1
+  consumers: 8
   initialOffset: latest
 
   sink:

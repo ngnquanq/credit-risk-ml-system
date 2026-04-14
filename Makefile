@@ -363,7 +363,12 @@ k8s-knative-kafka: ## Install Knative Kafka Source/Sink v1.13.6 (from vendored m
 	kubectl apply -f platform/ml/k8s/knative/vendor/kafka/v1.13.6-eventing-kafka-controller.yaml
 	kubectl apply -f platform/ml/k8s/knative/vendor/kafka/v1.13.6-eventing-kafka-source.yaml
 	kubectl apply -f platform/ml/k8s/knative/vendor/kafka/v1.13.6-eventing-kafka-sink.yaml
+	kubectl apply -f platform/ml/k8s/knative/vendor/kafka/v1.13.6-eventing-kafka-channel.yaml
 	kubectl wait --for=condition=available --timeout=300s deployment/kafka-controller -n knative-eventing
+	kubectl wait --for=condition=available --timeout=300s deployment/kafka-channel-receiver -n knative-eventing
+	@echo "Patching KafkaChannel bootstrap servers..."
+	kubectl patch configmap kafka-channel-config -n knative-eventing \
+		--type merge -p '{"data":{"bootstrap.servers":"kafka-broker.data-services.svc.cluster.local:9092"}}'
 	@echo "✅ Knative Kafka Source/Sink installed"
 
 k8s-knative-stack: k8s-knative-serving k8s-knative-eventing k8s-knative-kafka ## Install complete Knative stack
@@ -371,17 +376,26 @@ k8s-knative-stack: k8s-knative-serving k8s-knative-eventing k8s-knative-kafka ##
 	kubectl apply -f platform/ml/k8s/knative/serving-config.yaml
 	@echo "✅ Knative stack installed (Serving + Eventing + Kafka)"
 
-k8s-kafka-sink: ## Deploy KafkaSink resources
-	@echo "Deploying KafkaSink resources..."
+k8s-scoring-pipeline: ## Deploy scoring event pipeline (Sequence + KafkaSource + KafkaSinks)
+	@echo "Deploying scoring pipeline..."
 	kubectl apply -f platform/ml/k8s/kserve/kafka-sink.yaml
 	kubectl apply -f platform/ml/k8s/kserve/kafka-dlq-sink.yaml
-	@echo "✅ KafkaSink resources deployed"
+	kubectl apply -f platform/ml/k8s/kserve/scoring-sequence.yaml
+	kubectl apply -f platform/ml/k8s/kserve/kafka-source.yaml
+	@echo "✅ Scoring pipeline deployed (KafkaSource → Sequence → InferenceService → KafkaSink)"
 
-k8s-knative-complete: k8s-kserve k8s-knative-stack k8s-kafka-sink ## Complete Knative stack deployment
+k8s-knative-complete: k8s-knative-stack k8s-kserve k8s-scoring-pipeline ## Complete Knative stack deployment
+	@echo "Verifying Knative Serving is ready..."
+	kubectl wait --for=condition=available --timeout=300s deployment/controller -n knative-serving
+	kubectl wait --for=condition=available --timeout=300s deployment/webhook -n knative-serving
+	kubectl wait --for=condition=available --timeout=300s deployment/activator -n knative-serving
 	@echo "Deploying RBAC for KafkaSource..."
 	kubectl apply -f platform/ml/k8s/knative/kafka-rbac.yaml
 	@echo "Enabling Knative addressable resolver in KServe..."
 	cd platform/ml/k8s/kserve/kserve-main && helm upgrade kserve . -n kserve --reuse-values --set kserve.controller.knativeAddressableResolver.enabled=true
+	@echo "Restarting KServe controller to detect Knative Serving..."
+	kubectl rollout restart deployment/kserve-controller-manager -n kserve
+	kubectl wait --for=condition=available --timeout=120s deployment/kserve-controller-manager -n kserve
 	@echo "✅ Knative Eventing stack ready for model deployment"
 	@echo ""
 	@echo "Next steps:"

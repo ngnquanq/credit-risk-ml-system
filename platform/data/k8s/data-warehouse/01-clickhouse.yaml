@@ -27,8 +27,8 @@ data:
         <max_connections>4096</max_connections>
         <keep_alive_timeout>64</keep_alive_timeout>
         <max_concurrent_queries>100</max_concurrent_queries>
-        <uncompressed_cache_size>8589934592</uncompressed_cache_size>
-        <mark_cache_size>5368709120</mark_cache_size>
+        <uncompressed_cache_size>1073741824</uncompressed_cache_size>
+        <mark_cache_size>536870912</mark_cache_size>
 
         <path>/var/lib/clickhouse/</path>
         <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
@@ -91,7 +91,7 @@ data:
     <clickhouse>
         <profiles>
             <default>
-                <max_memory_usage>10000000000</max_memory_usage>
+                <max_memory_usage>2147483648</max_memory_usage>
                 <use_uncompressed_cache>0</use_uncompressed_cache>
                 <load_balancing>in_order</load_balancing>
                 <log_queries>1</log_queries>
@@ -175,11 +175,11 @@ spec:
               subPath: users.xml
           resources:
             requests:
-              memory: 512Mi
-              cpu: 250m
+              memory: 2Gi
+              cpu: 1000m
             limits:
               memory: 4Gi
-              cpu: 1
+              cpu: 2
           readinessProbe:
             httpGet:
               path: /ping

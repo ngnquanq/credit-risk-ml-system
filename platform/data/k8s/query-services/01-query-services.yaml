@@ -9,7 +9,7 @@ metadata:
   labels:
     app: bureau-consumer
 spec:
-  replicas: 4
+  replicas: 2
   selector:
     matchLabels:
       app: bureau-consumer
@@ -42,13 +42,15 @@ spec:
           value: ""
         - name: APP_CLICKHOUSE_DB_EXTERNAL
           value: "application_external"
+        - name: CONSUMER_BATCH_SIZE
+          value: "50"
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "200m"
-          limits:
-            memory: "512Mi"
+            memory: "384Mi"
             cpu: "500m"
+          limits:
+            memory: "768Mi"
+            cpu: "1000m"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -58,7 +60,7 @@ metadata:
   labels:
     app: feature-consumer
 spec:
-  replicas: 4
+  replicas: 2
   selector:
     matchLabels:
       app: feature-consumer
@@ -91,10 +93,12 @@ spec:
           value: ""
         - name: APP_CLICKHOUSE_DB_DWH
           value: "application_mart"
+        - name: CONSUMER_BATCH_SIZE
+          value: "50"
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "200m"
-          limits:
-            memory: "512Mi"
+            memory: "384Mi"
             cpu: "500m"
+          limits:
+            memory: "768Mi"
+            cpu: "1000m"

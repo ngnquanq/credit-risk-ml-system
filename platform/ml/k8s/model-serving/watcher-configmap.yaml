@@ -235,88 +235,54 @@ data:
             return False
 
 
-    def create_or_update_kafkasource(isvc_name: str, namespace: str) -> bool:
-        """Create or update KafkaSource to route events to latest InferenceService."""
+    def create_or_update_scoring_sequence(isvc_name: str, namespace: str) -> bool:
+        """Patch the Knative Sequence to route events to the latest InferenceService.
+
+        The KafkaSource (deployed via Makefile) always points to the Sequence.
+        This function only patches the Sequence step to reference the latest ISVC,
+        keeping channelTemplate and reply (KafkaSink) untouched.
+        """
         try:
             k8s_config.load_incluster_config()
             custom_api = k8s.CustomObjectsApi()
 
-            kafka_source_name = "feature-ready-source"
+            sequence_name = "scoring-pipeline"
 
-            kafka_source = {
-                "apiVersion": "sources.knative.dev/v1beta1",
-                "kind": "KafkaSource",
-                "metadata": {
-                    "name": kafka_source_name,
-                    "namespace": namespace
-                },
+            patch = {
                 "spec": {
-                    "bootstrapServers": ["kafka-broker.data-services.svc.cluster.local:9092"],
-                    "topics": ["hc.feature_ready"],
-                    "consumerGroup": "knative-scoring-consumer",
-                    "consumers": 1,
-                    "initialOffset": "latest",
-                    "sink": {
-                        "ref": {
-                            "apiVersion": "serving.kserve.io/v1beta1",
-                            "kind": "InferenceService",
-                            "name": isvc_name
-                        },
-                        "uri": "/v1/score-by-id"
-                    },
-                    "delivery": {
-                        "deadLetterSink": {
+                    "steps": [
+                        {
                             "ref": {
-                                "apiVersion": "eventing.knative.dev/v1alpha1",
-                                "kind": "KafkaSink",
-                                "name": "scoring-dlq-sink"
-                            }
-                        },
-                        "retry": 3,
-                        "backoffPolicy": "exponential",
-                        "backoffDelay": "PT1S"
-                    },
-                    "resources": {
-                        "requests": {"cpu": "100m", "memory": "128Mi"},
-                        "limits": {"cpu": "200m", "memory": "256Mi"}
-                    }
+                                "apiVersion": "serving.kserve.io/v1beta1",
+                                "kind": "InferenceService",
+                                "name": isvc_name
+                            },
+                            "uri": "/v1/score-by-id"
+                        }
+                    ]
                 }
             }
 
             try:
-                existing = custom_api.get_namespaced_custom_object(
-                    group="sources.knative.dev",
-                    version="v1beta1",
-                    namespace=namespace,
-                    plural="kafkasources",
-                    name=kafka_source_name
-                )
-                log.info(f"Updating KafkaSource {kafka_source_name} -> {isvc_name}")
                 custom_api.patch_namespaced_custom_object(
-                    group="sources.knative.dev",
-                    version="v1beta1",
+                    group="flows.knative.dev",
+                    version="v1",
                     namespace=namespace,
-                    plural="kafkasources",
-                    name=kafka_source_name,
-                    body=kafka_source
+                    plural="sequences",
+                    name=sequence_name,
+                    body=patch
                 )
+                log.info(f"Patched Sequence {sequence_name} step -> {isvc_name}")
             except k8s.rest.ApiException as e:
                 if e.status == 404:
-                    log.info(f"Creating KafkaSource {kafka_source_name} -> {isvc_name}")
-                    custom_api.create_namespaced_custom_object(
-                        group="sources.knative.dev",
-                        version="v1beta1",
-                        namespace=namespace,
-                        plural="kafkasources",
-                        body=kafka_source
-                    )
-                else:
-                    raise
+                    log.warning(f"Sequence {sequence_name} not found - will retry next cycle")
+                    return False
+                raise
 
             return True
 
         except Exception as e:
-            log.error(f"Failed to create/update KafkaSource: {e}")
+            log.error(f"Failed to patch Sequence: {e}")
             return False
 
 
@@ -433,10 +399,10 @@ data:
                         deployed_versions.add(version)
                         latest_version = version
 
-        # Update KafkaSource to point to latest version
+        # Update Sequence to route events to latest InferenceService
         if latest_version:
             service_name = f"credit-risk-{latest_version}"
-            create_or_update_kafkasource(service_name, KSERVE_NAMESPACE)
+            create_or_update_scoring_sequence(service_name, KSERVE_NAMESPACE)
 
         # Remove old versions
         versions_to_remove = deployed_versions - target_versions
