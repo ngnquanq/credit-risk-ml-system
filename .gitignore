@@ -279,3 +279,6 @@ services/ops/scripts/automation/automation_helper/backups/
 # Build artifacts
 repomix-output.xml
 .claude/settings.local.json
+
+# Load test reports (HTML artifacts, not source code)
+reports/

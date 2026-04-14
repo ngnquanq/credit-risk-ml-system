@@ -1,7 +1,8 @@
-"""BentoML service for credit risk scoring with optional Kafka consumer.
+"""BentoML service for credit risk scoring.
 
-- REST endpoints for direct scoring and Feast-backed scoring by ID
-- Optional Kafka consumer for streaming scoring from `hc.loan_application`
+- REST endpoints for direct scoring (/v1/score) and Feast-backed scoring by ID (/v1/score-by-id)
+- Scoring is triggered via Knative Eventing: hc.feature_ready -> Knative Sequence -> this service
+- Predictions are returned as CloudEvents and forwarded to hc.scoring via KafkaSink
 """
 
 from __future__ import annotations
@@ -13,14 +14,18 @@ import uuid
 import threading
 import os
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
 
 import bentoml
 
 # Create service first (bentoml needs this at import time)
 svc = bentoml.Service("credit_risk_scoring")
 
-# Declare globals that will be populated inside bentoml.importing() block
+# Why the globals-then-importing() pattern:
+# `bentoml build` imports this module to read metadata (service name, mounts, etc.)
+# but does NOT install the Python dependencies yet — they're built into the Bento bundle
+# afterward. If we imported FastAPI, pandas, etc. at module top-level, `bentoml build`
+# would crash. The bentoml.importing() context manager marks imports as "runtime-only",
+# skipping them during build and executing them only when the service actually starts.
 app = None  # type: ignore
 logger = None  # type: ignore
 pd = None  # type: ignore
@@ -31,8 +36,6 @@ ScoreByIdRequest = None  # type: ignore
 as_vector = None  # type: ignore
 postprocess = None  # type: ignore
 configure_logger = None  # type: ignore
-KafkaConsumer = None  # type: ignore
-KafkaProducer = None  # type: ignore
 
 # Import ALL dependencies that might not be available during `bentoml build`
 # These are installed after the build process reads bentofile.yaml
@@ -46,13 +49,10 @@ with bentoml.importing():
     from logger import configure_logger as _configure_logger
 
     try:
-        from kafka import KafkaConsumer as _KafkaConsumer, KafkaProducer as _KafkaProducer
         from opentelemetry import trace as _trace
         from opentelemetry.propagate import inject as _inject
         from core.tracing import setup_tracing as _setup_tracing, extract_or_create_trace_context as _extract_or_create
     except Exception:  # pragma: no cover
-        _KafkaConsumer = None  # type: ignore
-        _KafkaProducer = None  # type: ignore
         _trace = None  # type: ignore
         _inject = None  # type: ignore
         _setup_tracing = None  # type: ignore
@@ -68,8 +68,6 @@ with bentoml.importing():
     as_vector = _as_vector
     postprocess = _postprocess
     configure_logger = _configure_logger
-    KafkaConsumer = _KafkaConsumer
-    KafkaProducer = _KafkaProducer
     trace = _trace
     extract_or_create_trace_context = _extract_or_create
     inject = _inject
@@ -607,136 +605,6 @@ def ensure_model_loaded() -> None:
         # if settings.enable_kafka and not _kafka_started:  # pragma: no cover
         #     threading.Thread(target=_run_kafka_consumer, daemon=True).start()
         #     _kafka_started = True
-
-
-def _extract_sk_id_curr_from_cdc(message: Dict[str, Any]) -> Optional[str]:
-    """Extract sk_id_curr from Debezium-like envelopes.
-
-    Supports {"payload":{"after":{...}}} and plain records.
-    """
-    try:
-        m = message or {}
-        if isinstance(m.get("payload"), dict):
-            m = m["payload"]
-        if isinstance(m.get("after"), dict):
-            rec = m["after"]
-        elif isinstance(m.get("before"), dict):
-            rec = m["before"]
-        else:
-            rec = m
-        if isinstance(rec, dict):
-            if "sk_id_curr" in rec:
-                return str(rec["sk_id_curr"])  # common path
-            if isinstance(rec.get("value"), dict) and "sk_id_curr" in rec["value"]:
-                return str(rec["value"]["sk_id_curr"])  # fallback
-        return None
-    except Exception:
-        return None
-
-
-# DISABLED: Kafka consumer code - using Knative Eventing instead
-# def _process_kafka_message(msg, producer: Optional[KafkaProducer] = None):  # pragma: no cover
-#     """Process a single Kafka message in parallel thread."""
-#     try:
-#         # Feature ready notification - fetch from Redis and predict
-#         sk_id = msg.key or str(msg.value.get("sk_id_curr", "")).strip()
-#         if not sk_id:
-#             logger.debug("No sk_id_curr in feature_ready message, skipping")
-#             return
-#
-#         # Extract trace context
-#         parent_context = None
-#         if extract_or_create_trace_context and sk_id and msg.headers:
-#             headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v
-#                            for k, v in (msg.headers or [])}
-#             parent_context = extract_or_create_trace_context(headers_dict, sk_id)
-#
-#         # Start span with trace context
-#         span_context = tracer.start_as_current_span("scoring_inference", context=parent_context) if tracer and parent_context else None
-#         if span_context:
-#             span_context.__enter__()
-#             trace.get_current_span().set_attribute("sk_id_curr", sk_id)
-#
-#         # Fetch features from Redis and predict
-#         try:
-#             features = _fetch_features_from_feast(sk_id)
-#             result = _predict_and_create_response(features, sk_id)
-#             logger.bind(event="stream_inference").info(result)
-#
-#             if producer and settings.scoring_output_topic:
-#                 producer.send(settings.scoring_output_topic, key=sk_id, value=result)
-#
-#         except bentoml.exceptions.BentoMLException as e:
-#             logger.warning(f"Feature fetch failed for sk_id_curr={sk_id}: {e}")
-#             if producer and settings.scoring_output_topic:
-#                 result = {
-#                     "sk_id_curr": sk_id,
-#                     "probability": None,
-#                     "decision": "under-review",
-#                     "threshold": settings.prediction_threshold,
-#                     "model": MODEL_NAME,
-#                     "version": MODEL_VERSION,
-#                     "ts": datetime.utcnow().isoformat() + "Z",
-#                     "reason": "feature_data_unavailable"
-#                 }
-#                 producer.send(settings.scoring_output_topic, key=sk_id, value=result)
-#         except Exception as e:
-#             logger.error(f"Prediction failed for sk_id_curr={sk_id}: {e}")
-#
-#         if span_context:
-#             span_context.__exit__(None, None, None)
-#
-#     except Exception as e:
-#         logger.error(f"Error processing Kafka message: {e}")
-
-
-# DISABLED: Kafka consumer code - using Knative Eventing instead
-# def _run_kafka_consumer():  # pragma: no cover
-#     if not KafkaConsumer:
-#         logger.warning("kafka-python not installed; skipping Kafka consumer")
-#         return
-#
-#     # Configurable worker count (default: 50, or from environment)
-#     max_workers = int(os.getenv("SCORING_MAX_WORKERS", 20))
-#
-#     try:
-#         # Subscribe to feature readiness topic only
-#         consumer = KafkaConsumer(
-#             settings.feature_ready_topic,
-#             bootstrap_servers=settings.kafka_bootstrap_servers,
-#             group_id=settings.kafka_group_id,
-#             enable_auto_commit=True,
-#             auto_offset_reset="latest",
-#             value_deserializer=lambda v: json.loads(v.decode("utf-8")) if v else {},
-#             key_deserializer=lambda v: v.decode("utf-8") if v else None,
-#         )
-#         producer: Optional[KafkaProducer] = None
-#         if settings.scoring_output_topic:
-#             producer = KafkaProducer(
-#                 bootstrap_servers=settings.kafka_bootstrap_servers,
-#                 value_serializer=lambda v: json.dumps(v).encode("utf-8"),
-#                 key_serializer=lambda v: (v.encode("utf-8") if isinstance(v, str) else v),
-#             )
-#
-#         logger.info(
-#             f"Kafka consumer started: topic={settings.feature_ready_topic}, group={settings.kafka_group_id}"
-#         )
-#
-#         # Create thread pool for parallel message processing
-#         executor = ThreadPoolExecutor(
-#             max_workers=max_workers,
-#             thread_name_prefix="ScoringWorker"
-#         )
-#         cpu_cores = os.cpu_count() or 4
-#         logger.info(f"✓ Created thread pool: {max_workers} workers ({cpu_cores} CPU cores, {max_workers//cpu_cores}x multiplier)")
-#
-#         # Consume messages and process in parallel (non-blocking!)
-#         for msg in consumer:
-#             # Submit to thread pool - returns immediately without waiting
-#             executor.submit(_process_kafka_message, msg, producer)
-#
-#     except Exception as e:
-#         logger.error(f"Kafka consumer failed to start: {e}")
 
 
 # Mount FastAPI app into Bento service
