@@ -75,15 +75,24 @@ echo -e "${YELLOW}Starting load test...${NC}"
 echo ""
 
 # Run load test (via PgBouncer on port 6432)
-OPS_DB_PORT=6432 \
-locust -f tests/test_load/locustfile_e2e_prediction.py \
-    --host=localhost:9092 \
-    --users "${USERS:-50}" \
-    --spawn-rate "${SPAWN_RATE:-10}" \
-    --run-time "${RUN_TIME:-5m}" \
-    --headless \
-    --html "${REPORT_DIR}/e2e_prediction_${TIMESTAMP}.html" \
-    --csv "${REPORT_DIR}/e2e_prediction_${TIMESTAMP}"
+if [ "${UI:-false}" = "true" ]; then
+    echo "Starting Locust Web UI on http://localhost:8089 with 4 worker processes"
+    OPS_DB_PORT=6432 \
+    locust -f tests/test_load/locustfile_e2e_prediction.py \
+        --host=localhost:9092 \
+        --processes 4
+else
+    OPS_DB_PORT=6432 \
+    locust -f tests/test_load/locustfile_e2e_prediction.py \
+        --host=localhost:9092 \
+        --processes 8 \
+        --users "${USERS:-50}" \
+        --spawn-rate "${SPAWN_RATE:-1}" \
+        --run-time "${RUN_TIME:-3m}" \
+        --headless \
+        --html "${REPORT_DIR}/e2e_prediction_${TIMESTAMP}.html" \
+        --csv "${REPORT_DIR}/e2e_prediction_${TIMESTAMP}"
+fi
 
 echo ""
 echo -e "${GREEN}======================================${NC}"

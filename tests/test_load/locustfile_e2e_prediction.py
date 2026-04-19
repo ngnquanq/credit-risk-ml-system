@@ -27,7 +27,8 @@ from psycopg2.extras import RealDictCursor
 from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient
 from datetime import date, datetime, timedelta
-from locust import User, task, between, events
+from locust import User, task, constant_throughput, events
+from locust.runners import WorkerRunner
 from pathlib import Path
 import json
 from threading import Thread, Event
@@ -131,7 +132,8 @@ class KafkaTopicMonitor:
         "hc.application_ext",                        # External service
         "hc.application_dwh",                        # DWH service
         "hc.feature_ready",                          # Feast output
-        "hc.scoring"                                 # Final predictions
+        "hc.scoring",                                # Final predictions
+        "hc.scoring.dlq",                            # Prediction failures
     ]
 
     def __init__(self, kafka_bootstrap_servers, report_interval=10):
@@ -153,6 +155,13 @@ class KafkaTopicMonitor:
         self.stop_event.set()
         if self.monitor_thread:
             self.monitor_thread.join(timeout=5)
+
+    def totals_since_start(self):
+        """Cumulative messages per topic observed between start and most-recent sample."""
+        return {
+            t: self.last_offsets.get(t, 0) - self.initial_offsets.get(t, 0)
+            for t in self.TOPICS
+        }
 
     def _get_topic_offsets(self, consumer, topic):
         """Get current end offsets for all partitions of a topic."""
@@ -199,23 +208,23 @@ class KafkaTopicMonitor:
                     offsets = self._get_topic_offsets(consumer, topic)
                     current_offsets.update(offsets)
 
-                # Calculate deltas and report to Locust stats
+                # Fire one event per topic with per-interval delta.
+                # response_time carries msgs-per-interval so the CSV percentile
+                # distribution is a meaningful throughput spread, not a cumulative
+                # growth curve. response_length carries msgs/sec.
                 for topic in self.TOPICS:
                     current = current_offsets.get(topic, 0)
-                    initial = self.initial_offsets.get(topic, 0)
                     last = self.last_offsets.get(topic, 0)
 
-                    total_msgs = current - initial
                     recent_msgs = current - last
                     throughput = recent_msgs / self.report_interval if self.report_interval > 0 else 0
 
-                    # Fire Locust event to show in Statistics panel
-                    # Use response_time to show message count, response_length for throughput
+                    topic_short = topic.split('.')[-1][:30]
                     events.request.fire(
                         request_type="Kafka",
-                        name=f"📊 {topic.split('.')[-1][:30]}",  # Shorten topic name
-                        response_time=total_msgs,  # Total messages
-                        response_length=int(throughput),  # Messages/sec
+                        name=f"📈 msgs/{self.report_interval}s {topic_short}",
+                        response_time=recent_msgs,
+                        response_length=int(throughput),
                         exception=None,
                         context={}
                     )
@@ -241,35 +250,62 @@ def on_test_start(environment, **kwargs):
     global prediction_monitor, topic_monitor
 
     kafka_bootstrap = environment.host or "localhost:9092"
-    # Extract just the hostname:port if URL provided
     if "://" in kafka_bootstrap:
         kafka_bootstrap = kafka_bootstrap.split("://")[1]
 
-    # Start prediction monitor
+    # PredictionMonitor runs on every worker: each worker correlates its own
+    # submissions against predictions it consumes.
     prediction_monitor = PredictionMonitor(
         kafka_bootstrap_servers=kafka_bootstrap,
         topic="hc.scoring"
     )
     prediction_monitor.start()
 
-    # Start topic monitor (reports every 10 seconds)
-    topic_monitor = KafkaTopicMonitor(
-        kafka_bootstrap_servers=kafka_bootstrap,
-        report_interval=10
-    )
-    topic_monitor.start()
+    # KafkaTopicMonitor runs only on master/local — offsets are cluster-wide
+    # so polling from every worker just duplicates reports.
+    if not isinstance(environment.runner, WorkerRunner):
+        topic_monitor = KafkaTopicMonitor(
+            kafka_bootstrap_servers=kafka_bootstrap,
+            report_interval=10
+        )
+        topic_monitor.start()
 
 
 @events.test_stop.add_listener
 def on_test_stop(environment, **kwargs):
-    """Stop monitors when test ends."""
+    """Stop monitors and assert the scoring pipeline delivered ≥95% of feature events."""
     if prediction_monitor:
         prediction_monitor.stop()
         logger.info("✓ Prediction monitor stopped")
 
     if topic_monitor:
+        totals = topic_monitor.totals_since_start()
         topic_monitor.stop()
         logger.info("✓ Topic monitor stopped")
+
+        feature_ready = totals.get("hc.feature_ready", 0)
+        scoring = totals.get("hc.scoring", 0)
+        dlq = totals.get("hc.scoring.dlq", 0)
+
+        logger.info("━━━ E2E Scoring Delivery ━━━")
+        logger.info(f"  hc.feature_ready : {feature_ready}")
+        logger.info(f"  hc.scoring       : {scoring}")
+        logger.info(f"  hc.scoring.dlq   : {dlq}")
+
+        if feature_ready > 0:
+            ratio = scoring / feature_ready
+            dropped = feature_ready - scoring - dlq
+            logger.info(f"  scoring / feature_ready = {ratio:.3f}  (silently dropped = {dropped})")
+            if ratio < 0.95:
+                logger.error(
+                    f"✗ FAIL: scoring pipeline delivered only {ratio:.1%} of feature_ready "
+                    f"events (threshold 95%). DLQ'd={dlq}, silently dropped={dropped}"
+                )
+                environment.process_exit_code = 1
+            else:
+                logger.info(f"✓ PASS: scoring ratio {ratio:.1%} meets 95% threshold")
+        else:
+            logger.warning("No feature_ready events observed — scoring ratio check skipped")
 
 
 class PredictionPipelineUser(User):
@@ -278,7 +314,9 @@ class PredictionPipelineUser(User):
     and tracks end-to-end prediction latency.
     """
 
-    wait_time = between(1, 3)  # Wait 1-3 seconds between submissions
+    # Each user targets N tasks/sec. Override with RPS_PER_USER env var.
+    # 50 users × 3 tasks/s = 150 RPS aggregate (matches project SLA target).
+    wait_time = constant_throughput(float(os.environ.get("RPS_PER_USER", "3")))
 
     customer_ids = []
     db_config = {
