@@ -37,8 +37,8 @@ spec:
                 memory: "4Gi"
   workerGroupSpecs:
     - groupName: workers
-      replicas: 2
-      minReplicas: 2
+      replicas: 1
+      minReplicas: 1
       maxReplicas: 2
       rayStartParams:
         num-cpus: "2"
