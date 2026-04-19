@@ -72,7 +72,7 @@ def fetch_minio_snapshot(
         "xgboost==2.1.0",
     ],
 )
-def tune_hyperparams(data: Input[Dataset]) -> str:
+def tune_hyperparams(data: Input[Dataset], config_json: str = "{}") -> str:
     """
     Skeleton grid search for XGBoost AUC. Returns JSON string of best params.
     Replace later with Katib or a richer search.
@@ -97,21 +97,23 @@ def tune_hyperparams(data: Input[Dataset]) -> str:
         X, y, test_size=0.2, random_state=42, stratify=y
     )
 
-    search_space = [
+    cfg = json.loads(config_json) if config_json else {}
+    base_params = cfg.get("base_params", {
+        "eval_metric": "logloss",
+        "n_jobs": -1,
+        "subsample": 0.8,
+        "colsample_bytree": 0.8,
+        "random_state": 42
+    })
+
+    search_space = cfg.get("grid_search", [
         {"n_estimators": 300, "max_depth": 6, "learning_rate": 0.05},
         {"n_estimators": 400, "max_depth": 4, "learning_rate": 0.03},
-    ]
+    ])
 
     best = {"auc": -1.0, "params": None}
     for p in search_space:
-        clf = XGBClassifier(
-            eval_metric="logloss",
-            n_jobs=-1,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            random_state=42,
-            **p,
-        )
+        clf = XGBClassifier(**{**base_params, **p})
         clf.fit(X_train, y_train)
         proba = clf.predict_proba(X_val)[:, 1]
         auc = float(roc_auc_score(y_val, proba))
@@ -132,6 +134,7 @@ def tune_hyperparams(data: Input[Dataset]) -> str:
 )
 def ray_tune_hyperparams(
     data: Input[Dataset],
+    config_json: str = "{}",
     num_samples: int = 12,
     cpus_per_trial: float = 1.0,
     gpus_per_trial: float = 0.0,
@@ -162,13 +165,14 @@ def ray_tune_hyperparams(
     else:
         ray.init(ignore_reinit_error=True)
 
-    base = dict(
+    cfg = json.loads(config_json) if config_json else {}
+    base = cfg.get("base_params", dict(
         subsample=0.8,
         colsample_bytree=0.8,
         eval_metric="logloss",
         n_jobs=-1,
         random_state=42,
-    )
+    ))
 
     # Define search space
     from ray import tune
@@ -228,12 +232,20 @@ def ray_tune_hyperparams(
         auc = float(roc_auc_score(y_val, proba))
         session.report({"auc": auc})
 
+    ray_search = cfg.get("ray_search", {
+        "n_estimators": [200, 600],
+        "max_depth": [3, 9],
+        "learning_rate": [0.01, 0.2],
+        "min_child_weight": [1, 6],
+        "gamma": [0.0, 0.3]
+    })
+    
     search_space = {
-        "n_estimators": tune.randint(200, 600),
-        "max_depth": tune.randint(3, 9),
-        "learning_rate": tune.loguniform(1e-2, 2e-1),
-        "min_child_weight": tune.randint(1, 6),
-        "gamma": tune.uniform(0.0, 0.3),
+        "n_estimators": tune.randint(ray_search["n_estimators"][0], ray_search["n_estimators"][1]),
+        "max_depth": tune.randint(ray_search["max_depth"][0], ray_search["max_depth"][1]),
+        "learning_rate": tune.loguniform(ray_search["learning_rate"][0], ray_search["learning_rate"][1]),
+        "min_child_weight": tune.randint(ray_search["min_child_weight"][0], ray_search["min_child_weight"][1]),
+        "gamma": tune.uniform(ray_search["gamma"][0], ray_search["gamma"][1]),
     }
 
     trainable = tune.with_resources(train_eval, {"cpu": cpus_per_trial, "gpu": gpus_per_trial})
@@ -282,6 +294,7 @@ def train_and_register(
     mlflow_s3_endpoint_url: str,
     aws_access_key_id: str,
     aws_secret_access_key: str,
+    config_json: str = "{}",
     entity_key: str = "SK_ID_CURR",
     n_bootstrap: int = 1000,
     ci_level: float = 0.95,
@@ -398,14 +411,16 @@ def train_and_register(
         transformers.append(("cat", cat_pipe, cat_cols))
     pre = ColumnTransformer(transformers, remainder="drop")
 
-    params = json.loads(best_params_json) if best_params_json else {}
-    base = dict(
+    cfg = json.loads(config_json) if config_json else {}
+    base = cfg.get("base_params", dict(
         subsample=0.8,
         colsample_bytree=0.8,
         eval_metric="logloss",
         n_jobs=-1,
         random_state=42,
-    )
+    ))
+
+    params = json.loads(best_params_json) if best_params_json else {}
     base.update(params)
     clf = XGBClassifier(**base)
     pipe = Pipeline([("pre", pre), ("clf", clf)])
@@ -509,8 +524,20 @@ def train_and_register(
         return run.info.run_id
 
 
+import os
+import json
+import yaml
+
+_config_path = os.path.join(os.path.dirname(__file__), "training_param.yaml")
+try:
+    with open(_config_path, "r") as f:
+        DEFAULT_CONFIG_JSON = json.dumps(yaml.safe_load(f))
+except Exception:
+    DEFAULT_CONFIG_JSON = "{}"
+
 @dsl.pipeline(name="credit-risk-training-pipeline")
 def training_pipeline(
+    config_json: str = DEFAULT_CONFIG_JSON,
     s3_endpoint: str = "http://training-minio.training-data.svc.cluster.local:9000",
     bucket: str = "training-data",
     object_key: str = "snapshots/ds=2025-09-19/loan_applications.csv",
@@ -542,6 +569,7 @@ def training_pipeline(
     # Parallel/distributed tuning via Ray (connect to an external cluster by setting `ray_address` in UI)
     tune = ray_tune_hyperparams(
         data=snap.outputs["output_csv"],
+        config_json=config_json,
         num_samples=ray_num_samples,
         cpus_per_trial=ray_cpus_per_trial,
         gpus_per_trial=ray_gpus_per_trial,
@@ -550,6 +578,7 @@ def training_pipeline(
     train_register = train_and_register(
         data=snap.outputs["output_csv"],
         best_params_json=tune.output,
+        config_json=config_json,
         experiment=experiment,
         register_name=register_name,
         stage=stage,

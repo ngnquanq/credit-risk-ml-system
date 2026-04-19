@@ -5,6 +5,7 @@
 #    aws_secret_access_key: str [Default: 'minioadmin']
 #    bucket: str [Default: 'training-data']
 #    ci_level: float [Default: 0.95]
+#    config_json: str [Default: '{"base_params": {"colsample_bytree": 0.8, "eval_metric": "logloss", "n_jobs": -1, "random_state": 42, "subsample": 0.8}, "grid_search": [{"learning_rate": 0.05, "max_depth": 6, "n_estimators": 300}, {"learning_rate": 0.03, "max_depth": 4, "n_estimators": 400}], "ray_search": {"gamma": [0.0, 0.3], "learning_rate": [0.01, 0.2], "max_depth": [3, 9], "min_child_weight": [1, 6], "n_estimators": [200, 600]}}']
 #    decision_threshold: float [Default: 0.3]
 #    entity_key: str [Default: 'sk_id_curr']
 #    experiment: str [Default: 'credit-risk']
@@ -18,7 +19,7 @@
 #    ray_num_samples: int [Default: 1.0]
 #    register_name: str [Default: 'credit_risk_model']
 #    s3_endpoint: str [Default: 'http://training-minio.training-data.svc.cluster.local:9000']
-#    stage: str [Default: 'Production']
+#    stage: str [Default: '']
 components:
   comp-fetch-minio-snapshot:
     executorLabel: exec-fetch-minio-snapshot
@@ -49,6 +50,10 @@ components:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
       parameters:
+        config_json:
+          defaultValue: '{}'
+          isOptional: true
+          parameterType: STRING
         cpus_per_trial:
           defaultValue: 1.0
           isOptional: true
@@ -88,6 +93,10 @@ components:
           defaultValue: 0.95
           isOptional: true
           parameterType: NUMBER_DOUBLE
+        config_json:
+          defaultValue: '{}'
+          isOptional: true
+          parameterType: STRING
         decision_threshold:
           defaultValue: 0.3
           isOptional: true
@@ -199,29 +208,31 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef ray_tune_hyperparams(\n    data: Input[Dataset],\n    num_samples:\
-          \ int = 12,\n    cpus_per_trial: float = 1.0,\n    gpus_per_trial: float\
-          \ = 0.0,\n    ray_address: str = \"\",\n) -> str:\n    \"\"\"\n    Distributed\
-          \ (or parallel) hyperparameter tuning using Ray Tune via tune-sklearn.\n\
-          \    - If `ray_address` is provided, connects to an existing Ray cluster\
-          \ (e.g., KubeRay);\n      otherwise starts a local Ray runtime inside the\
-          \ pod and parallelizes across CPUs.\n    Returns best params as JSON.\n\
-          \    \"\"\"\n    import json\n    import os\n    import pandas as pd\n \
-          \   import ray\n    from sklearn.model_selection import train_test_split\n\
-          \    from sklearn.metrics import roc_auc_score\n    from sklearn.compose\
-          \ import ColumnTransformer\n    from sklearn.pipeline import Pipeline\n\
-          \    from sklearn.preprocessing import OrdinalEncoder, FunctionTransformer\n\
-          \    from sklearn.impute import SimpleImputer\n    from xgboost import XGBClassifier\n\
-          \    from ray.tune.schedulers import ASHAScheduler\n\n    # Connect/start\
-          \ Ray\n    if ray_address:\n        ray.init(address=ray_address, ignore_reinit_error=True,\
-          \ namespace=os.getenv(\"RAY_NAMESPACE\", \"kfp\"))\n    else:\n        ray.init(ignore_reinit_error=True)\n\
-          \n    base = dict(\n        subsample=0.8,\n        colsample_bytree=0.8,\n\
+          \ *\n\ndef ray_tune_hyperparams(\n    data: Input[Dataset],\n    config_json:\
+          \ str = \"{}\",\n    num_samples: int = 12,\n    cpus_per_trial: float =\
+          \ 1.0,\n    gpus_per_trial: float = 0.0,\n    ray_address: str = \"\",\n\
+          ) -> str:\n    \"\"\"\n    Distributed (or parallel) hyperparameter tuning\
+          \ using Ray Tune via tune-sklearn.\n    - If `ray_address` is provided,\
+          \ connects to an existing Ray cluster (e.g., KubeRay);\n      otherwise\
+          \ starts a local Ray runtime inside the pod and parallelizes across CPUs.\n\
+          \    Returns best params as JSON.\n    \"\"\"\n    import json\n    import\
+          \ os\n    import pandas as pd\n    import ray\n    from sklearn.model_selection\
+          \ import train_test_split\n    from sklearn.metrics import roc_auc_score\n\
+          \    from sklearn.compose import ColumnTransformer\n    from sklearn.pipeline\
+          \ import Pipeline\n    from sklearn.preprocessing import OrdinalEncoder,\
+          \ FunctionTransformer\n    from sklearn.impute import SimpleImputer\n  \
+          \  from xgboost import XGBClassifier\n    from ray.tune.schedulers import\
+          \ ASHAScheduler\n\n    # Connect/start Ray\n    if ray_address:\n      \
+          \  ray.init(address=ray_address, ignore_reinit_error=True, namespace=os.getenv(\"\
+          RAY_NAMESPACE\", \"kfp\"))\n    else:\n        ray.init(ignore_reinit_error=True)\n\
+          \n    cfg = json.loads(config_json) if config_json else {}\n    base = cfg.get(\"\
+          base_params\", dict(\n        subsample=0.8,\n        colsample_bytree=0.8,\n\
           \        eval_metric=\"logloss\",\n        n_jobs=-1,\n        random_state=42,\n\
-          \    )\n\n    # Define search space\n    from ray import tune\n\n    # Objective\
-          \ function for Ray Tune\n    def train_eval(config):\n        # Load data\
-          \ inside the trainable to avoid capturing large arrays in the closure\n\
-          \        import pandas as pd\n        from sklearn.model_selection import\
-          \ train_test_split\n        from sklearn.metrics import roc_auc_score\n\
+          \    ))\n\n    # Define search space\n    from ray import tune\n\n    #\
+          \ Objective function for Ray Tune\n    def train_eval(config):\n       \
+          \ # Load data inside the trainable to avoid capturing large arrays in the\
+          \ closure\n        import pandas as pd\n        from sklearn.model_selection\
+          \ import train_test_split\n        from sklearn.metrics import roc_auc_score\n\
           \        from sklearn.compose import ColumnTransformer\n        from sklearn.pipeline\
           \ import Pipeline\n        from sklearn.preprocessing import OrdinalEncoder\n\
           \        from sklearn.impute import SimpleImputer\n        from xgboost\
@@ -250,14 +261,21 @@ deploymentSpec:
           \    }\n        model = Pipeline([(\"pre\", pre), (\"clf\", XGBClassifier(**params))])\n\
           \        model.fit(X_train, y_train)\n        proba = model.predict_proba(X_val)[:,\
           \ 1]\n        auc = float(roc_auc_score(y_val, proba))\n        session.report({\"\
-          auc\": auc})\n\n    search_space = {\n        \"n_estimators\": tune.randint(200,\
-          \ 600),\n        \"max_depth\": tune.randint(3, 9),\n        \"learning_rate\"\
-          : tune.loguniform(1e-2, 2e-1),\n        \"min_child_weight\": tune.randint(1,\
-          \ 6),\n        \"gamma\": tune.uniform(0.0, 0.3),\n    }\n\n    trainable\
-          \ = tune.with_resources(train_eval, {\"cpu\": cpus_per_trial, \"gpu\": gpus_per_trial})\n\
-          \    scheduler = ASHAScheduler(max_t=1, grace_period=1, reduction_factor=2)\n\
-          \    tuner = tune.Tuner(\n        trainable,\n        tune_config=tune.TuneConfig(\n\
-          \            metric=\"auc\",\n            mode=\"max\",\n            num_samples=num_samples,\n\
+          auc\": auc})\n\n    ray_search = cfg.get(\"ray_search\", {\n        \"n_estimators\"\
+          : [200, 600],\n        \"max_depth\": [3, 9],\n        \"learning_rate\"\
+          : [0.01, 0.2],\n        \"min_child_weight\": [1, 6],\n        \"gamma\"\
+          : [0.0, 0.3]\n    })\n\n    search_space = {\n        \"n_estimators\":\
+          \ tune.randint(ray_search[\"n_estimators\"][0], ray_search[\"n_estimators\"\
+          ][1]),\n        \"max_depth\": tune.randint(ray_search[\"max_depth\"][0],\
+          \ ray_search[\"max_depth\"][1]),\n        \"learning_rate\": tune.loguniform(ray_search[\"\
+          learning_rate\"][0], ray_search[\"learning_rate\"][1]),\n        \"min_child_weight\"\
+          : tune.randint(ray_search[\"min_child_weight\"][0], ray_search[\"min_child_weight\"\
+          ][1]),\n        \"gamma\": tune.uniform(ray_search[\"gamma\"][0], ray_search[\"\
+          gamma\"][1]),\n    }\n\n    trainable = tune.with_resources(train_eval,\
+          \ {\"cpu\": cpus_per_trial, \"gpu\": gpus_per_trial})\n    scheduler = ASHAScheduler(max_t=1,\
+          \ grace_period=1, reduction_factor=2)\n    tuner = tune.Tuner(\n       \
+          \ trainable,\n        tune_config=tune.TuneConfig(\n            metric=\"\
+          auc\",\n            mode=\"max\",\n            num_samples=num_samples,\n\
           \            scheduler=scheduler,\n        ),\n        param_space=search_space,\n\
           \    )\n    results = tuner.fit()\n    best = results.get_best_result(metric=\"\
           auc\", mode=\"max\")\n    best_cfg = best.config or {}\n    mapped = {\n\
@@ -299,20 +317,21 @@ deploymentSpec:
           \ *\n\ndef train_and_register(\n    data: Input[Dataset],\n    best_params_json:\
           \ str,\n    experiment: str,\n    register_name: str,\n    stage: str,\n\
           \    mlflow_tracking_uri: str,\n    mlflow_s3_endpoint_url: str,\n    aws_access_key_id:\
-          \ str,\n    aws_secret_access_key: str,\n    entity_key: str = \"SK_ID_CURR\"\
-          ,\n    n_bootstrap: int = 1000,\n    ci_level: float = 0.95,\n    decision_threshold:\
-          \ float = 0.3,\n) -> str:\n    \"\"\"\n    Train with provided params and\
-          \ register to MLflow.\n    Evaluates metrics using bootstrap resampling\
-          \ to produce confidence intervals.\n    Logs simplified feast_metadata.yaml\
-          \ (serving discovers feature views dynamically).\n    \"\"\"\n    import\
-          \ os\n    import json\n    import yaml\n    import numpy as np\n    import\
-          \ pandas as pd\n    from sklearn.compose import ColumnTransformer\n    from\
-          \ sklearn.impute import SimpleImputer\n    from sklearn.model_selection\
-          \ import train_test_split\n    from sklearn.pipeline import Pipeline\n \
-          \   from sklearn.preprocessing import OrdinalEncoder, FunctionTransformer\n\
-          \    from sklearn.metrics import roc_auc_score, precision_score, recall_score\n\
-          \    from xgboost import XGBClassifier\n    import mlflow\n    import mlflow.sklearn\n\
-          \n    def bootstrap_evaluate(y_true, y_proba, n_bootstrap, ci_level, threshold):\n\
+          \ str,\n    aws_secret_access_key: str,\n    config_json: str = \"{}\",\n\
+          \    entity_key: str = \"SK_ID_CURR\",\n    n_bootstrap: int = 1000,\n \
+          \   ci_level: float = 0.95,\n    decision_threshold: float = 0.3,\n) ->\
+          \ str:\n    \"\"\"\n    Train with provided params and register to MLflow.\n\
+          \    Evaluates metrics using bootstrap resampling to produce confidence\
+          \ intervals.\n    Logs simplified feast_metadata.yaml (serving discovers\
+          \ feature views dynamically).\n    \"\"\"\n    import os\n    import json\n\
+          \    import yaml\n    import numpy as np\n    import pandas as pd\n    from\
+          \ sklearn.compose import ColumnTransformer\n    from sklearn.impute import\
+          \ SimpleImputer\n    from sklearn.model_selection import train_test_split\n\
+          \    from sklearn.pipeline import Pipeline\n    from sklearn.preprocessing\
+          \ import OrdinalEncoder, FunctionTransformer\n    from sklearn.metrics import\
+          \ roc_auc_score, precision_score, recall_score\n    from xgboost import\
+          \ XGBClassifier\n    import mlflow\n    import mlflow.sklearn\n\n    def\
+          \ bootstrap_evaluate(y_true, y_proba, n_bootstrap, ci_level, threshold):\n\
           \        \"\"\"Compute metrics with bootstrap confidence intervals.\n\n\
           \        Resamples the test set predictions with replacement ``n_bootstrap``\n\
           \        times and computes AUC, accuracy, precision, and recall on each\n\
@@ -358,11 +377,12 @@ deploymentSpec:
           , unknown_value=-1)),\n    ])\n\n    transformers = []\n    if num_cols:\n\
           \        transformers.append((\"num\", num_pipe, num_cols))\n    if cat_cols:\n\
           \        transformers.append((\"cat\", cat_pipe, cat_cols))\n    pre = ColumnTransformer(transformers,\
-          \ remainder=\"drop\")\n\n    params = json.loads(best_params_json) if best_params_json\
-          \ else {}\n    base = dict(\n        subsample=0.8,\n        colsample_bytree=0.8,\n\
-          \        eval_metric=\"logloss\",\n        n_jobs=-1,\n        random_state=42,\n\
-          \    )\n    base.update(params)\n    clf = XGBClassifier(**base)\n    pipe\
-          \ = Pipeline([(\"pre\", pre), (\"clf\", clf)])\n\n    pipe.fit(X_train,\
+          \ remainder=\"drop\")\n\n    cfg = json.loads(config_json) if config_json\
+          \ else {}\n    base = cfg.get(\"base_params\", dict(\n        subsample=0.8,\n\
+          \        colsample_bytree=0.8,\n        eval_metric=\"logloss\",\n     \
+          \   n_jobs=-1,\n        random_state=42,\n    ))\n\n    params = json.loads(best_params_json)\
+          \ if best_params_json else {}\n    base.update(params)\n    clf = XGBClassifier(**base)\n\
+          \    pipe = Pipeline([(\"pre\", pre), (\"clf\", clf)])\n\n    pipe.fit(X_train,\
           \ y_train)\n    proba = pipe.predict_proba(X_test)[:, 1]\n\n    # Point\
           \ estimates\n    auc = float(roc_auc_score(y_test, proba))\n    preds =\
           \ (proba >= decision_threshold).astype(int)\n    accuracy = float((preds\
@@ -410,16 +430,25 @@ deploymentSpec:
           \        mlflow.log_artifact(\"bootstrap_metrics.yaml\")\n\n        print(f\"\
           Logged feast_metadata.yaml with {len(FEATURES)} features\")\n        print(f\"\
           Logged bootstrap_metrics.yaml ({n_bootstrap} iterations, {ci_level*100:.0f}%\
-          \ CI)\")\n\n        # Transition to stage via tag (MLflow 3.x compatible)\n\
-          \        if stage:\n            client = mlflow.tracking.MlflowClient()\n\
-          \            version = None\n            for v in client.search_model_versions(f\"\
-          name='{register_name}'\"):\n                if v.run_id == run.info.run_id:\n\
-          \                    version = v.version\n                    break\n  \
-          \          if version is not None:\n                client.set_model_version_tag(register_name,\
-          \ version, \"stage\", stage)\n                try:\n                   \
-          \ client.set_registered_model_alias(register_name, \"champion\", version)\n\
-          \                except Exception as e:\n                    print(f\"Warning:\
-          \ could not set alias: {e}\")\n        return run.info.run_id\n\n"
+          \ CI)\")\n\n        # Promote to stage via tag (MLflow 3.x compatible)\n\
+          \        # Setting tag stage=Production triggers the MLflow Watcher \u2192\
+          \ Bento build \u2192 KServe deploy\n        if stage:\n            client\
+          \ = mlflow.tracking.MlflowClient()\n            version = None\n       \
+          \     for v in client.search_model_versions(f\"name='{register_name}'\"\
+          ):\n                if v.run_id == run.info.run_id:\n                  \
+          \  version = v.version\n                    break\n            if version\
+          \ is not None:\n                client.set_model_version_tag(register_name,\
+          \ version, \"stage\", stage)\n                print(f\"Promoted version\
+          \ {version} to stage={stage} (MLflow Watcher will trigger)\")\n        \
+          \        try:\n                    client.set_registered_model_alias(register_name,\
+          \ \"champion\", version)\n                    print(f\"Set alias 'champion'\
+          \ -> version {version}\")\n                except Exception as e:\n    \
+          \                print(f\"Warning: could not set alias: {e}\")\n       \
+          \     else:\n                print(f\"Warning: could not find registered\
+          \ version for run {run.info.run_id}\")\n        else:\n            print(f\"\
+          Stage not set \u2014 model registered but NOT promoted (MLflow Watcher will\
+          \ not trigger)\")\n            print(f\"To promote later, run: python promote_model.py\
+          \ --version <N>\")\n        return run.info.run_id\n\n"
         image: python:3.11-slim
 pipelineInfo:
   name: credit-risk-training-pipeline
@@ -457,6 +486,8 @@ root:
                 outputArtifactKey: output_csv
                 producerTask: fetch-minio-snapshot
           parameters:
+            config_json:
+              componentInputParameter: config_json
             cpus_per_trial:
               componentInputParameter: ray_cpus_per_trial
             gpus_per_trial:
@@ -491,6 +522,8 @@ root:
                 producerTask: ray-tune-hyperparams
             ci_level:
               componentInputParameter: ci_level
+            config_json:
+              componentInputParameter: config_json
             decision_threshold:
               componentInputParameter: decision_threshold
             entity_key:
@@ -527,6 +560,15 @@ root:
         defaultValue: 0.95
         isOptional: true
         parameterType: NUMBER_DOUBLE
+      config_json:
+        defaultValue: '{"base_params": {"colsample_bytree": 0.8, "eval_metric": "logloss",
+          "n_jobs": -1, "random_state": 42, "subsample": 0.8}, "grid_search": [{"learning_rate":
+          0.05, "max_depth": 6, "n_estimators": 300}, {"learning_rate": 0.03, "max_depth":
+          4, "n_estimators": 400}], "ray_search": {"gamma": [0.0, 0.3], "learning_rate":
+          [0.01, 0.2], "max_depth": [3, 9], "min_child_weight": [1, 6], "n_estimators":
+          [200, 600]}}'
+        isOptional: true
+        parameterType: STRING
       decision_threshold:
         defaultValue: 0.3
         isOptional: true
@@ -580,7 +622,7 @@ root:
         isOptional: true
         parameterType: STRING
       stage:
-        defaultValue: Production
+        defaultValue: ''
         isOptional: true
         parameterType: STRING
 schemaVersion: 2.1.0
