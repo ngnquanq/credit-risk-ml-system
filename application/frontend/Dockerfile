@@ -1,25 +1,39 @@
+# Builder stage
+FROM python:3.11-slim as builder
+
+WORKDIR /build
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY requirements-api.txt ./
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir streamlit requests python-dotenv && \
+    pip install --no-cache-dir -r requirements-api.txt
+
+# Final runner stage
 FROM python:3.11-slim
 
 WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
+# Install curl for HEALTHCHECK
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install streamlit and other frontend dependencies
-RUN pip install streamlit requests python-dotenv
+ENV PATH="/opt/venv/bin:$PATH"
+COPY --from=builder /opt/venv /opt/venv
 
-# Copy requirements from application directory (for any shared dependencies)
-COPY requirements-api.txt ./requirements-api.txt
-RUN pip install -r requirements-api.txt
-
-# Copy frontend files
 COPY frontend/ .
 
 EXPOSE 8501
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8501/_stcore/health || exit 1
 

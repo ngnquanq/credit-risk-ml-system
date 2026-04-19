@@ -1,18 +1,30 @@
+# Builder stage
+FROM python:3.10-slim as builder
+
+WORKDIR /build
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends gcc && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY ./application/entrypoints/requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Final runner stage
 FROM python:3.10-slim
 
+WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 
+ENV PATH="/opt/venv/bin:$PATH"
 
-WORKDIR /app
-
-# Copy minimal service requirements and install
-COPY ./application/entrypoints/requirements.txt /app/requirements.txt
-RUN python -m pip install -r /app/requirements.txt
-
-# Copy application code directly to /app (not nested)
+COPY --from=builder /opt/venv /opt/venv
 COPY application/ /app/
-
 ENV PYTHONPATH=/app
 
-# Default command can be overridden by compose
 CMD ["python", "entrypoints/bureau_consumer.py"]
