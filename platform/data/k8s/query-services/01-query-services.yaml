@@ -43,14 +43,14 @@ spec:
         - name: APP_CLICKHOUSE_DB_EXTERNAL
           value: "application_external"
         - name: CONSUMER_BATCH_SIZE
-          value: "50"
+          value: "200"
         resources:
           requests:
-            memory: "384Mi"
-            cpu: "500m"
+            memory: "512Mi"
+            cpu: "1"
           limits:
-            memory: "768Mi"
-            cpu: "1000m"
+            memory: "1Gi"
+            cpu: "2"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -94,11 +94,11 @@ spec:
         - name: APP_CLICKHOUSE_DB_DWH
           value: "application_mart"
         - name: CONSUMER_BATCH_SIZE
-          value: "50"
+          value: "200"
         resources:
           requests:
-            memory: "384Mi"
-            cpu: "500m"
+            memory: "512Mi"
+            cpu: "1"
           limits:
-            memory: "768Mi"
-            cpu: "1000m"
+            memory: "1Gi"
+            cpu: "2"

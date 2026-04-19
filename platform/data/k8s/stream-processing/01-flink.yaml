@@ -70,11 +70,11 @@ spec:
                 name: flink-config
           resources:
             requests:
-              memory: 512Mi
-              cpu: 250m
-            limits:
               memory: 1Gi
               cpu: 500m
+            limits:
+              memory: 2Gi
+              cpu: 1
           readinessProbe:
             httpGet:
               path: /overview
@@ -121,6 +121,11 @@ metadata:
     app: flink-taskmanager
 spec:
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: flink-taskmanager
@@ -139,7 +144,7 @@ spec:
             - name: JOB_MANAGER_RPC_ADDRESS
               value: "flink-jobmanager"
             - name: TASK_MANAGER_NUMBER_OF_TASK_SLOTS
-              value: "4"
+              value: "8"
             - name: FLINK_PROPERTIES
               value: |
                 jobmanager.rpc.address: flink-jobmanager
@@ -152,15 +157,15 @@ spec:
                 python.client.executable: python3
                 python.executable: python3
                 python.files: /opt/app/jobs/
-                taskmanager.memory.process.size: 2048m
-                taskmanager.numberOfTaskSlots: 4
+                taskmanager.memory.process.size: 4096m
+                taskmanager.numberOfTaskSlots: 8
           envFrom:
             - configMapRef:
                 name: flink-config
           resources:
             requests:
               memory: 2Gi
-              cpu: 500m
+              cpu: 2
             limits:
               memory: 4Gi
-              cpu: 1
+              cpu: 4
