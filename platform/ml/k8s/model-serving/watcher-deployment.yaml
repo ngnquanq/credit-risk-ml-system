@@ -19,13 +19,13 @@ spec:
       containers:
       # Main watcher container
       - name: watcher
-        image: docker:27-dind
+        image: python:3.10-slim
         imagePullPolicy: IfNotPresent
         command: ["sh", "-c"]
         args:
           - |
-            apk add --no-cache python3 py3-pip && \
-            pip3 install --break-system-packages kubernetes pyyaml boto3 && \
+            apt-get update && apt-get install -y docker.io && \
+            pip install kubernetes pyyaml boto3 docker && \
             echo "Waiting for Docker daemon..." && \
             until docker ps >/dev/null 2>&1; do sleep 2; done && \
             echo "Docker daemon ready" && \
