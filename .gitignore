@@ -299,7 +299,8 @@ reports/
 tests/test_load/reports/*
 !tests/test_load/reports/INVESTIGATION-LOG.md
 
-# GSD planning docs (local only)
+# GSD planning docs (local only) — force-ignore even if previously tracked
 .planning/
+**/.planning/
 .aider*
 progress.txt

@@ -15,7 +15,7 @@ Production-style credit risk decisioning platform that connects loan intake, CDC
 | **Features** | 24 (19 numeric + 5 categorical) |
 | **Model** | XGBoost (300 trees, depth 4, lr 0.05) |
 | **Dataset** | 307,511 loan applications (8.1% default rate) |
-| **Latest load-test state** | 29.43 insert RPS; 17.5% scoring ratio; Knative Sequence/KServe delivery is the current bottleneck |
+| **Latest load-test state** | 5 RPS, 1 min, 0 failures; E2E p50 2.7s, p95 3.4s (PostgreSQL insert → `hc.scoring`); 90% scoring completion within window |
 
 AUC was chosen over accuracy due to the class imbalance (91.9% repay / 8.1% default). See [`notebook/model_evaluation.ipynb`](notebook/model_evaluation.ipynb) for ROC curves, precision-recall, calibration, and threshold tradeoff analysis. See [`MODEL_CARD.md`](MODEL_CARD.md) for full model documentation.
 
@@ -317,7 +317,7 @@ curl http://localhost:8000/health
 curl -X POST http://localhost:8000/api/v1/applications \
   -H "Content-Type: application/json" \
   -d '{
-    "sk_id_curr": "TEST_001",
+    "sk_id_curr": "215354",
     "code_gender": "M",
     "birth_date": "1985-06-15",
     "cnt_children": 1,
