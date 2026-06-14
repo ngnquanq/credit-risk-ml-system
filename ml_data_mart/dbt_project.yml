@@ -37,6 +37,6 @@ models:
     warehouse: 
       +enabled: true
       +materialized: table
-    marts:
+    mart:
       +enabled: true
       +materialized: table
