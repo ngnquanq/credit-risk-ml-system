@@ -103,16 +103,17 @@ data:
                 <password></password>
                 <profile>default</profile>
                 <networks>
-                    <ip>::/0</ip>
+                    <ip>10.0.0.0/8</ip>
+                    <ip>127.0.0.1/32</ip>
                 </networks>
                 <quota>default</quota>
-                <access_management>1</access_management>
             </default>
             <api>
                 <password>api</password>
                 <profile>default</profile>
                 <networks>
-                    <ip>::/0</ip>
+                    <ip>10.0.0.0/8</ip>
+                    <ip>127.0.0.1/32</ip>
                 </networks>
                 <quota>default</quota>
             </api>
@@ -161,9 +162,6 @@ spec:
               name: native
             - containerPort: 9363
               name: metrics
-          env:
-            - name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
-              value: "1"
           volumeMounts:
             - name: clickhouse-data
               mountPath: /var/lib/clickhouse
