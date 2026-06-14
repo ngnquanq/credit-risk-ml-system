@@ -388,20 +388,6 @@ The application flows through: **API → PostgreSQL → Debezium CDC → Kafka �
 └── LICENSE                       # MIT License
 ```
 
-## System Architecture
-
-**Data flow**: Postgres → Debezium/Kafka → Flink → Redis/ClickHouse → KServe/BentoML → Kafka
-
-- **Data platform**: PostgreSQL (operational DB) + Debezium (CDC) → Kafka → Flink → ClickHouse (DWH) + Redis (online store)
-- **ML platform**: Kubeflow/Ray (training) → MLflow (registry) → BentoML (bundling) → KServe (serving)
-- **Feature store**: Feast with offline (ClickHouse) and online (Redis) stores, Flink materialization
-- **Observability**: Prometheus + Grafana (metrics), ECK — Elasticsearch + Kibana + Filebeat (logs)
-- **Model deployment pipeline**: MLflow watcher detects promotion → builds Bento bundle → serving watcher deploys KServe InferenceService
-
-![Train-to-Serve Pipeline](assets/READMEimg/train2serve.png)
-
-See [`docs/adr/`](docs/adr/) for detailed architecture decisions behind each component.
-
 ## Testing
 
 ```bash
@@ -427,13 +413,6 @@ Load testing drove several architectural improvements, but the latest measured c
 - **Result**: 80–120 RPS, p95 improved by ~100s
 - **Root cause**: (1) XGBoost using all CPU cores per prediction, causing context-switch overhead; (2) Redis write throughput saturated during Feast materialization
 - **Fix**: Configured inference thread count; horizontal Redis scaling
-
-### Iteration 3 — Micro-batch + Resource Tuning
-- **Result**: earlier tuning reached higher insert throughput, but latest validated cycle measured 29.43 insert RPS and only 17.5% scoring completion inside the 3-minute window
-- **Improvements**: Micro-batch Redis ingestion (200 records or 300ms window), tuned worker/thread/pod counts and resource limits
-- **Remaining**: fix Knative Sequence/KServe delivery, add DLQ visibility, then rerun a clean cycle
-
-![Load Test — 100+ RPS, 0 failures (Oct 30)](assets/READMEimg/oct-30-load-test.png)
 
 ## Troubleshooting
 
