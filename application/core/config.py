@@ -1,4 +1,4 @@
-from pydantic import Field, ConfigDict, computed_field, SecretStr, model_validator
+from pydantic import Field, ConfigDict, computed_field, SecretStr
 from pydantic_settings import BaseSettings
 from typing import Optional
 
@@ -100,13 +100,6 @@ class Settings(BaseSettings):
     minio_presigned_expiry_minutes: int = Field(
         default=60, description="Expiry for presigned URLs in minutes"
     )
-
-    @model_validator(mode='after')
-    def validate_required_secrets(self) -> 'Settings':
-        if self.ops_db_password is None:
-            raise ValueError("OPS_DB_PASSWORD is required")
-        return self
-
 
 # Global settings instance
 settings = Settings()

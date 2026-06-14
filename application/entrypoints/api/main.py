@@ -83,8 +83,8 @@ FastAPIInstrumentor.instrument_app(app)
 # Initialize MinIO client for document uploads (from settings)
 minio_client = Minio(
     settings.minio_endpoint,
-    access_key=settings.minio_access_key,
-    secret_key=settings.minio_secret_key,
+    access_key=settings.minio_access_key.get_secret_value() if settings.minio_access_key else None,
+    secret_key=settings.minio_secret_key.get_secret_value() if settings.minio_secret_key else None,
     secure=settings.minio_secure,
 )
 
