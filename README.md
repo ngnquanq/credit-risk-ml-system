@@ -17,6 +17,8 @@ Production-style credit risk decisioning platform that connects loan intake, CDC
 | **Dataset** | 307,511 loan applications (8.1% default rate) |
 | **Latest load-test state** | 5 RPS, 1 min, 0 failures; E2E p50 2.7s, p95 3.4s (PostgreSQL insert → `hc.scoring`); 90% scoring completion within window |
 
+![Model Evaluation](assets/final_evaluation.png)
+
 AUC was chosen over accuracy due to the class imbalance (91.9% repay / 8.1% default). See [`notebook/model_evaluation.ipynb`](notebook/model_evaluation.ipynb) for ROC curves, precision-recall, calibration, and threshold tradeoff analysis. See [`MODEL_CARD.md`](MODEL_CARD.md) for full model documentation.
 
 ## Architecture
@@ -24,6 +26,8 @@ AUC was chosen over accuracy due to the class imbalance (91.9% repay / 8.1% defa
 ![System Architecture](assets/READMEimg/systemarch.png)
 
 **Data flow**: Loan application → PostgreSQL → Debezium CDC → Kafka → three parallel feature streams (Flink application features, bureau consumer → Flink aggregation, DWH feature consumer) → Feast materializes all three to Redis → `hc.feature_ready` event → Knative Sequence → KServe inference → `hc.scoring` topic.
+
+![Data Flow](assets/READMEimg/dataflow.png)
 
 See [`docs/architecture/system-overview.md`](docs/architecture/system-overview.md) for the component table and [`docs/adr/`](docs/adr/) for the reasoning behind each technology choice.
 
@@ -171,6 +175,8 @@ kubectl get pods -n data-services -l app=flink-jobmanager
 kubectl get pods -n data-services -l app=bureau-consumer
 # bureau-consumer-...    1/1     Running   (4 replicas)
 ```
+
+![Flink Dashboard — 2 ETL jobs running](assets/READMEimg/flinkUI.png)
 
 ### Phase 5 — Data Warehouse Load (~1 min)
 
@@ -392,6 +398,8 @@ The application flows through: **API → PostgreSQL → Debezium CDC → Kafka �
 - **Observability**: Prometheus + Grafana (metrics), ECK — Elasticsearch + Kibana + Filebeat (logs)
 - **Model deployment pipeline**: MLflow watcher detects promotion → builds Bento bundle → serving watcher deploys KServe InferenceService
 
+![Train-to-Serve Pipeline](assets/READMEimg/train2serve.png)
+
 See [`docs/adr/`](docs/adr/) for detailed architecture decisions behind each component.
 
 ## Testing
@@ -424,6 +432,8 @@ Load testing drove several architectural improvements, but the latest measured c
 - **Result**: earlier tuning reached higher insert throughput, but latest validated cycle measured 29.43 insert RPS and only 17.5% scoring completion inside the 3-minute window
 - **Improvements**: Micro-batch Redis ingestion (200 records or 300ms window), tuned worker/thread/pod counts and resource limits
 - **Remaining**: fix Knative Sequence/KServe delivery, add DLQ visibility, then rerun a clean cycle
+
+![Load Test — 100+ RPS, 0 failures (Oct 30)](assets/READMEimg/oct-30-load-test.png)
 
 ## Troubleshooting
 
@@ -459,6 +469,8 @@ make k8s-up
 ## Dataset
 
 [Home Credit Default Risk](https://www.kaggle.com/c/home-credit-default-risk) (Kaggle, ~3 GB). External bureau + internal loan history data. See `notebook/` for EDA.
+
+![Data Schema](assets/READMEimg/datamodeling.png)
 
 ## Notebooks
 
