@@ -4,7 +4,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-green.svg)](https://python.org)
 [![K8s](https://img.shields.io/badge/platform-Kubernetes-326CE5.svg)](https://kubernetes.io)
 
-End-to-end credit risk decisioning platform — from loan application to automated approve/reject decision. 100% automated, real-time scoring via Kafka + Redis + KServe, targeting ~140 RPS with sub-10-minute end-to-end SLA.
+Production-style credit risk decisioning platform that connects loan intake, CDC, stream feature engineering, Feast/Redis materialization, and KServe scoring. The repo is a portfolio-grade MLOps prototype with documented load-test bottlenecks, not a production SLA claim.
 
 ## Results
 
@@ -15,7 +15,7 @@ End-to-end credit risk decisioning platform — from loan application to automat
 | **Features** | 24 (19 numeric + 5 categorical) |
 | **Model** | XGBoost (300 trees, depth 4, lr 0.05) |
 | **Dataset** | 307,511 loan applications (8.1% default rate) |
-| **Throughput** | 120–150 RPS at 200 concurrent users |
+| **Latest load-test state** | 29.43 insert RPS; 17.5% scoring ratio; Knative Sequence/KServe delivery is the current bottleneck |
 
 AUC was chosen over accuracy due to the class imbalance (91.9% repay / 8.1% default). See [`notebook/model_evaluation.ipynb`](notebook/model_evaluation.ipynb) for ROC curves, precision-recall, calibration, and threshold tradeoff analysis. See [`MODEL_CARD.md`](MODEL_CARD.md) for full model documentation.
 
@@ -370,7 +370,7 @@ The application flows through: **API → PostgreSQL → Debezium CDC → Kafka �
 │   ├── data/k8s/                 #   Kafka, ClickHouse, Flink, CDC, MinIO
 │   ├── ml/k8s/                   #   KServe, MLflow, Kubeflow, Feast, Ray
 │   └── ops/k8s/                  #   Prometheus, Grafana, ECK
-├── tests/                        # Test suite (194 tests, 25 files)
+├── tests/                        # Unit, integration, and load-test coverage
 │   ├── unit/                     #   Unit tests
 │   ├── integration/              #   Integration tests (in-memory SQLite)
 │   └── test_load/                #   Locust load tests
@@ -397,7 +397,7 @@ See [`docs/adr/`](docs/adr/) for detailed architecture decisions behind each com
 ## Testing
 
 ```bash
-# Run all tests (194 tests across 25 files)
+# Run unit and integration tests
 PYTHONPATH=application pytest tests/ --ignore=tests/test_load -v
 
 # Load test (requires running infrastructure)
@@ -408,7 +408,7 @@ CI runs 6 coverage gates: domain (90%), schemas (90%), scoring (60%), infra adap
 
 ## Performance Optimization Log
 
-Three iterations of load testing (200 concurrent users, 5 user/sec ramp-up, 10 min) drove major architectural improvements:
+Load testing drove several architectural improvements, but the latest measured cycle is not yet at the target SLA. The current bottleneck is non-CPU delivery through the Knative Sequence KafkaChannel into KServe; see `tests/test_load/RESULTS.md` for the evidence trail.
 
 ### Iteration 1 — Baseline
 - **Result**: 120–130 RPS, p95 latency ~7 min
@@ -421,9 +421,9 @@ Three iterations of load testing (200 concurrent users, 5 user/sec ramp-up, 10 m
 - **Fix**: Configured inference thread count; horizontal Redis scaling
 
 ### Iteration 3 — Micro-batch + Resource Tuning
-- **Result**: 120–150 RPS (stable ~140), p95 reduced to ~350s
+- **Result**: earlier tuning reached higher insert throughput, but latest validated cycle measured 29.43 insert RPS and only 17.5% scoring completion inside the 3-minute window
 - **Improvements**: Micro-batch Redis ingestion (200 records or 300ms window), tuned worker/thread/pod counts and resource limits
-- **Remaining**: Fan-out serving pods beyond partition count with load balancer
+- **Remaining**: fix Knative Sequence/KServe delivery, add DLQ visibility, then rerun a clean cycle
 
 ## Troubleshooting
 
@@ -474,7 +474,7 @@ make k8s-up
 
 ## Future Development
 
-1. Migrate to managed K8s (EKS/GKE/AKS) for production-grade HA and auto-scaling
+1. Migrate to managed K8s (EKS/GKE/AKS) for higher availability and auto-scaling
 2. Add business rule engine alongside ML scoring
 3. Authentication/authorization security layer
 4. Production dashboards (Kibana, Grafana)

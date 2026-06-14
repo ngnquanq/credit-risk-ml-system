@@ -1,14 +1,43 @@
 """Tests for FeastStreamProcessor."""
 
+import importlib
+import sys
+import types
+from unittest.mock import MagicMock, mock_open, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, mock_open
+
+
+def _install_optional_runtime_stubs():
+    """Provide lightweight stubs for optional services not installed in unit tests."""
+    if "feast" not in sys.modules:
+        feast_stub = types.ModuleType("feast")
+        feast_stub.FeatureStore = MagicMock()
+        sys.modules["feast"] = feast_stub
+
+    if "kafka" not in sys.modules:
+        kafka_stub = types.ModuleType("kafka")
+        kafka_stub.KafkaConsumer = MagicMock()
+        kafka_stub.KafkaProducer = MagicMock()
+        sys.modules["kafka"] = kafka_stub
+
+    if "redis" not in sys.modules:
+        redis_stub = types.ModuleType("redis")
+        redis_stub.Redis = MagicMock()
+        sys.modules["redis"] = redis_stub
+
+
+def _processor_module():
+    _install_optional_runtime_stubs()
+    return importlib.import_module("feast_repo.stream_processor")
 
 
 def _build_processor():
     """Build FeastStreamProcessor with all infra mocked out."""
-    with patch("feast_repo.stream_processor.FeatureStore") as MockFS, \
-         patch("feast_repo.stream_processor.KafkaProducer") as MockKP, \
-         patch("feast_repo.stream_processor.redis.Redis") as MockRedis, \
+    stream_processor = _processor_module()
+    with patch.object(stream_processor, "FeatureStore") as MockFS, \
+         patch.object(stream_processor, "KafkaProducer") as MockKP, \
+         patch.object(stream_processor.redis, "Redis") as MockRedis, \
          patch("builtins.open", mock_open(read_data="-- lua script")):
         mock_fs = MagicMock()
         MockFS.return_value = mock_fs
@@ -19,8 +48,7 @@ def _build_processor():
         mock_redis.register_script.return_value = MagicMock()
         MockRedis.return_value = mock_redis
 
-        from feast_repo.stream_processor import FeastStreamProcessor
-        proc = FeastStreamProcessor(repo_path="/tmp/fake")
+        proc = stream_processor.FeastStreamProcessor(repo_path="/tmp/fake")
         proc._mock_fs = mock_fs
         proc._mock_producer = mock_producer
         proc._mock_redis = mock_redis
@@ -75,33 +103,32 @@ class TestFlushBatchToRedis:
     def processor(self):
         self.proc = _build_processor()
 
-    @patch.object(type(_build_processor()), "_expected_fields_for_source", return_value=["feat_a"])
-    def test_writes_batch_to_feast(self, mock_fields):
+    def test_writes_batch_to_feast(self):
         batch = [{"sk_id_curr": "100", "features": {"feat_a": 1.0}}]
         self.proc.coordination_script = MagicMock(return_value=1)
 
-        self.proc._flush_batch_to_redis(batch, "application")
+        with patch.object(self.proc, "_expected_fields_for_source", return_value=["feat_a"]):
+            self.proc._flush_batch_to_redis(batch, "application")
 
         self.proc._mock_fs.write_to_online_store.assert_called_once()
         call_kwargs = self.proc._mock_fs.write_to_online_store.call_args
         assert call_kwargs.kwargs["feature_view_name"] == "application_features"
 
-    @patch.object(type(_build_processor()), "_expected_fields_for_source", return_value=["feat_a"])
-    def test_publishes_when_coordination_returns_3(self, mock_fields):
+    def test_publishes_when_coordination_returns_3(self):
         batch = [{"sk_id_curr": "100", "features": {"feat_a": 1.0}}]
         self.proc.coordination_script = MagicMock(return_value=3)
 
-        with patch.object(self.proc, "publish_feature_ready_event") as mock_pub:
+        with patch.object(self.proc, "_expected_fields_for_source", return_value=["feat_a"]), \
+             patch.object(self.proc, "publish_feature_ready_event") as mock_pub:
             self.proc._flush_batch_to_redis(batch, "external")
             mock_pub.assert_called_once_with("100", "external")
 
-    @patch.object(type(_build_processor()), "_expected_fields_for_source", return_value=["feat_a"])
-    def test_feast_write_failure_does_not_crash(self, mock_fields):
+    def test_feast_write_failure_does_not_crash(self):
         batch = [{"sk_id_curr": "100", "features": {"feat_a": 1.0}}]
         self.proc._mock_fs.write_to_online_store.side_effect = Exception("Redis full")
 
-        # Should not raise
-        self.proc._flush_batch_to_redis(batch, "application")
+        with patch.object(self.proc, "_expected_fields_for_source", return_value=["feat_a"]):
+            self.proc._flush_batch_to_redis(batch, "application")
 
 
 class TestPublishFeatureReadyEvent:
@@ -111,5 +138,4 @@ class TestPublishFeatureReadyEvent:
 
     def test_producer_failure_logged_not_raised(self):
         self.proc._mock_producer.send.side_effect = Exception("Kafka down")
-        # Should not raise
         self.proc.publish_feature_ready_event("100", "application")

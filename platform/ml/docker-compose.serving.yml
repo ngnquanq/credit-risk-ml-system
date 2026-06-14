@@ -21,14 +21,14 @@ services:
       # MLflow connection for model loading
       - MLFLOW_TRACKING_URI=http://mlflow-server:5000
       - MLFLOW_S3_ENDPOINT_URL=http://mlflow-minio:9006
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio_user}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minio_password}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:?AWS_ACCESS_KEY_ID is required}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:?AWS_SECRET_ACCESS_KEY is required}
       
       # Operational database for logging predictions
       - OPS_DB_HOST=ops-postgres
       - OPS_DB_PORT=5432
       - OPS_DB_USER=ops_admin
-      - OPS_DB_PASSWORD=${OPS_DB_PASSWORD:-ops_password}
+      - OPS_DB_PASSWORD=${OPS_DB_PASSWORD:?OPS_DB_PASSWORD is required}
       - OPS_DB_NAME=operations
       
       # BentoML configuration

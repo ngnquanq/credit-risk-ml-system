@@ -76,7 +76,7 @@ echo "Waiting for port-forwards to be ready..."
 sleep 3
 
 # Verify PostgreSQL via PgBouncer port-forward
-PGPASSWORD=ops_password psql -h localhost -p 6432 -U ops_admin -d operations -c "SELECT 1;" > /dev/null 2>&1 || {
+PGPASSWORD=${OPS_DB_PASSWORD:?OPS_DB_PASSWORD required} psql -h localhost -p 6432 -U ops_admin -d operations -c "SELECT 1;" > /dev/null 2>&1 || {
     echo "ERROR: PostgreSQL not responding via PgBouncer port-forward"
     exit 1
 }

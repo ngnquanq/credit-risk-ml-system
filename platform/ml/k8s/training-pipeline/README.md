@@ -1,6 +1,6 @@
-# Kubeflow Pipelines – Training Skeleton
+# Kubeflow Pipelines - Training Prototype
 
-This pipeline snapshots training data from MinIO, tunes hyperparameters, and registers the best model to MLflow.
+This prototype pipeline snapshots training data from MinIO, tunes hyperparameters, and registers the best model to MLflow. Treat `application/training/train_register.py` as the validated local training and MLflow registration path unless you have a verified KFP run artifact.
 
 Components
 - fetch_minio_snapshot: downloads a CSV from MinIO/S3 to the pipeline workspace (auditable snapshot).
@@ -8,12 +8,12 @@ Components
 - train_and_register: trains with best params and registers/logs to MLflow; optionally transitions stage.
 
 Notes
-- This is a skeleton for quick iteration. Swap `tune_hyperparams` with Katib later if you prefer full HPO.
+- This is a quick-iteration skeleton; swap `tune_hyperparams` with Katib or a validated production pipeline before making production training claims.
 - All credentials are provided as parameters/envs; do not hardcode secrets.
 
 Quick Start
 1) Compile pipeline spec
-   python services/ml/k8s/training-pipeline/compile_pipeline.py
+   python platform/ml/k8s/training-pipeline/compile_pipeline.py
 
    Outputs `training_pipeline.json` next to the script.
 
@@ -21,7 +21,7 @@ Quick Start
    - Install KubeRay operator (Helm) and apply the cluster manifest:
      helm repo add kuberay https://ray-project.github.io/kuberay-helm && helm repo update
      helm install kuberay-operator kuberay/kuberay-operator -n ray-system --create-namespace
-     kubectl apply -f services/ml/k8s/training-pipeline/ray/raycluster.yaml
+     kubectl apply -f platform/ml/k8s/kuberay-operator/raycluster.yaml
 
 3) Upload to KFP UI and run with parameters (defaults pre-filled; you can run without changes):
    - s3_endpoint: http://minio.minio.svc.cluster.local:9000 (example)

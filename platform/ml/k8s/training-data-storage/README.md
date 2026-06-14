@@ -21,7 +21,7 @@ Usage
 
 3) From ClickHouse (Docker), use the Node IP and NodePort to write:
    INSERT INTO FUNCTION s3('http://<node-ip>:30900/training-data/snapshots/ds=2025-09-19/data.csv',
-                          'minio_user', 'minio_password', 'CSV')
+                          '<set-local-minio-access-key>', '<set-local-minio-secret>', 'CSV')
    SELECT ... FROM ...;
 
 Parameters to adjust

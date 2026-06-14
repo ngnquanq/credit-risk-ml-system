@@ -239,9 +239,9 @@ artifactRoot:
     # -- S3 bucket folder. If you want to use root level, please don't set anything.
     path: "" # optional
     # -- AWS IAM user AWS_ACCESS_KEY_ID which has attached policy for access to the S3 bucket
-    awsAccessKeyId: "minio_user" # Embedded credentials (no separate secret needed)
+    awsAccessKeyId: "<set-via-MINIO_ACCESS_KEY>" # Embedded credentials (no separate secret needed)
     # -- AWS IAM user AWS_SECRET_ACCESS_KEY which has attached policy for access to the S3 bucket
-    awsSecretAccessKey: "minio_password" # Embedded credentials (no separate secret needed)
+    awsSecretAccessKey: "<set-via-MINIO_SECRET_KEY>" # Embedded credentials (no separate secret needed)
     # -- Existing secret for AWS IAM user AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY secrets.
     existingSecret:
       # -- This is for setting up the AWS IAM user secrets existing secret name.

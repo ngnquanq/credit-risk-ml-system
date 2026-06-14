@@ -1,6 +1,6 @@
 auth:
-  rootUser: "minioadmin"         # change for real deployments
-  rootPassword: "minioadmin"     # change for real deployments
+  rootUser: "<set-via-MINIO_ACCESS_KEY>"
+  rootPassword: "<set-via-MINIO_SECRET_KEY>"
   usePasswordFiles: false        # use direct env vars — avoids slow session validation on console login
   useSecret: true
 

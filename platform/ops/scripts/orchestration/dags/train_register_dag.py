@@ -42,8 +42,8 @@ with DAG(
             # Point to services started by services/ml/docker-compose.registry.yml
             "MLFLOW_TRACKING_URI": "http://mlflow-server:5000",
             "MLFLOW_S3_ENDPOINT_URL": "http://mlflow-minio:9006",
-            "AWS_ACCESS_KEY_ID": "minio_user",
-            "AWS_SECRET_ACCESS_KEY": "minio_password",
+            "AWS_ACCESS_KEY_ID": "<set-via-MINIO_ACCESS_KEY>",
+            "AWS_SECRET_ACCESS_KEY": "<set-via-MINIO_SECRET_KEY>",
         },
     )
 

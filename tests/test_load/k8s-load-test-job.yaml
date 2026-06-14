@@ -39,7 +39,10 @@ spec:
             - name: OPS_DB_USER
               value: ops_admin
             - name: OPS_DB_PASSWORD
-              value: ops_password
+              valueFrom:
+                secretKeyRef:
+                  name: db-secrets
+                  key: POSTGRES_PASSWORD
           volumeMounts:
             - name: test-files
               mountPath: /test-files

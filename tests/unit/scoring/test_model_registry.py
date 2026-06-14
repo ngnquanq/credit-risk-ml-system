@@ -1,6 +1,7 @@
 """Tests for model loading helpers."""
 
 import pytest
+import builtins
 from unittest.mock import MagicMock, patch, mock_open
 
 from scoring.model_registry import _load_local_model, _load_mlflow_model, load_model
@@ -37,7 +38,7 @@ class TestLoadLocalModel:
         fake_model = {"type": "model"}
         pickled = pickle.dumps(fake_model)
 
-        with patch("builtins.open", mock_open(read_data=pickled)):
+        with patch.object(builtins, "open", mock_open(read_data=pickled)):
             result = _load_local_model("/tmp/model.pkl")
             assert result == fake_model
 

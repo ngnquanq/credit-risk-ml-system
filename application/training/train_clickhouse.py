@@ -13,8 +13,8 @@ Defaults assume the join key column is SK_ID_CURR. Adjust with --join-key.
 Examples:
   export MLFLOW_TRACKING_URI=http://localhost:5000
   export MLFLOW_S3_ENDPOINT_URL=http://localhost:9006
-  export AWS_ACCESS_KEY_ID=minio_user
-  export AWS_SECRET_ACCESS_KEY=minio_password
+  export AWS_ACCESS_KEY_ID=<set-local-minio-access-key>
+  export AWS_SECRET_ACCESS_KEY=<set-local-minio-secret>
 
   python application/training/train_clickhouse.py \
     --ch-host localhost --ch-port 8123 \

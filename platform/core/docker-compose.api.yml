@@ -81,7 +81,7 @@ services:
       OPS_DB_HOST: ops-postgres
       OPS_DB_PORT: 5432
       OPS_DB_USER: ${OPS_DB_USER:-ops_admin}
-      OPS_DB_PASSWORD: ${OPS_DB_PASSWORD:-ops_password}
+      OPS_DB_PASSWORD: ${OPS_DB_PASSWORD:?OPS_DB_PASSWORD is required}
       OPS_DB_NAME: ${OPS_DB_NAME:-operations}
       
       # API configuration
@@ -92,8 +92,8 @@ services:
       
       # MinIO configuration
       MINIO_ENDPOINT: data-minio-server:9000
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}
       MINIO_BUCKET: ${MINIO_BUCKET:-loan-documents}
       # Kafka (inside Docker network use the broker service DNS, not localhost)
       APP_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}
@@ -125,7 +125,7 @@ services:
       OPS_DB_HOST: ops-postgres
       OPS_DB_PORT: 5432
       OPS_DB_USER: ${OPS_DB_USER:-ops_admin}
-      OPS_DB_PASSWORD: ${OPS_DB_PASSWORD:-ops_password}
+      OPS_DB_PASSWORD: ${OPS_DB_PASSWORD:?OPS_DB_PASSWORD is required}
       OPS_DB_NAME: ${OPS_DB_NAME:-operations}
       
       # API configuration
@@ -136,8 +136,8 @@ services:
       
       # MinIO configuration
       MINIO_ENDPOINT: data-minio-server:9000
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}
       MINIO_BUCKET: ${MINIO_BUCKET:-loan-documents}
       # Kafka (inside Docker network use the broker service DNS, not localhost)
       APP_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-broker:29092}

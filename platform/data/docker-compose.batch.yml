@@ -170,7 +170,7 @@ services:
   #     POSTGRES_HOST: ops-postgres
   #     POSTGRES_PORT: 5432
   #     POSTGRES_USER: ${OPS_DB_USER:-ops_admin}
-  #     POSTGRES_PASSWORD: ${OPS_DB_PASSWORD:-ops_password}
+  #     POSTGRES_PASSWORD: ${OPS_DB_PASSWORD:-<set-via-OPS_DB_PASSWORD>}
   #     POSTGRES_DB: ${OPS_DB_NAME:-operations}
       
   #     CLICKHOUSE_HOST: clickhouse

@@ -8,14 +8,23 @@ spec:
     apiVersion: messaging.knative.dev/v1beta1
     kind: KafkaChannel
     spec:
-      numPartitions: 4
+      numPartitions: 8
       replicationFactor: 1
   steps:
     - ref:
         apiVersion: serving.kserve.io/v1beta1
         kind: InferenceService
-        name: credit-risk-v1  # Placeholder — serving-watcher patches this dynamically
+        name: credit-risk-v2  # Placeholder — serving-watcher patches this dynamically
       uri: /v1/score-by-id
+      delivery:
+        retry: 3
+        backoffPolicy: exponential
+        backoffDelay: PT1S
+        deadLetterSink:
+          ref:
+            apiVersion: eventing.knative.dev/v1alpha1
+            kind: KafkaSink
+            name: scoring-dlq-sink
   reply:
     ref:
       apiVersion: eventing.knative.dev/v1alpha1

@@ -22,8 +22,11 @@ import csv
 import os
 import random
 import time
+import uuid
+import sys
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from psycopg2.pool import SimpleConnectionPool
 from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient
 from datetime import date, datetime, timedelta
@@ -31,9 +34,12 @@ from locust import User, task, constant_throughput, events
 from locust.runners import WorkerRunner
 from pathlib import Path
 import json
-from threading import Thread, Event
+from threading import Thread, Event, Lock
 from queue import Queue
 import logging
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from e2e_message_parsing import extract_sk_id_curr, unwrap_cloudevent
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -49,7 +55,18 @@ class PredictionMonitor:
     def __init__(self, kafka_bootstrap_servers, topic):
         self.kafka_bootstrap_servers = kafka_bootstrap_servers
         self.topic = topic
-        self.pending_predictions = {}  # {sk_id_curr: submit_timestamp}
+        self.topics = ("hc.feature_ready", topic)
+        self.group_id = f"locust-monitor-{os.getpid()}-{uuid.uuid4().hex[:8]}"
+        self.pending_predictions = {}  # {sk_id_curr: {submitted_at, feature_ready_at, scoring_at}}
+        self.submitted_count = 0
+        self.feature_ready_count = 0
+        self.scoring_count = 0
+        self.scoring_observed_count = 0
+        self.scoring_unmatched_count = 0
+        self.scoring_sample = None
+        self.monitor_error = None
+        self.sample_path = os.environ.get("E2E_MONITOR_SAMPLE_PATH", "")
+        self.lock = Lock()
         self.stop_event = Event()
         self.consumer_thread = None
 
@@ -57,7 +74,7 @@ class PredictionMonitor:
         """Start the Kafka consumer in a background thread."""
         self.consumer_thread = Thread(target=self._consume_predictions, daemon=True)
         self.consumer_thread.start()
-        logger.info(f"✓ Prediction monitor started on topic: {self.topic}")
+        logger.info(f"✓ Prediction monitor started on topics: {', '.join(self.topics)}")
 
     def stop(self):
         """Stop the Kafka consumer."""
@@ -67,57 +84,171 @@ class PredictionMonitor:
 
     def register_submission(self, sk_id_curr):
         """Register a loan application submission for latency tracking."""
-        self.pending_predictions[sk_id_curr] = time.time()
+        with self.lock:
+            self.pending_predictions[sk_id_curr] = {
+                "submitted_at": time.time(),
+                "feature_ready_at": None,
+                "scoring_at": None,
+            }
+            self.submitted_count += 1
+
+    def _record_feature_ready(self, sk_id_curr):
+        observed_at = time.time()
+        with self.lock:
+            tracked = self.pending_predictions.get(sk_id_curr)
+            if not tracked or tracked["feature_ready_at"] is not None:
+                return
+            tracked["feature_ready_at"] = observed_at
+            self.feature_ready_count += 1
+            latency_ms = (observed_at - tracked["submitted_at"]) * 1000
+
+        events.request.fire(
+            request_type="E2E",
+            name="Submit to Feature Ready",
+            response_time=latency_ms,
+            response_length=0,
+            exception=None,
+            context={},
+        )
+
+    def _record_scoring(self, sk_id_curr, prediction):
+        observed_at = time.time()
+        with self.lock:
+            tracked = self.pending_predictions.get(sk_id_curr)
+            if not tracked or tracked["scoring_at"] is not None:
+                self.scoring_unmatched_count += 1
+                return False
+
+            tracked["scoring_at"] = observed_at
+            self.scoring_count += 1
+            submit_to_score_ms = (observed_at - tracked["submitted_at"]) * 1000
+            feature_ready_at = tracked["feature_ready_at"]
+            if feature_ready_at is not None:
+                feature_to_score_ms = (observed_at - feature_ready_at) * 1000
+            else:
+                feature_to_score_ms = None
+            self.pending_predictions.pop(sk_id_curr, None)
+
+        events.request.fire(
+            request_type="E2E",
+            name="End-to-End Prediction",
+            response_time=submit_to_score_ms,
+            response_length=len(json.dumps(prediction)),
+            exception=None,
+            context={},
+        )
+        if feature_to_score_ms is not None:
+            events.request.fire(
+                request_type="E2E",
+                name="Feature Ready to Scoring",
+                response_time=feature_to_score_ms,
+                response_length=0,
+                exception=None,
+                context={},
+            )
+
+        logger.info(
+            f"✓ Prediction received for {sk_id_curr}: "
+            f"{submit_to_score_ms:.0f}ms, decision={prediction.get('decision')}"
+        )
+        return True
+
+    def _redact_payload(self, payload):
+        if isinstance(payload, dict):
+            return {str(key): self._redact_payload(value) for key, value in payload.items()}
+        if isinstance(payload, list):
+            return [self._redact_payload(value) for value in payload[:5]]
+        if isinstance(payload, (int, float, bool)) or payload is None:
+            return payload
+        text = str(payload)
+        return text if len(text) <= 32 else text[:32] + "...<redacted>"
+
+    def _record_scoring_sample(self, payload, sk_id_curr):
+        with self.lock:
+            self.scoring_observed_count += 1
+            if self.scoring_sample is None:
+                self.scoring_sample = {
+                    "sk_id_curr_extracted": sk_id_curr,
+                    "payload": self._redact_payload(payload),
+                }
+
+    def write_scoring_sample(self):
+        if not self.sample_path:
+            return ""
+        with self.lock:
+            sample = self.scoring_sample
+        if not sample:
+            return ""
+        path = Path(self.sample_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(sample, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return str(path)
+
+    def delivery_summary(self):
+        with self.lock:
+            missing_feature_ready = self.submitted_count - self.feature_ready_count
+            missing_scoring = self.submitted_count - self.scoring_count
+            return {
+                "submitted": self.submitted_count,
+                "feature_ready": self.feature_ready_count,
+                "scoring": self.scoring_count,
+                "scoring_observed": self.scoring_observed_count,
+                "scoring_unmatched": self.scoring_unmatched_count,
+                "monitor_error": self.monitor_error,
+                "missing_feature_ready": missing_feature_ready,
+                "missing_scoring": missing_scoring,
+                "pending": len(self.pending_predictions),
+            }
 
     def _consume_predictions(self):
         """Background thread that consumes predictions from Kafka."""
-        try:
-            consumer = KafkaConsumer(
-                self.topic,
-                bootstrap_servers=self.kafka_bootstrap_servers,
-                value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-                auto_offset_reset='latest',
-                consumer_timeout_ms=1000,
-                enable_auto_commit=True,
-                group_id=f'locust-monitor-{int(time.time())}'
-            )
+        while not self.stop_event.is_set():
+            consumer = None
+            try:
+                consumer = KafkaConsumer(
+                    *self.topics,
+                    bootstrap_servers=self.kafka_bootstrap_servers,
+                    value_deserializer=lambda m: json.loads(m.decode('utf-8')),
+                    auto_offset_reset='latest',
+                    consumer_timeout_ms=1000,
+                    enable_auto_commit=True,
+                    group_id=self.group_id
+                )
 
-            logger.info(f"Kafka consumer connected to {self.kafka_bootstrap_servers}")
+                with self.lock:
+                    self.monitor_error = None
+                logger.info(f"Kafka consumer connected to {self.kafka_bootstrap_servers} as {self.group_id}")
 
-            while not self.stop_event.is_set():
-                for message in consumer:
-                    try:
-                        prediction = message.value
-                        sk_id_curr = str(prediction.get('sk_id_curr'))
+                while not self.stop_event.is_set():
+                    for message in consumer:
+                        try:
+                            payload = message.value
+                            body = unwrap_cloudevent(payload)
+                            sk_id_curr = extract_sk_id_curr(payload)
+                            if message.topic == self.topic:
+                                self._record_scoring_sample(payload, sk_id_curr)
+                            if not sk_id_curr:
+                                continue
 
-                        if sk_id_curr in self.pending_predictions:
-                            # Calculate end-to-end latency
-                            submit_time = self.pending_predictions.pop(sk_id_curr)
-                            latency_ms = (time.time() - submit_time) * 1000
+                            if message.topic == "hc.feature_ready":
+                                self._record_feature_ready(sk_id_curr)
+                            elif message.topic == self.topic:
+                                prediction = body if isinstance(body, dict) else payload
+                                self._record_scoring(sk_id_curr, prediction)
 
-                            # Fire Locust event for metrics
-                            events.request.fire(
-                                request_type="E2E",
-                                name="End-to-End Prediction",
-                                response_time=latency_ms,
-                                response_length=len(json.dumps(prediction)),
-                                exception=None,
-                                context={}
-                            )
-
-                            logger.info(
-                                f"✓ Prediction received for {sk_id_curr}: "
-                                f"{latency_ms:.0f}ms, decision={prediction.get('decision')}"
-                            )
-
-                    except Exception as e:
-                        logger.error(f"Error processing prediction: {e}")
-
-        except Exception as e:
-            logger.error(f"Kafka consumer error: {e}")
-        finally:
-            if 'consumer' in locals():
-                consumer.close()
+                        except Exception as e:
+                            logger.error(f"Error processing prediction: {e}")
+            except Exception as e:
+                with self.lock:
+                    self.monitor_error = str(e)
+                if not self.stop_event.is_set():
+                    logger.error(f"Kafka consumer error: {e}; retrying in 2s")
+                    time.sleep(2)
+            finally:
+                if consumer is not None:
+                    consumer.close()
+            if not self.stop_event.is_set():
+                time.sleep(1)
 
 
 class KafkaTopicMonitor:
@@ -243,6 +374,33 @@ class KafkaTopicMonitor:
 prediction_monitor = None
 topic_monitor = None
 
+# Per-process CSV cache and DB pool (initialized once per worker process)
+_CUSTOMER_IDS_CACHE = None
+_DB_POOL = None
+
+
+def _load_customer_ids():
+    global _CUSTOMER_IDS_CACHE
+    if _CUSTOMER_IDS_CACHE is None:
+        csv_path = Path(__file__).parent.parent.parent / "data" / "application_train.csv"
+        try:
+            with open(csv_path, 'r') as f:
+                reader = csv.DictReader(f)
+                _CUSTOMER_IDS_CACHE = [row['SK_ID_CURR'] for row in list(reader)[:5000]]
+            logger.info(f"✓ Loaded {len(_CUSTOMER_IDS_CACHE)} customer IDs (cached)")
+        except FileNotFoundError:
+            logger.warning(f"CSV not found at {csv_path}, using generated IDs")
+            _CUSTOMER_IDS_CACHE = [str(i) for i in range(100001, 105001)]
+    return _CUSTOMER_IDS_CACHE
+
+
+def _get_db_pool(db_config):
+    global _DB_POOL
+    if _DB_POOL is None:
+        _DB_POOL = SimpleConnectionPool(minconn=5, maxconn=20, **db_config)
+        logger.info("✓ Created per-process psycopg2 SimpleConnectionPool(5, 20)")
+    return _DB_POOL
+
 
 @events.test_start.add_listener
 def on_test_start(environment, **kwargs):
@@ -275,8 +433,43 @@ def on_test_start(environment, **kwargs):
 def on_test_stop(environment, **kwargs):
     """Stop monitors and assert the scoring pipeline delivered ≥95% of feature events."""
     if prediction_monitor:
+        summary = prediction_monitor.delivery_summary()
         prediction_monitor.stop()
         logger.info("✓ Prediction monitor stopped")
+        logger.info("━━━ ID-bounded E2E Delivery ━━━")
+        logger.info(f"  submitted            : {summary['submitted']}")
+        logger.info(f"  feature_ready matched: {summary['feature_ready']}")
+        logger.info(f"  scoring matched      : {summary['scoring']}")
+        logger.info(f"  scoring observed     : {summary['scoring_observed']}")
+        logger.info(f"  scoring unmatched    : {summary['scoring_unmatched']}")
+        if summary["monitor_error"]:
+            logger.error(f"  monitor error        : {summary['monitor_error']}")
+        logger.info(f"  missing feature_ready: {summary['missing_feature_ready']}")
+        logger.info(f"  missing scoring      : {summary['missing_scoring']}")
+        if summary["submitted"] > 0:
+            scoring_ratio = summary["scoring"] / summary["submitted"]
+            logger.info(f"  scoring / submitted  = {scoring_ratio:.3f}")
+            if summary["monitor_error"] and summary["scoring_observed"] == 0:
+                logger.error(
+                    "✗ FAIL: prediction monitor did not consume scoring messages after a Kafka error. "
+                    "Treating this as instrumentation-invalid, not pipeline-invalid."
+                )
+                environment.process_exit_code = 1
+            if summary["scoring"] == 0 and summary["scoring_observed"] > 0:
+                sample_path = prediction_monitor.write_scoring_sample()
+                logger.error(
+                    "✗ FAIL: scoring messages were observed but none matched submitted IDs. "
+                    "Treating this as instrumentation-invalid, not pipeline-invalid."
+                )
+                if sample_path:
+                    logger.error(f"  redacted scoring sample: {sample_path}")
+                environment.process_exit_code = 1
+            if scoring_ratio < 0.95:
+                logger.error(
+                    f"✗ FAIL: ID-bounded scoring delivered only {scoring_ratio:.1%} "
+                    "of submitted applications (threshold 95%)."
+                )
+                environment.process_exit_code = 1
 
     if topic_monitor:
         totals = topic_monitor.totals_since_start()
@@ -295,15 +488,14 @@ def on_test_stop(environment, **kwargs):
         if feature_ready > 0:
             ratio = scoring / feature_ready
             dropped = feature_ready - scoring - dlq
-            logger.info(f"  scoring / feature_ready = {ratio:.3f}  (silently dropped = {dropped})")
+            logger.info(f"  scoring / feature_ready = {ratio:.3f}  (offset-derived, silently dropped = {dropped})")
             if ratio < 0.95:
                 logger.error(
-                    f"✗ FAIL: scoring pipeline delivered only {ratio:.1%} of feature_ready "
-                    f"events (threshold 95%). DLQ'd={dlq}, silently dropped={dropped}"
+                    f"✗ WARN: offset-derived scoring ratio is only {ratio:.1%} of feature_ready "
+                    f"events. DLQ'd={dlq}, silently dropped={dropped}"
                 )
-                environment.process_exit_code = 1
             else:
-                logger.info(f"✓ PASS: scoring ratio {ratio:.1%} meets 95% threshold")
+                logger.info(f"✓ Offset-derived scoring ratio {ratio:.1%} meets 95% threshold")
         else:
             logger.warning("No feature_ready events observed — scoring ratio check skipped")
 
@@ -324,26 +516,12 @@ class PredictionPipelineUser(User):
         'port': int(os.environ.get('OPS_DB_PORT', '5432')),
         'database': os.environ.get('OPS_DB_NAME', 'operations'),
         'user': os.environ.get('OPS_DB_USER', 'ops_admin'),
-        'password': os.environ.get('OPS_DB_PASSWORD', 'ops_password'),
+        'password': os.environ.get('OPS_DB_PASSWORD', ''),
     }
 
     def on_start(self):
-        """Load customer IDs from CSV (no persistent connection for transaction pooling)."""
-        if not PredictionPipelineUser.customer_ids:
-            csv_path = Path(__file__).parent.parent / "data" / "application_train.csv"
-
-            try:
-                with open(csv_path, 'r') as f:
-                    reader = csv.DictReader(f)
-                    # Load 5000 IDs for load testing
-                    PredictionPipelineUser.customer_ids = [
-                        row['SK_ID_CURR']
-                        for row in list(reader)[:5000]
-                    ]
-                logger.info(f"✓ Loaded {len(PredictionPipelineUser.customer_ids)} customer IDs")
-            except FileNotFoundError:
-                logger.warning(f"CSV not found, using generated IDs")
-                PredictionPipelineUser.customer_ids = [str(i) for i in range(100001, 105001)]
+        """Use module-level cache — avoids per-user CSV parse (50× startup cost)."""
+        PredictionPipelineUser.customer_ids = _load_customer_ids()
 
     def on_stop(self):
         """Cleanup (no persistent connection in transaction mode)."""
@@ -357,6 +535,8 @@ class PredictionPipelineUser(User):
         """
         start_time = time.time()
         customer_id = random.choice(self.customer_ids)
+        connection = None
+        cursor = None
 
         # Add timestamp + random to make ID unique for concurrent tests
         # Uses microseconds + 6-digit random for ~1 trillion unique combinations per second
@@ -369,8 +549,9 @@ class PredictionPipelineUser(User):
             employment_years = random.randint(1, 20)
             employment_start_date = date.today() - timedelta(days=employment_years * 365)
 
-            # Open new connection for this transaction (transaction pooling mode)
-            connection = psycopg2.connect(**self.db_config)
+            # Use per-process pool (PgBouncer is in transaction mode — client pooling is safe)
+            pool = _get_db_pool(self.db_config)
+            connection = pool.getconn()
             cursor = connection.cursor()
 
             # Insert loan application
@@ -430,11 +611,13 @@ class PredictionPipelineUser(User):
                 context={}
             )
 
-            # Close connection immediately (transaction pooling)
-            cursor.close()
-            connection.close()
-
         except Exception as e:
+            if connection:
+                try:
+                    connection.rollback()
+                except Exception:
+                    logger.exception("Failed to roll back failed insert transaction")
+
             latency_ms = (time.time() - start_time) * 1000
             events.request.fire(
                 request_type="PostgreSQL",
@@ -445,6 +628,11 @@ class PredictionPipelineUser(User):
                 context={}
             )
             logger.error(f"Failed to insert application: {e}")
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                pool.putconn(connection)
 
 
 if __name__ == "__main__":

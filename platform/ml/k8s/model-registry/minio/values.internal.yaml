@@ -1,8 +1,8 @@
 fullnameOverride: minio
 
 auth:
-  rootUser: minio_user # Standardized across all MinIO instances
-  rootPassword: minio_password # Standardized across all MinIO instances
+  rootUser: <set-via-MINIO_ACCESS_KEY> # Standardized across all MinIO instances
+  rootPassword: "<set-via-MINIO_SECRET_KEY>" # Standardized across all MinIO instances
   usePasswordFiles: false
   useSecret: true
   forceNewKeys: true

@@ -21,8 +21,8 @@ builder:
   prefix: bentos
   s3:
     endpoint: http://minio.model-registry.svc.cluster.local:9000
-    accessKeyId: minioadmin
-    secretAccessKey: minioadmin
+    accessKeyId: <set-via-MINIO_ACCESS_KEY>
+    secretAccessKey: <set-via-MINIO_ACCESS_KEY>
     forcePathStyle: true
 
 runtime:

@@ -1,132 +1,30 @@
-# Test Suite for Home Credit Application
+# Test Suite
 
-This directory contains the comprehensive test suite for the Home Credit loan application system.
+This directory contains the public verification surface for the Home Credit credit-risk platform.
 
-## Test Structure
+## Layout
 
-```
-tests/
-├── unit/                    # Unit tests (fast, isolated)
-│   └── api/                # API endpoint tests
-│       ├── test_health.py          # Health check endpoint
-│       ├── test_presigned_url.py   # Document upload URLs
-│       └── test_loan_applications.py # Loan CRUD operations
-├── integration/            # Integration tests (with real services)
-├── e2e/                   # End-to-end tests (full pipeline)
-├── performance/           # Load and performance tests
-├── fixtures/              # Test data files
-├── conftest.py           # Shared pytest fixtures
-├── pytest.ini            # Pytest configuration
-└── requirements-test.txt # Test dependencies
-```
+- `tests/unit/`: fast tests for domain logic, workflow orchestration, schemas, scoring helpers, Kafka consumers, stream processor behavior, tracing, and infrastructure adapters.
+- `tests/integration/`: in-memory API and repository tests that avoid external services.
+- `tests/test_load/`: Locust and Kubernetes-oriented load-test harnesses plus investigation notes. These require a deployed stack and are excluded from normal unit/integration runs.
 
-## Running Tests
+## Recommended Commands
 
-### Install test dependencies
 ```bash
-cd tests/
-pip install -r requirements-test.txt
+# Public clone smoke check
+PYTHONPATH=application pytest --collect-only -q tests --ignore=tests/test_load
+
+# Unit + integration verification
+PYTHONPATH=application pytest tests/unit tests/integration -q
+
+# Load-test helper unit checks only
+PYTHONPATH=application pytest tests/test_load/test_prediction_monitor_parsing.py -q
 ```
 
-### Run all tests
-```bash
-pytest
-```
+The GitHub Actions workflow splits the suite into domain, schema, scoring, infrastructure, consumer, and integration coverage gates.
 
-### Run specific test categories
-```bash
-# Unit tests only (fast)
-pytest -m unit
+## Notes
 
-# Integration tests
-pytest -m integration
-
-# E2E tests
-pytest -m e2e
-
-# Performance tests
-pytest -m performance
-```
-
-### Run with coverage
-```bash
-pytest --cov=../ --cov-report=html
-```
-
-### Run specific test file
-```bash
-pytest unit/api/test_health.py -v
-```
-
-## Test Coverage
-
-### ✅ Completed
-- **Health Check Endpoint** (`test_health.py`)
-  - Healthy status response
-  - Unhealthy status when DB fails
-
-- **Pre-signed URL Endpoint** (`test_presigned_url.py`)
-  - Successful URL generation
-  - Invalid document type validation
-  - Invalid file extension validation
-  - Missing customer ID validation
-  - Path traversal security test
-
-- **Loan Application Endpoints** (`test_loan_applications.py`)
-  - Create application successfully
-  - Get application status
-  - Application not found (404)
-  - Status not found (404)
-
-### 🚧 In Progress
-- More API validation tests
-- Scoring service tests
-- Feature store tests
-
-### 📋 Planned
-- Integration tests with real database (directories `test_integration/` and `test_integration_new/` exist but are empty)
-- Kafka consumer tests
-- E2E pipeline tests (directory `test_e2e/` exists but contains only `__init__.py`)
-- Performance/load tests (directory `test_performance/` exists but contains only `__init__.py`)
-
-### 📝 Notes
-- `test_integration/` and `test_integration_new/` directories exist but are currently empty
-- Consider consolidating into a single `test_integration/` directory if `test_integration_new/` is not needed
-
-## Test Conventions
-
-### Naming
-- Test files: `test_*.py`
-- Test functions: `test_*`
-- Test classes: `Test*`
-
-### Markers
-- `@pytest.mark.unit` - Fast, isolated tests
-- `@pytest.mark.integration` - Tests requiring external services
-- `@pytest.mark.e2e` - Full pipeline tests
-- `@pytest.mark.slow` - Tests taking > 1 second
-
-### Fixtures
-- Use fixtures from `conftest.py` for reusable test data
-- `sample_loan_application` - Generates loan application data
-- `api_client` - Async HTTP client for API testing
-- `async_db_session` - Database session for testing
-- `mock_redis`, `mock_kafka_producer` - Mock services
-
-## Code Quality
-
-All tests follow:
-- **PEP 8** style guidelines
-- **88 character** line length (Black formatter)
-- **Comprehensive docstrings** explaining what each test does
-- **Small, focused functions** testing one thing at a time
-
-## Contributing
-
-When adding new tests:
-1. Place in appropriate directory (unit/integration/e2e)
-2. Add proper pytest markers
-3. Write clear docstrings
-4. Use existing fixtures when possible
-5. Follow PEP 8 conventions
-6. Keep functions small and focused
+- Integration tests use in-memory or mocked dependencies unless a test explicitly documents otherwise.
+- Full E2E load tests require Kubernetes, Kafka, ClickHouse, Feast, and KServe to be running.
+- Keep this file aligned with actual paths; avoid hard-coding test counts because they drift quickly.

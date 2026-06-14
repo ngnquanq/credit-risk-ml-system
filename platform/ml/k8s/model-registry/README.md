@@ -194,8 +194,8 @@ helm upgrade --install mlflow community-charts/mlflow \
   --set backendStore.postgres.password=postgres \
   --set artifactRoot.s3.enabled=true \
   --set artifactRoot.s3.bucket=mlflow \
-  --set artifactRoot.s3.awsAccessKeyId=minioadmin \
-  --set artifactRoot.s3.awsSecretAccessKey=minioadmin \
+  --set artifactRoot.s3.awsAccessKeyId=<set-via-MINIO_ACCESS_KEY> \
+  --set artifactRoot.s3.awsSecretAccessKey=<set-via-MINIO_ACCESS_KEY> \
   --set extraEnvVars.MLFLOW_S3_ENDPOINT_URL=http://minio-service:9000 \
   --set serviceMonitor.enabled=true
 ```
@@ -213,8 +213,8 @@ helm upgrade --install mlflow community-charts/mlflow \
   --set backendStore.mysql.password=mlflow \
   --set artifactRoot.s3.enabled=true \
   --set artifactRoot.s3.bucket=mlflow \
-  --set artifactRoot.s3.awsAccessKeyId=minioadmin \
-  --set artifactRoot.s3.awsSecretAccessKey=minioadmin \
+  --set artifactRoot.s3.awsAccessKeyId=<set-via-MINIO_ACCESS_KEY> \
+  --set artifactRoot.s3.awsSecretAccessKey=<set-via-MINIO_ACCESS_KEY> \
   --set extraEnvVars.MLFLOW_S3_ENDPOINT_URL=http://minio-service:9000 \
   --set serviceMonitor.enabled=true
 ```

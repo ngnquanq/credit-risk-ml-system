@@ -543,8 +543,8 @@ def training_pipeline(
     object_key: str = "snapshots/ds=2025-09-19/loan_applications.csv",
     mlflow_tracking_uri: str = "http://mlflow.model-registry.svc.cluster.local:80",
     mlflow_s3_endpoint_url: str = "http://minio.model-registry.svc.cluster.local:9000",
-    aws_access_key_id: str = "minioadmin",
-    aws_secret_access_key: str = "minioadmin",
+    aws_access_key_id: str = "",
+    aws_secret_access_key: str = "",
     experiment: str = "credit-risk",
     register_name: str = "credit_risk_model",
     stage: str = "",  # Set to "Production" to auto-promote and trigger MLflow Watcher; leave empty to register only

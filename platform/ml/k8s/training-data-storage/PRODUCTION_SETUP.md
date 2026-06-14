@@ -15,8 +15,8 @@ http://192.168.49.2:30900
 http://192.168.49.2:30901
 
 # Credentials
-Access Key: minio_user
-Secret Key: minio_password
+Access Key: <set-local-minio-access-key>
+Secret Key: <set-local-minio-secret>
 ```
 
 **From within Kubernetes (BentoML, training jobs):**
@@ -36,8 +36,8 @@ docker exec clickhouse_dwh clickhouse-client -q "
 SET s3_truncate_on_insert=1;
 INSERT INTO FUNCTION s3(
     'http://192.168.49.2:30900/training-data/snapshots/ds=2025-09-19/loan_applications.csv',
-    'minio_user',
-    'minio_password',
+    '<set-local-minio-access-key>',
+    '<set-local-minio-secret>',
     'CSVWithNames'
 )
 SELECT a.SK_ID_CURR, /* your columns */, t.TARGET

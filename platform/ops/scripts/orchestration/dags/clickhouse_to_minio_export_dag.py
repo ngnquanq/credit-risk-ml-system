@@ -12,6 +12,7 @@ Usage:
 """
 
 from datetime import datetime, timedelta
+import os
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 
@@ -32,8 +33,8 @@ with DAG(
     tags=["data-export", "clickhouse", "minio", "training-data"],
     params={
         "minio_endpoint": "http://172.18.0.1:31900",
-        "minio_access_key": "minioadmin",
-        "minio_secret_key": "minioadmin",
+        "minio_access_key": os.environ.get("MINIO_ACCESS_KEY", ""),
+        "minio_secret_key": os.environ.get("MINIO_SECRET_KEY", ""),
         "bucket": "training-data",
         "ch_host": "clickhouse_dwh",
         "ch_database": "application_mart",

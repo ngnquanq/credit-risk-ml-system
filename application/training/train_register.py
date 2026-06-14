@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NOT RELATED TO THE ACTUAL TRAINING PIPELINE, THIS IS FOR LOCAL ONLY
+Local reproducible training entrypoint for the portfolio platform.
 
 Train a preprocessing + model pipeline and register it to MLflow.
 
@@ -9,8 +9,8 @@ Defaults are aligned to the features you fetch from Feast in serving.
 Usage (with MLflow stack up):
   export MLFLOW_TRACKING_URI=http://localhost:5000
   export MLFLOW_S3_ENDPOINT_URL=http://localhost:9006
-  export AWS_ACCESS_KEY_ID=minio_user
-  export AWS_SECRET_ACCESS_KEY=minio_password
+  export AWS_ACCESS_KEY_ID=<set-local-minio-access-key>
+  export AWS_SECRET_ACCESS_KEY=<set-local-minio-secret>
 
   python application/training/train_register.py \
     --data data/complete_feature_dataset.csv \

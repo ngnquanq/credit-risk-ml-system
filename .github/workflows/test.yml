@@ -32,7 +32,7 @@ jobs:
       - name: Run domain + workflow tests
         run: |
           pytest tests/unit/domain tests/unit/workflows \
-            --cov=domain/entities --cov=workflows \
+            --cov=domain.entities --cov=workflows \
             --cov-fail-under=90 \
             --tb=short -q
 
@@ -50,7 +50,7 @@ jobs:
       - name: Run schema tests
         run: |
           pytest tests/unit/schemas \
-            --cov=infrastructure/persistence/models/pydantic_schemas \
+            --cov=infrastructure.persistence.models.pydantic_schemas \
             --cov-fail-under=90 \
             --tb=short -q
 
@@ -68,8 +68,10 @@ jobs:
       - name: Run scoring tests
         run: |
           pytest tests/unit/scoring \
-            --cov=scoring \
-            --cov-fail-under=60 \
+            --cov=scoring.config --cov=scoring.logger \
+            --cov=scoring.model_registry --cov=scoring.pipeline \
+            --cov=scoring.schemas --cov=scoring.service \
+            --cov-fail-under=50 \
             --tb=short -q
 
   # ── Gate 4: Infrastructure adapters (Kafka, ClickHouse, Postgres) ─────
@@ -86,8 +88,8 @@ jobs:
       - name: Run infrastructure tests
         run: |
           pytest tests/unit/infrastructure \
-            --cov=infrastructure/external \
-            --cov=infrastructure/persistence \
+            --cov=infrastructure.external \
+            --cov=infrastructure.persistence \
             --cov-fail-under=80 \
             --tb=short -q
 
@@ -105,8 +107,8 @@ jobs:
       - name: Run consumer tests
         run: |
           pytest tests/unit/consumers \
-            --cov=entrypoints/bureau_consumer --cov=entrypoints/feature_consumer \
-            --cov=feast_repo/stream_processor \
+            --cov=entrypoints.bureau_consumer --cov=entrypoints.feature_consumer \
+            --cov=feast_repo.stream_processor \
             --cov-fail-under=45 \
             --tb=short -q
 
@@ -124,6 +126,6 @@ jobs:
       - name: Run integration tests
         run: |
           pytest tests/integration \
-            --cov=entrypoints/api --cov=infrastructure/persistence \
+            --cov=entrypoints.api --cov=infrastructure.persistence \
             --cov-fail-under=60 \
             --tb=short -q

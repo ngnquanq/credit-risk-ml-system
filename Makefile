@@ -1,28 +1,10 @@
-.PHONY: help
-
-# ─── LEGACY: Docker Compose variables (pre-K8s migration) ────────────────────
-# NETWORK_NAME := hc-network
-# COMPOSE_FILE := ./platform/docker-compose.yml
+.PHONY: help cleanup-load-test cleanup-load-test-soft k8s-secrets
 
 # Load environment variables from root .env file
 ifneq (,$(wildcard .env))
     include .env
     export
 endif
-
-# CORE_COMPOSE := ./platform/core/docker-compose.yml
-# DATA_STORAGE_COMPOSE := ./platform/data/docker-compose.storage.yml
-# DATA_WAREHOUSE_COMPOSE := ./platform/data/docker-compose.warehouse.yml
-# DATA_STREAMING_COMPOSE := ./platform/data/docker-compose.streaming.yml
-# DATA_CDC_COMPOSE := ./platform/data/docker-compose.cdc.yml
-# DATA_BATCH_COMPOSE := ./platform/data/docker-compose.batch.yml
-# ML_FEATURE_STORE_COMPOSE := ./platform/ml/docker-compose.feature-store.yml
-# ML_REGISTRY_COMPOSE := ./platform/ml/docker-compose.registry.yml
-# ML_SERVING_COMPOSE := ./platform/ml/docker-compose.serving.yml
-# ML_BATCH_COMPOSE := ./platform/ml/docker-compose.batch.yml
-# OPS_DASHBOARD_COMPOSE := ./platform/ops/docker-compose.dashboard.yml
-# OPS_GATEWAY_COMPOSE := ./platform/ops/docker-compose.gateway.yml
-# OPS_ORCHESTRATION_COMPOSE := ./platform/ops/docker-compose.orchestration.yml
 
 MINIKUBE_PROFILE ?= mlops
 MINIKUBE_DRIVER ?= docker
@@ -31,7 +13,6 @@ MINIKUBE_CPUS ?= 20
 MINIKUBE_MEMORY ?= 24000
 MINIKUBE_DISK ?= 80g
 K8S_CONTEXT ?= $(MINIKUBE_PROFILE)
-# EXECUTE_K8S_APPLY ?= false  # unused
 
 PYTHON := python
 
@@ -50,7 +31,7 @@ pf-mlflow: ## Port-forward MLflow UI to localhost:5000
 
 pf-minio-training: ## Port-forward training MinIO API (9000) and console (9090) to localhost
 	@echo "MinIO API: localhost:9000  |  Console: http://localhost:9090"
-	@echo "Credentials: minioadmin / minioadmin"
+	@echo "Credentials: use MINIO_ACCESS_KEY / MINIO_SECRET_KEY from your local .env"
 	kubectl port-forward -n training-data svc/training-minio 9000:9000 &
 	kubectl port-forward -n training-data svc/training-minio-console 9090:9090
 
@@ -60,114 +41,19 @@ pf-kafka-ui: ## Port-forward Kafka UI to localhost:8080
 
 pf-postgres: ## Port-forward PgBouncer to localhost:6432 (connection-pooled access to ops-postgres)
 	@echo "PostgreSQL available at localhost:6432 (via PgBouncer)"
-	@echo "psql: PGPASSWORD=ops_password psql -h localhost -p 6432 -U ops_admin -d operations"
+	@echo "psql: PGPASSWORD=$$OPS_DB_PASSWORD psql -h localhost -p 6432 -U ops_admin -d operations"
 	kubectl port-forward -n data-services svc/ops-pgbouncer 6432:6432
 
 pf-kafka: ## Port-forward Kafka broker to localhost:9092 (for load tests / local consumers)
 	@echo "Kafka broker available at localhost:9092"
 	kubectl port-forward -n data-services svc/kafka-broker 9092:9092
 
-# ─── LEGACY: Docker Compose targets (pre-K8s migration) ──────────────────────
-# Kept for reference. All services now run on K8s — see k8s-* targets below.
+cleanup-load-test: ## Reset platform state after an E2E load test (hard mode)
+	./scripts/cleanup_load_test.sh --mode hard
 
-# # Full platform management
-# up: create-network ## Start all services
-# 	docker compose -f $(COMPOSE_FILE) up -d
-
-# down: ## Stop all services
-# 	docker compose -f $(COMPOSE_FILE) down
-
-# logs: ## View logs from all services
-# 	docker compose -f $(COMPOSE_FILE) logs -f
-
-# restart: ## Restart all services
-# 	docker compose -f $(COMPOSE_FILE) restart
-
-# # Category-based deployment
-# up-core: create-network ## Start core infrastructure services
-# 	@docker compose --env-file platform/core/.env.core -f platform/core/docker-compose.operationaldb.yml -f platform/core/docker-compose.api.yml -f ./platform/data/docker-compose.storage.yml up -d
-# 	@echo "Waiting for PostgreSQL to be ready..."
-# 	@until docker exec ops_postgres pg_isready -U ops_admin -d operations > /dev/null 2>&1; do sleep 2; echo -n "."; done
-# 	@echo " PostgreSQL ready!"
-
-# core-apply-migrations: ## Apply core DB migrations into running ops-postgres
-# 	@echo "Applying core migrations to ops_postgres..."
-# 	@until docker exec ops_postgres pg_isready -U ops_admin -d operations > /dev/null 2>&1; do sleep 2; echo -n "."; done
-# 	@docker exec -i ops_postgres psql -U ops_admin -d operations -f /migrations/001_create_loan_applications.sql || true
-# 	@docker exec -i ops_postgres psql -U ops_admin -d operations -f /migrations/002_create_application_status_log.sql || true
-# 	@echo "✅ Core migrations applied"
-
-# core-reset-db: ## Destructive: reset core DB volume and re-init with migrations
-# 	@echo "This will remove ops-postgres volume and reinitialize the database."
-# 	@cd platform && docker compose --env-file .env.core -f core/docker-compose.operationaldb.yml -f core/docker-compose.api.yml down -v
-# 	@$(MAKE) up-core
-# 	@$(MAKE) core-apply-migrations
-
-# up-data: create-network
-# 	 docker compose --env-file platform/data/.env.data \
-# 	   --env-file platform/core/.env.core \
-# 	   -f platform/data/docker-compose.warehouse.yml \
-# 	   -f platform/data/docker-compose.streaming.yml \
-# 	   -f platform/data/docker-compose.cdc.yml \
-# 	   up -d
-# 	 python ./platform/data/scripts/kafka/create_topics.py || true
-# 	 bash ./platform/data/scripts/dwh/ch_load_internal.sh
-# 	 bash ./platform/data/scripts/dwh/ch_load_external.sh
-# 	 cd ml_data_mart/ && dbt debug --project-dir . --profiles-dir . && dbt run --project-dir . --profiles-dir . --target gold && cd ..
-# 	 docker compose --env-file platform/data/.env.data \
-# 		-f platform/data/docker-compose.query-services.yml up -d 
-# 	docker compose --env-file platform/data/.env.data \
-# 		-f platform/data/docker-compose.flink.yml up -d
-
-# fix-dbt-permissions: ## Fix permissions for ml_data_mart (for Airflow containers)
-# 	@bash platform/ops/scripts/orchestration/helper/fix-dbt-permissions.sh
-
-# fix-airflow-permissions: ## Fix permissions for Airflow orchestration directories (DAGs, logs, etc.)
-# 	@bash platform/ops/scripts/orchestration/helper/fix-airflow-permissions.sh
-
-# trigger-export-dag: ## Trigger ClickHouse to MinIO export DAG
-# 	@echo "Triggering clickhouse_to_minio_export DAG..."
-# 	docker exec airflow-scheduler airflow dags trigger clickhouse_to_minio_export
-
-# start-gateway: ## Start K8s gateway with dynamic IP detection
-# 	@echo "Detecting Minikube IP..."
-# 	@MINIKUBE_IP=$$(minikube -p $(MINIKUBE_PROFILE) ip 2>/dev/null || echo ""); \
-# 	if [ -z "$$MINIKUBE_IP" ]; then \
-# 		echo "ERROR: Could not detect Minikube IP. Is the cluster running?"; \
-# 		echo "   Run 'make k8s-up' first or check minikube status with 'minikube -p $(MINIKUBE_PROFILE) status'"; \
-# 		exit 1; \
-# 	fi; \
-# 	echo "Minikube IP: $$MINIKUBE_IP"; \
-# 	echo "Detecting Kafka broker IP..."; \
-# 	KAFKA_IP=$$(docker inspect kafka_broker 2>/dev/null | grep -o '"IPAddress": "[^"]*"' | grep -v '""' | head -1 | cut -d'"' -f4 || echo ""); \
-# 	if [ -z "$$KAFKA_IP" ]; then \
-# 		echo "ERROR: Could not detect Kafka broker IP. Is Kafka running?"; \
-# 		echo "   Run 'make up-data' first or check container status with 'docker ps | grep kafka_broker'"; \
-# 		exit 1; \
-# 	fi; \
-# 	echo "Kafka broker IP: $$KAFKA_IP"; \
-# 	echo "Starting K8s gateway with detected IPs..."; \
-# 	KAFKA_BROKER_IP=$$KAFKA_IP MINIKUBE_IP=$$MINIKUBE_IP MINIKUBE_PROFILE=$(MINIKUBE_PROFILE) \
-# 		docker compose -f platform/ops/docker-compose.gateway.yml up -d; \
-# 	echo "Gateway started successfully"
-
-# restart-gateway: ## Restart K8s gateway (useful after IP changes)
-# 	@echo "Restarting K8s gateway..."
-# 	@docker compose -f platform/ops/docker-compose.gateway.yml down
-# 	@$(MAKE) start-gateway
-
-# up-operation:
-# 	# Temporarily disabled heavy services for performance testing
-# 	# @echo "Fixing dbt permissions for Airflow containers..."
-# 	# @bash platform/ops/scripts/orchestration/helper/fix-dbt-permissions.sh
-# 	# @echo "Fixing Airflow permissions for DAGs and logs..."
-# 	# @bash platform/ops/scripts/orchestration/helper/fix-airflow-permissions.sh
-# 	docker compose -f platform/ops/docker-compose.logging.yml up -d
-# 	docker compose -f platform/ops/docker-compose.monitoring.yml up -d
-# 	# docker compose -f platform/ops/docker-compose.dashboard.yml up -d  # Superset - TEMPORARILY DISABLED
-# 	@$(MAKE) start-gateway
-# 	# docker compose --env-file platform/ops/.env.ops -f platform/ops/docker-compose.orchestration.yml up -d  # Airflow - TEMPORARILY DISABLED
-# 	# docker compose --env-file platform/ops/.env.ops -f platform/ops/docker-compose.automation.yml up -d  # Jenkins - TEMPORARILY DISABLED
+cleanup-load-test-soft: ## Reset offsets after a load test, preserving CDC slot/topic state
+	@test -n "$(TEST_START_TS)" || (echo "TEST_START_TS is required, e.g. make cleanup-load-test-soft TEST_START_TS=2026-04-27T12:00:00Z" && exit 2)
+	./scripts/cleanup_load_test.sh --mode soft --test-start-ts "$(TEST_START_TS)"
 
 k8s-up: ## Start Minikube profile for ML platform (with addons)
 	minikube start -p $(MINIKUBE_PROFILE) --kubernetes-version=$(MINIKUBE_K8S_VERSION) --driver=$(MINIKUBE_DRIVER) --cpus=$(MINIKUBE_CPUS) --memory=$(MINIKUBE_MEMORY) --disk-size=$(MINIKUBE_DISK)
@@ -211,14 +97,28 @@ build-feast-repo: ## Build and push Feast repo image to DockerHub (required befo
 	docker push ngnquanq/feast-repo:v18
 	@echo "✅ Feast repo image pushed to DockerHub"
 
+k8s-secrets: ## Create runtime K8s Secrets from environment variables
+	@test -n "$(OPS_DB_PASSWORD)" || (echo "OPS_DB_PASSWORD is required. Copy .env.example to .env or export it." && exit 2)
+	@test -n "$(MINIO_ACCESS_KEY)" || (echo "MINIO_ACCESS_KEY is required. Copy .env.example to .env or export it." && exit 2)
+	@test -n "$(MINIO_SECRET_KEY)" || (echo "MINIO_SECRET_KEY is required. Copy .env.example to .env or export it." && exit 2)
+	kubectl create ns api-gateway || true
+	kubectl create ns data-services || true
+	kubectl create secret generic db-secrets -n data-services --from-literal=POSTGRES_PASSWORD="$(OPS_DB_PASSWORD)" --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create secret generic minio-root-credentials -n data-services --from-literal=MINIO_ROOT_USER="$(MINIO_ACCESS_KEY)" --from-literal=MINIO_ROOT_PASSWORD="$(MINIO_SECRET_KEY)" --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create secret generic api-secrets -n api-gateway --from-literal=OPS_DB_PASSWORD="$(OPS_DB_PASSWORD)" --from-literal=MINIO_ACCESS_KEY="$(MINIO_ACCESS_KEY)" --from-literal=MINIO_SECRET_KEY="$(MINIO_SECRET_KEY)" --dry-run=client -o yaml | kubectl apply -f -
+
 k8s-core: build-dbt ## Deploy Core Infrastructure (Postgres + API + Ingress) to K8s
 	@echo "Deploying Core Platform..."
 	kubectl create ns api-gateway || true
 	kubectl create ns data-services || true
+	@$(MAKE) k8s-secrets
 	@echo "Deploying Database (Namespace: data-services)..."
-	kubectl apply -f platform/data/k8s/operational-db/
+	kubectl apply -f platform/data/k8s/operational-db/01-db-config.yaml
+	kubectl apply -f platform/data/k8s/operational-db/03-db-init.yaml
+	kubectl apply -f platform/data/k8s/operational-db/04-postgres.yaml
 	@echo "Waiting for ops-postgres to be ready..."
 	kubectl rollout status statefulset/ops-postgres -n data-services --timeout=120s
+	@$(MAKE) k8s-pgbouncer
 	@echo "Deploying Object Storage (Namespace: data-services)..."
 	kubectl apply -f platform/data/k8s/object-storage/
 	@echo "Deploying Message Broker (Namespace: data-services)..."
@@ -279,20 +179,26 @@ k8s-dbt: ## Run dbt gold transformation (run after k8s-load-dwh completes)
 	@echo "✅ dbt gold transformation complete!"
 
 k8s-training-data-storage: ## Deploy training data storage (MinIO for versioned training datasets)
+	@test -n "$(MINIO_ACCESS_KEY)" || (echo "MINIO_ACCESS_KEY is required. Copy .env.example to .env or export it." && exit 2)
+	@test -n "$(MINIO_SECRET_KEY)" || (echo "MINIO_SECRET_KEY is required. Copy .env.example to .env or export it." && exit 2)
 	@echo "Deploying training data storage..."
 	kubectl create ns training-data || true
 	helm upgrade --install training-minio ./platform/ml/k8s/training-data-storage -n training-data \
-		-f platform/ml/k8s/training-data-storage/minio.values.yaml
+		-f platform/ml/k8s/training-data-storage/minio.values.yaml \
+		--set auth.rootUser="$(MINIO_ACCESS_KEY)" \
+		--set auth.rootPassword="$(MINIO_SECRET_KEY)"
 	@echo "Training data storage deployed (namespace: training-data)"
 	@echo "Run 'make k8s-export-training-snapshot' to load data from ClickHouse into MinIO."
 
 k8s-export-training-snapshot: ## Export training data from ClickHouse (k8s) to training MinIO for pipeline use
+	@test -n "$(MINIO_ACCESS_KEY)" || (echo "MINIO_ACCESS_KEY is required. Copy .env.example to .env or export it." && exit 2)
+	@test -n "$(MINIO_SECRET_KEY)" || (echo "MINIO_SECRET_KEY is required. Copy .env.example to .env or export it." && exit 2)
 	@echo "Exporting loan_applications snapshot from ClickHouse -> training MinIO..."
 	kubectl exec -n data-services clickhouse-server-0 -- clickhouse-client -q "\
 SET s3_truncate_on_insert=1; \
 INSERT INTO FUNCTION s3(\
 'http://training-minio.training-data.svc.cluster.local:9000/training-data/snapshots/ds=2025-09-19/loan_applications.csv',\
-'minioadmin','minioadmin','CSVWithNames') \
+'$(MINIO_ACCESS_KEY)','$(MINIO_SECRET_KEY)','CSVWithNames') \
 SELECT a.*, t.TARGET \
 FROM application_mart.mart_application AS a \
 INNER JOIN application_mart.mart_application_train AS t \
@@ -327,12 +233,18 @@ k8s-ray: ## Deploy Ray cluster for distributed hyperparameter tuning
 	@echo "Check status: kubectl get raycluster -n ray"
 
 k8s-model-registry: ## Deploy MLflow model registry with Postgres + MinIO backend
+	@test -n "$(MINIO_ACCESS_KEY)" || (echo "MINIO_ACCESS_KEY is required. Copy .env.example to .env or export it." && exit 2)
+	@test -n "$(MINIO_SECRET_KEY)" || (echo "MINIO_SECRET_KEY is required. Copy .env.example to .env or export it." && exit 2)
 	@echo "Deploying MLflow model registry..."
 	kubectl create ns model-registry || true
 	helm upgrade --install minio platform/ml/k8s/model-registry/minio -n model-registry \
-		-f platform/ml/k8s/model-registry/minio/values.internal.yaml
+		-f platform/ml/k8s/model-registry/minio/values.internal.yaml \
+		--set auth.rootUser="$(MINIO_ACCESS_KEY)" \
+		--set auth.rootPassword="$(MINIO_SECRET_KEY)"
 	helm upgrade --install mlflow ./platform/ml/k8s/model-registry/ -n model-registry \
-		-f platform/ml/k8s/model-registry/values.internal.yaml
+		-f platform/ml/k8s/model-registry/values.internal.yaml \
+		--set artifactRoot.s3.awsAccessKeyId="$(MINIO_ACCESS_KEY)" \
+		--set artifactRoot.s3.awsSecretAccessKey="$(MINIO_SECRET_KEY)"
 	@echo "MLflow registry deployed (namespace: model-registry)"
 	@echo "Port-forward: kubectl port-forward -n model-registry svc/mlflow 5000:5000"
 
@@ -345,6 +257,7 @@ k8s-knative-serving: ## Install Knative Serving v1.13.1 (from vendored manifests
 	kubectl wait --for=condition=available --timeout=300s deployment/activator -n knative-serving
 	@echo "Installing net-kourier networking layer..."
 	kubectl apply -f platform/ml/k8s/knative/vendor/serving/v1.13.0-kourier.yaml
+	kubectl wait --for=condition=available --timeout=300s deployment/webhook -n knative-serving
 	kubectl patch configmap/config-network --namespace knative-serving --type merge --patch '{"data":{"ingress-class":"kourier.ingress.networking.knative.dev"}}'
 	kubectl wait --for=condition=available --timeout=300s deployment/net-kourier-controller -n knative-serving
 	kubectl wait --for=condition=available --timeout=300s deployment/3scale-kourier-gateway -n kourier-system
@@ -447,15 +360,18 @@ k8s-mlflow-watcher: ## Deploy MLflow watcher (auto-triggers Bento builds on mode
 	@echo "MLflow watcher deployed (namespace: model-registry)"
 
 k8s-model-serving: ## Deploy model serving components (bundle storage + serving watcher)
+	@test -n "$(MINIO_ACCESS_KEY)" || (echo "MINIO_ACCESS_KEY is required. Copy .env.example to .env or export it." && exit 2)
+	@test -n "$(MINIO_SECRET_KEY)" || (echo "MINIO_SECRET_KEY is required. Copy .env.example to .env or export it." && exit 2)
 	@echo "Deploying model serving components..."
 	kubectl create ns model-serving || true
+	kubectl create secret generic model-serving-minio-credentials -n model-serving --from-literal=AWS_ACCESS_KEY_ID="$(MINIO_ACCESS_KEY)" --from-literal=AWS_SECRET_ACCESS_KEY="$(MINIO_SECRET_KEY)" --dry-run=client -o yaml | kubectl apply -f -
 	@echo "Creating DockerHub credentials secret..."
 	kubectl create secret generic dockerhub-creds \
 		--from-literal=username=$(DOCKERHUB_USERNAME) \
 		--from-literal=password=$(DOCKERHUB_PASSWORD) \
 		-n model-serving --dry-run=client -o yaml | kubectl apply -f -
 	cd platform/ml/k8s/model-serving/bundle-storage && \
-		helm upgrade --install serving-minio . -n model-serving -f values.internal.yaml
+		helm upgrade --install serving-minio . -n model-serving -f values.internal.yaml --set auth.rootUser="$(MINIO_ACCESS_KEY)" --set auth.rootPassword="$(MINIO_SECRET_KEY)"
 	kubectl apply -f platform/ml/k8s/model-serving/watcher-rbac.yaml
 	@echo "Generating serving-watcher ConfigMap from source files..."
 	kubectl create configmap serving-watcher -n model-serving --from-file=platform/ml/k8s/kserve/serving-watcher/watcher.py --from-file=platform/ml/k8s/kserve/serving-watcher/isvc-template-serverless.yaml --from-file=platform/ml/k8s/kserve/serving-watcher/isvc-template.yaml --dry-run=client -o yaml | kubectl apply -f -
@@ -499,47 +415,10 @@ k8s-monitoring: ## Deploy Prometheus + Grafana monitoring stack
 	@echo "Port-forward Grafana: kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80"
 	@echo "Default credentials: admin/prom-operator"
 
-# ─── LEGACY: Jenkins CI/CD Automation (pre-K8s migration) ─────────────────────
-
-# up-jenkins: ## Start Jenkins CI/CD server (Docker Compose)
-# 	@echo "Starting Jenkins automation server..."
-# 	docker compose -f platform/ops/docker-compose.automation.yml up -d
-# 	@echo "Waiting for Jenkins to initialize..."
-# 	@sleep 30
-# 	@echo "✅ Jenkins running at http://localhost:8071"
-# 	@echo ""
-# 	@echo "Initial admin password:"
-# 	@docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword 2>/dev/null || echo "Jenkins still initializing, try: docker logs jenkins"
-# 	@echo ""
-# 	@echo "Next steps:"
-# 	@echo "  1. Open http://localhost:8071 and complete setup wizard"
-# 	@echo "  2. Install suggested plugins"
-# 	@echo "  3. Create Multibranch Pipeline job pointing to platform/ops/scripts/automation/jenkinsfiles/flink-cicd.Jenkinsfile"
-
-# down-jenkins: ## Stop Jenkins server
-# 	@echo "Stopping Jenkins..."
-# 	docker compose -f platform/ops/docker-compose.automation.yml down
-# 	@echo "✅ Jenkins stopped"
-
-# jenkins-logs: ## View Jenkins logs
-# 	docker logs -f jenkins
-
-# jenkins-validate: ## Run Flink validation checks locally (mimics Jenkins)
-# 	@echo "Running validation checks (syntax only, no UDF tests)..."
-# 	@python3 -m py_compile application/flink/jobs/cdc_application_etl.py
-# 	@python3 -m py_compile application/flink/jobs/bureau_aggregation_etl.py
-# 	@python3 -m py_compile application/flink/jobs/cdc_udfs.py
-# 	@python3 -m py_compile application/flink/jobs/bureau_aggregation_udfs.py
-# 	@echo "✅ All Flink jobs have valid syntax"
-
-# jenkins-build: ## Build Flink Docker image locally (mimics Jenkins)
-# 	@echo "Building Flink Docker image..."
-# 	@cd application/flink && docker build -t hc-flink-jobs:$(shell git rev-parse --short HEAD) .
-# 	@echo "✅ Image built: hc-flink-jobs:$(shell git rev-parse --short HEAD)"
-
 k8s-pgbouncer: ## Deploy PgBouncer connection pooler in front of ops-postgres
+	@test -n "$(OPS_DB_PASSWORD)" || (echo "OPS_DB_PASSWORD is required. Copy .env.example to .env or export it." && exit 2)
 	@echo "Deploying PgBouncer..."
-	kubectl apply -f platform/data/k8s/operational-db/05-pgbouncer-config.yaml
+	OPS_DB_PASSWORD="$(OPS_DB_PASSWORD)" python -c 'import hashlib, os, pathlib; password = os.environ["OPS_DB_PASSWORD"]; digest = "md5" + hashlib.md5((password + "ops_admin").encode()).hexdigest(); template = pathlib.Path("platform/data/k8s/operational-db/05-pgbouncer-config.yaml.template").read_text(); print(template.replace("<set-via-OPS_DB_PASSWORD>", password).replace("<set-via-OPS_DB_PASSWORD_MD5>", digest))' | kubectl apply -f -
 	kubectl apply -f platform/data/k8s/operational-db/06-pgbouncer.yaml
 	@echo "Waiting for PgBouncer to be ready..."
 	kubectl rollout status deployment/ops-pgbouncer -n data-services --timeout=120s

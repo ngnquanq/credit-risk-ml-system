@@ -54,9 +54,15 @@ spec:
           - name: AWS_S3_ENDPOINT
             value: http://serving-minio.model-serving.svc.cluster.local:9000
           - name: AWS_ACCESS_KEY_ID
-            value: minio_user
+            valueFrom:
+              secretKeyRef:
+                name: model-serving-minio-credentials
+                key: AWS_ACCESS_KEY_ID
           - name: AWS_SECRET_ACCESS_KEY
-            value: minio_password
+            valueFrom:
+              secretKeyRef:
+                name: model-serving-minio-credentials
+                key: AWS_SECRET_ACCESS_KEY
           - name: AWS_DEFAULT_REGION
             value: us-east-1
 

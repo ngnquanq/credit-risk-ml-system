@@ -146,7 +146,7 @@ E2E         End-to-End Prediction        4800        1800 ms 2500 ms 3500 ms 190
 
 ---
 
-## 🎯 Expected Results (for Resume)
+## Current Status and Targets
 
 ### Conservative Estimate
 
@@ -160,9 +160,9 @@ Throughput: ~100-150 RPS sustained (with PgBouncer connection pooling)
 Success Rate: > 95%
 ```
 
-### Resume-Ready Statement
+### Portfolio Statement After a Clean Passing Run
 
-> "Architected real-time ML pipeline processing **100+ loan applications per second** with **P95 latency under 3 seconds** from submission to prediction, leveraging Apache Flink for distributed feature engineering and Feast/Redis for sub-10ms feature retrieval"
+> "Built an event-driven credit-risk MLOps platform with CDC, Flink feature engineering, Feast/Redis materialization, KServe scoring, and load-test evidence that identified Knative Sequence/KServe delivery as the current bottleneck."
 
 ---
 
@@ -255,7 +255,7 @@ reports/
 | 5s - 30s | Batch micro-batch | Analytics, reporting |
 | > 30s | Batch | Data warehousing |
 
-Your system at **~2-3 seconds P95** is **excellent for credit risk assessment** and qualifies as **near real-time production ML**.
+A future clean run with ~2-3 seconds P95 would be strong for credit risk assessment. The latest measured status is in `tests/test_load/RESULTS.md`, which currently documents a remaining delivery bottleneck rather than an achieved SLA.
 
 ---
 
@@ -267,7 +267,7 @@ After running the test, extract these numbers:
 # From HTML report or CSV
 grep "Aggregated" reports/e2e_prediction_*_stats.csv
 
-# Example output for resume:
+# Example output after a clean validated run:
 # - Processed 5,000 loan applications
 # - Sustained throughput: 100-150 RPS
 # - P50 latency: 1.8s
@@ -290,7 +290,7 @@ latency at <throughput> RPS, with <parallelism> Flink task managers processing
 1. **Run smoke test** to validate setup
 2. **Run load test** (5-10 minutes) to get metrics
 3. **Analyze HTML report** for bottlenecks
-4. **Extract metrics** for resume
+4. **Extract metrics** only after the clean run reaches the stated SLA
 5. **Optional**: Run stress test to find system limits
 
 Happy load testing! 🎉

@@ -16,11 +16,18 @@ fi
 
 echo "✓ Resolved ops-postgres to: $PG_IP"
 
+if [ -z "${OPS_DB_PASSWORD:-}" ]; then
+    echo "ERROR: OPS_DB_PASSWORD is required"
+    exit 1
+fi
+
 # Copy config to tmp, update with IP, then use it
 cp /etc/pgbouncer/pgbouncer.ini /tmp/pgbouncer.ini
-cp /etc/pgbouncer/userlist.txt /tmp/userlist.txt
 sed -i "s/host=ops-postgres/host=$PG_IP/g" /tmp/pgbouncer.ini
 sed -i "s|/etc/pgbouncer/userlist.txt|/tmp/userlist.txt|g" /tmp/pgbouncer.ini
+sed -i "s|<set-via-OPS_DB_PASSWORD>|${OPS_DB_PASSWORD}|g" /tmp/pgbouncer.ini
+PASSWORD_MD5=$(printf "%s" "${OPS_DB_PASSWORD}ops_admin" | md5sum | awk '{ print $1 }')
+printf '"ops_admin" "md5%s"\n' "$PASSWORD_MD5" > /tmp/userlist.txt
 
 echo "✓ Updated pgbouncer.ini with IP: $PG_IP"
 echo "Starting PgBouncer..."

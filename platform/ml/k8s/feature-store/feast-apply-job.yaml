@@ -34,9 +34,15 @@ spec:
         - name: FEAST_REGISTRY_URI
           value: s3://feast-registry/feature_repo/registry.db
         - name: AWS_ACCESS_KEY_ID
-          value: minio_user
+          valueFrom:
+            secretKeyRef:
+              name: model-serving-minio-credentials
+              key: AWS_ACCESS_KEY_ID
         - name: AWS_SECRET_ACCESS_KEY
-          value: minio_password
+          valueFrom:
+            secretKeyRef:
+              name: model-serving-minio-credentials
+              key: AWS_SECRET_ACCESS_KEY
         - name: AWS_DEFAULT_REGION
           value: us-east-1
         - name: AWS_S3_ENDPOINT

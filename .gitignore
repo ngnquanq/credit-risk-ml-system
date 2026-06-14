@@ -233,7 +233,7 @@ playground/
 .pre-commit-config.yaml
 .isort.cfg
 .flake8
-pyproject.toml
+# Keep pyproject.toml tracked so fresh clones can install and run tests.
 
 # local folders/files
 .qodo
@@ -261,16 +261,25 @@ CLAUDE.md
 managed_context/
 test_suite_analysis/
 
-# infrastructure as code becasue we dont use it now
-infrastructure
+# Root-level legacy infrastructure folder; do not ignore application/infrastructure.
+/infrastructure/
 
 # Feast data
 application/feast/data/
+application/scoring/mlflow.env
 
 # Jenkins CI/CD artifacts
 jenkins_home/
 services/ops/scripts/automation/automation_helper/backups/
 *.bak
+
+# lock file
+package-lock.json
+package.json
+repomix.config.json
+node_modules/
+.planning/
+.benchmarks/
 
 # AI agent rules
 .agent/
@@ -283,6 +292,11 @@ repomix-output.xml
 
 # Load test reports (HTML artifacts, not source code)
 reports/
+!tests/test_load/reports/
+tests/test_load/reports/*
+!tests/test_load/reports/INVESTIGATION-LOG.md
 
 # GSD planning docs (local only)
 .planning/
+.aider*
+progress.txt

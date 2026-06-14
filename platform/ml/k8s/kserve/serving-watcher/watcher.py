@@ -14,8 +14,8 @@ log = logging.getLogger("serving-watcher")
 
 # Configuration
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "http://serving-minio.model-serving.svc.cluster.local:9000")
-MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minio_user")
-MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minio_password")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "")
 BUCKET_NAME = os.getenv("BUCKET_NAME", "bentoml-bundles")
 BENTO_PREFIX = os.getenv("BENTO_PREFIX", "bentos/credit_risk_model")
 REGISTRY_URL = os.getenv("REGISTRY_URL", "docker-registry.model-serving.svc.cluster.local:5000")
@@ -254,7 +254,19 @@ def create_or_update_scoring_sequence(isvc_name: str, namespace: str) -> bool:
                             "kind": "InferenceService",
                             "name": isvc_name
                         },
-                        "uri": "/v1/score-by-id"
+                        "uri": "/v1/score-by-id",
+                        "delivery": {
+                            "retry": 3,
+                            "backoffPolicy": "exponential",
+                            "backoffDelay": "PT1S",
+                            "deadLetterSink": {
+                                "ref": {
+                                    "apiVersion": "eventing.knative.dev/v1alpha1",
+                                    "kind": "KafkaSink",
+                                    "name": "scoring-dlq-sink"
+                                }
+                            }
+                        }
                     }
                 ]
             }

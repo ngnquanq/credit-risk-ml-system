@@ -14,6 +14,7 @@ import uuid
 import threading
 import os
 import tempfile
+import time
 
 import bentoml
 
@@ -154,12 +155,39 @@ with bentoml.importing():
         """
         from fastapi.responses import JSONResponse
 
+        request_started_at = time.perf_counter()
+        request_received_at = datetime.utcnow().isoformat() + "Z"
+        body_read_at = request_started_at
+        json_parsed_at = request_started_at
+        validated_at = request_started_at
+        model_loaded_at = request_started_at
+        feast_fetched_at = request_started_at
+        predicted_at = request_started_at
+        response_built_at = request_started_at
+        sk_id_curr = "unknown"
+
         # Parse raw body to handle missing/wrong Content-Type from KafkaSource
         raw_body = await request.body()
+        body_read_at = time.perf_counter()
         try:
             body = json.loads(raw_body)
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            _log_score_by_id_timing(
+                sk_id_curr=sk_id_curr,
+                request_received_at=request_received_at,
+                body_bytes=len(raw_body),
+                status="invalid_json",
+                request_started_at=request_started_at,
+                body_read_at=body_read_at,
+                json_parsed_at=time.perf_counter(),
+                validated_at=validated_at,
+                model_loaded_at=model_loaded_at,
+                feast_fetched_at=feast_fetched_at,
+                predicted_at=predicted_at,
+                response_built_at=time.perf_counter(),
+            )
             return JSONResponse(status_code=422, content={"detail": f"Invalid JSON: {e}"})
+        json_parsed_at = time.perf_counter()
 
         # Unwrap CloudEvents envelope if present
         if isinstance(body, dict) and "specversion" in body and "data" in body:
@@ -169,27 +197,62 @@ with bentoml.importing():
         try:
             req = ScoreByIdRequest(**body)
         except Exception as e:
+            _log_score_by_id_timing(
+                sk_id_curr=sk_id_curr,
+                request_received_at=request_received_at,
+                body_bytes=len(raw_body),
+                status="validation_error",
+                request_started_at=request_started_at,
+                body_read_at=body_read_at,
+                json_parsed_at=json_parsed_at,
+                validated_at=time.perf_counter(),
+                model_loaded_at=model_loaded_at,
+                feast_fetched_at=feast_fetched_at,
+                predicted_at=predicted_at,
+                response_built_at=time.perf_counter(),
+            )
             return JSONResponse(status_code=422, content={"detail": f"Validation error: {e}"})
+        validated_at = time.perf_counter()
 
         ensure_model_loaded()
+        model_loaded_at = time.perf_counter()
         sk_id_curr = str(req.sk_id_curr)
 
         try:
             features = _fetch_features_from_feast(sk_id_curr)
+            feast_fetched_at = time.perf_counter()
             result = _predict_and_create_response(features, sk_id_curr)
+            predicted_at = time.perf_counter()
+            response = _cloudevent_response(result, sk_id_curr)
+            response_built_at = time.perf_counter()
 
             logger.bind(event="inference").info({
                 "sk_id_curr": sk_id_curr,
                 "probability": result["probability"],
                 "decision": result["decision"]
             })
+            _log_score_by_id_timing(
+                sk_id_curr=sk_id_curr,
+                request_received_at=request_received_at,
+                body_bytes=len(raw_body),
+                status="ok",
+                request_started_at=request_started_at,
+                body_read_at=body_read_at,
+                json_parsed_at=json_parsed_at,
+                validated_at=validated_at,
+                model_loaded_at=model_loaded_at,
+                feast_fetched_at=feast_fetched_at,
+                predicted_at=predicted_at,
+                response_built_at=response_built_at,
+            )
 
-            return _cloudevent_response(result, sk_id_curr)
+            return response
 
         except bentoml.exceptions.BentoMLException as e:
             # Feature not found - return "under-review" decision
+            feast_failed_at = time.perf_counter()
             logger.warning(f"Feature fetch failed for {sk_id_curr}: {e}")
-            return _cloudevent_response({
+            response = _cloudevent_response({
                 "sk_id_curr": sk_id_curr,
                 "probability": None,
                 "decision": "under-review",
@@ -199,6 +262,22 @@ with bentoml.importing():
                 "ts": datetime.utcnow().isoformat() + "Z",
                 "reason": "feature_data_unavailable"
             }, sk_id_curr)
+            response_built_at = time.perf_counter()
+            _log_score_by_id_timing(
+                sk_id_curr=sk_id_curr,
+                request_received_at=request_received_at,
+                body_bytes=len(raw_body),
+                status="feature_data_unavailable",
+                request_started_at=request_started_at,
+                body_read_at=body_read_at,
+                json_parsed_at=json_parsed_at,
+                validated_at=validated_at,
+                model_loaded_at=model_loaded_at,
+                feast_fetched_at=feast_failed_at,
+                predicted_at=feast_failed_at,
+                response_built_at=response_built_at,
+            )
+            return response
 
 
 # Defer model loading to runtime to avoid failures during `bentoml build`
@@ -207,6 +286,61 @@ model = None  # type: ignore[var-annotated]
 MODEL_NAME: str = "unknown"
 MODEL_VERSION: Optional[str] = None
 MODEL_FEAST_METADATA: Optional[Dict[str, Any]] = None  # Feature selection from training
+
+
+def _extract_sk_id_curr_from_cdc(message: Any) -> Optional[str]:
+    """Extract sk_id_curr from plain, Debezium, or nested Kafka payloads."""
+    if not isinstance(message, dict):
+        return None
+
+    record = message
+    if isinstance(message.get("payload"), dict):
+        payload = message["payload"]
+        record = payload.get("after") or payload.get("before") or payload
+    elif isinstance(message.get("value"), dict):
+        record = message["value"]
+
+    if not isinstance(record, dict):
+        return None
+
+    sk_id_curr = record.get("sk_id_curr")
+    return str(sk_id_curr) if sk_id_curr is not None else None
+
+
+def _elapsed_ms(start: float, end: float) -> float:
+    return round(max(0.0, end - start) * 1000, 3)
+
+
+def _log_score_by_id_timing(
+    *,
+    sk_id_curr: str,
+    request_received_at: str,
+    body_bytes: int,
+    status: str,
+    request_started_at: float,
+    body_read_at: float,
+    json_parsed_at: float,
+    validated_at: float,
+    model_loaded_at: float,
+    feast_fetched_at: float,
+    predicted_at: float,
+    response_built_at: float,
+) -> None:
+    """Emit one structured timing log per score-by-id request."""
+    logger.bind(event="score_by_id_timing").info({
+        "sk_id_curr": sk_id_curr,
+        "request_received_at": request_received_at,
+        "status": status,
+        "body_bytes": body_bytes,
+        "body_read_ms": _elapsed_ms(request_started_at, body_read_at),
+        "json_parse_ms": _elapsed_ms(body_read_at, json_parsed_at),
+        "validation_ms": _elapsed_ms(json_parsed_at, validated_at),
+        "model_load_ms": _elapsed_ms(validated_at, model_loaded_at),
+        "feast_fetch_ms": _elapsed_ms(model_loaded_at, feast_fetched_at),
+        "predict_ms": _elapsed_ms(feast_fetched_at, predicted_at),
+        "response_build_ms": _elapsed_ms(predicted_at, response_built_at),
+        "total_app_ms": _elapsed_ms(request_started_at, response_built_at),
+    })
 
 
 def _map_feast_features(feast_result: Dict[str, Any], feature_refs: List[str]) -> Dict[str, Any]:

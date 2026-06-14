@@ -3,6 +3,8 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, date
+import sys
+import types
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy import JSON, event
@@ -61,10 +63,23 @@ def mock_workflow():
     return wf
 
 
+def _install_otel_fastapi_stub():
+    instrumentation = sys.modules.get("opentelemetry.instrumentation")
+    if instrumentation is None:
+        instrumentation = types.ModuleType("opentelemetry.instrumentation")
+        sys.modules["opentelemetry.instrumentation"] = instrumentation
+
+    fastapi_mod = types.ModuleType("opentelemetry.instrumentation.fastapi")
+    fastapi_mod.FastAPIInstrumentor = MagicMock()
+    sys.modules["opentelemetry.instrumentation.fastapi"] = fastapi_mod
+    setattr(instrumentation, "fastapi", fastapi_mod)
+
+
 @pytest.fixture
 async def test_app(db_session, mock_workflow):
     """FastAPI app with dependency overrides for DB and workflow."""
     # Patch module-level side effects before importing the app module
+    _install_otel_fastapi_stub()
     with patch("core.tracing.setup.OTLPSpanExporter", MagicMock()), \
          patch("core.tracing.setup.BatchSpanProcessor", MagicMock()), \
          patch("opentelemetry.instrumentation.fastapi.FastAPIInstrumentor") as mock_instr, \
