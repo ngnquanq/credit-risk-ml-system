@@ -238,6 +238,9 @@ playground/
 # local folders/files
 .qodo
 *.csv
+# Training run artifacts in data/
+data/*.json
+data/*.log
 # local secrets
 secrets/
 secret/
