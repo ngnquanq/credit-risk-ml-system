@@ -98,7 +98,7 @@ def main() -> int:
 
     import clickhouse_connect
 
-    logger.info("🔌 Connecting to ClickHouse: {}:{} (db={})\n", args.ch_host, args.ch_port, args.database)
+    logger.info("Connecting to ClickHouse: {}:{} (db={})\n", args.ch_host, args.ch_port, args.database)
     client = clickhouse_connect.get_client(
         host=args.ch_host,
         port=args.ch_port,
@@ -108,7 +108,7 @@ def main() -> int:
     )
 
     # Build credit card aggregation subquery dynamically
-    logger.info("🧮 Building credit card aggregation subquery for table: {}\n", args.cc_table)
+    logger.info("Building credit card aggregation subquery for table: {}\n", args.cc_table)
     cc_agg_sql = _build_cc_agg_sql(args.database, args.cc_table, args.join_key, client)
 
     limit_clause = f"LIMIT {int(args.sample)}" if args.sample and args.sample > 0 else ""
@@ -129,43 +129,61 @@ def main() -> int:
     {limit_clause}
     """
 
-    logger.info("📥 Querying dataset from ClickHouse...\n")
+    logger.info("Querying dataset from ClickHouse...\n")
     df = client.query_df(sql)
-    logger.info("✅ Retrieved rows: {}, columns: {}\n", df.shape[0], df.shape[1])
+    logger.info("Retrieved rows: {}, columns: {}\n", df.shape[0], df.shape[1])
 
     # Basic validation
     if "TARGET" not in df.columns:
         raise ValueError("TARGET column not found in assembled dataset")
 
-    # Split features/target
+    # Split features/target; drop join key to avoid ID memorisation
     y = df["TARGET"].astype(int)
-    X = df.drop(columns=["TARGET"])  # Keep all other columns, including join key
+    X = df.drop(columns=["TARGET", args.join_key], errors="ignore")
 
-    # Simple, robust preprocessing: numeric -> to_numeric + median fill; categorical -> fill + factorize codes
+    # Preprocessing helpers — fit on train only to prevent data leakage
     from pandas.api.types import is_numeric_dtype
 
-    def simple_preprocess(df_in: pd.DataFrame) -> pd.DataFrame:
-        df = df_in.copy()
-        for col in df.columns:
-            if is_numeric_dtype(df[col]):
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-                med = df[col].median()
-                df[col] = df[col].fillna(med)
+    def fit_preprocessor(df_train: pd.DataFrame) -> dict:
+        """Compute preprocessing parameters from the training fold only."""
+        medians: dict = {}
+        categories: dict = {}
+        for col in df_train.columns:
+            if is_numeric_dtype(df_train[col]):
+                series = pd.to_numeric(df_train[col], errors="coerce")
+                medians[col] = series.median()
             else:
-                df[col] = df[col].astype("string").fillna("__MISSING__")
-                df[col] = pd.factorize(df[col], sort=False)[0]
-        return df
+                series = df_train[col].astype("string").fillna("__MISSING__")
+                codes, uniques = pd.factorize(series, sort=False)
+                categories[col] = {v: int(c) for v, c in zip(uniques, range(len(uniques)))}
+        return {"medians": medians, "categories": categories}
 
-    X_processed = simple_preprocess(X)
+    def apply_preprocessor(df_in: pd.DataFrame, params: dict) -> pd.DataFrame:
+        """Apply precomputed preprocessing parameters; unknown categories get code -1."""
+        df = df_in.copy()
+        medians = params["medians"]
+        categories = params["categories"]
+        for col in df.columns:
+            if col in medians:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+                df[col] = df[col].fillna(medians[col])
+            elif col in categories:
+                cat_map = categories[col]
+                series = df[col].astype("string").fillna("__MISSING__")
+                df[col] = series.map(cat_map).fillna(-1).astype(int)
+        return df
 
     from sklearn.model_selection import train_test_split, RandomizedSearchCV
     from sklearn.metrics import roc_auc_score
     from xgboost import XGBClassifier
 
-    logger.info("✂️  Train/test split + randomized search ({} iters, cv={} )", args.tune_iter, args.cv)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_processed, y, test_size=args.test_size, random_state=args.random_state, stratify=y
+    logger.info("Train/test split + randomized search ({} iters, cv={} )", args.tune_iter, args.cv)
+    X_train_raw, X_test_raw, y_train, y_test = train_test_split(
+        X, y, test_size=args.test_size, random_state=args.random_state, stratify=y
     )
+    preprocess_params = fit_preprocessor(X_train_raw)
+    X_train = apply_preprocessor(X_train_raw, preprocess_params)
+    X_test = apply_preprocessor(X_test_raw, preprocess_params)
 
     clf = XGBClassifier(
         eval_metric="auc",
@@ -193,12 +211,12 @@ def main() -> int:
         random_state=args.random_state,
     )
 
-    logger.info("🚀 Tuning + training...")
+    logger.info("Tuning + training...")
     search.fit(X_train, y_train)
     best_clf = search.best_estimator_
-    logger.info("✅ Best params: {}\n", search.best_params_)
+    logger.info("Best params: {}\n", search.best_params_)
 
-    logger.info("📈 Evaluating on holdout test")
+    logger.info("Evaluating on holdout test")
     proba = best_clf.predict_proba(X_test)[:, 1]
     auc = float(roc_auc_score(y_test, proba))
     logger.info("   AUC: {:.4f}\n", auc)
@@ -207,7 +225,7 @@ def main() -> int:
     import mlflow
     import mlflow.sklearn
 
-    logger.info("📝 Logging to MLflow")
+    logger.info("Logging to MLflow")
     mlflow.set_experiment(args.experiment)
     with mlflow.start_run() as run:
         mlflow.log_params(search.best_params_)
@@ -218,7 +236,7 @@ def main() -> int:
         model_info = mlflow.sklearn.log_model(
             sk_model=best_clf,
             artifact_path="model",
-            input_example=simple_preprocess(input_example),
+            input_example=apply_preprocessor(input_example, preprocess_params),
             registered_model_name=args.register_name,
         )
         logger.info("   Run ID: {}", run.info.run_id)
@@ -226,24 +244,48 @@ def main() -> int:
         logger.info("   Artifact URI: {}", run.info.artifact_uri)
 
         if args.stage:
-            client = mlflow.tracking.MlflowClient()
+            mlflow_client = mlflow.tracking.MlflowClient()
             version: Optional[str] = None
-            for v in client.search_model_versions(f"name='{args.register_name}'"):
+            for v in mlflow_client.search_model_versions(f"name='{args.register_name}'"):
                 if v.run_id == run.info.run_id:
                     version = v.version
                     break
+
+            # Check incumbent AUC in target stage before promoting
+            incumbent_auc = 0.0
+            for v in mlflow_client.search_model_versions(f"name='{args.register_name}'"):
+                if v.current_stage == args.stage:
+                    try:
+                        incumbent_run = mlflow_client.get_run(v.run_id)
+                        incumbent_auc = max(incumbent_auc, float(incumbent_run.data.metrics.get("auc", 0.0)))
+                    except Exception:
+                        pass
+
             if version:
-                logger.info("🔁 Transitioning model '{}' version {} -> {}", args.register_name, version, args.stage)
-                client.transition_model_version_stage(
-                    name=args.register_name,
-                    version=str(version),
-                    stage=args.stage,
-                    archive_existing_versions=False,
-                )
+                if auc >= incumbent_auc:
+                    logger.info(
+                        "Transitioning model '{}' version {} -> {}",
+                        args.register_name,
+                        version,
+                        args.stage,
+                    )
+                    mlflow_client.transition_model_version_stage(
+                        name=args.register_name,
+                        version=str(version),
+                        stage=args.stage,
+                        archive_existing_versions=False,
+                    )
+                else:
+                    logger.warning(
+                        "New model AUC {:.4f} is below incumbent {:.4f} in stage '{}' — skipping promotion",
+                        auc,
+                        incumbent_auc,
+                        args.stage,
+                    )
             else:
                 logger.warning("Could not resolve registered model version for this run")
 
-    logger.info("🏁 Done. AUC={:.4f}\n", auc)
+    logger.info("Done. AUC={:.4f}\n", auc)
     return 0
 
 
