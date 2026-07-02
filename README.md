@@ -6,6 +6,44 @@
 
 Production-style credit risk decisioning platform that connects loan intake, CDC, stream feature engineering, Feast/Redis materialization, and KServe scoring. The repo is a portfolio-grade MLOps prototype with documented load-test bottlenecks, not a production SLA claim.
 
+## Table of Contents
+
+- [Business Objective](#business-objective)
+- [Results](#results)
+- [Architecture](#architecture)
+- [Quick Start (ML-only)](#quick-start-ml-only)
+- [Prerequisites](#prerequisites)
+- [Local Development (no Kubernetes)](#local-development-no-kubernetes)
+- [Full Stack Deployment](#full-stack-deployment)
+- [Verify End-to-End](#verify-end-to-end)
+- [Project Structure](#project-structure)
+- [Testing](#testing)
+- [Performance Optimization Log](#performance-optimization-log)
+- [Troubleshooting](#troubleshooting)
+- [Operations](#operations)
+- [Dataset](#dataset)
+- [Notebooks](#notebooks)
+- [Future Development](#future-development)
+- [Reference](#reference)
+- [Assumptions](#assumptions)
+- [License](#license)
+
+## Business Objective
+
+The objective of this project is to build an **automated loan approval process** for financial institutions, replacing manual credit assessment with a real-time, ML-driven decisioning pipeline.
+
+**Problem**: Traditional loan approval relies on manual review by credit analysts — a process that is slow (days to weeks), inconsistent across reviewers, and difficult to scale as application volume grows.
+
+**Solution**: This system ingests a loan application, automatically engineers features from the applicant's credit bureau history and internal records, and produces a default-risk score via a trained XGBoost model — all within a single automated pipeline. The score enables instant approve/reject/review decisions at a configurable risk threshold.
+
+**Key goals**:
+
+- **Speed** — Reduce decision turnaround from days to seconds by eliminating manual handoffs
+- **Consistency** — Apply the same model and feature logic to every application, removing reviewer subjectivity
+- **Scalability** — Handle growing application volumes through event-driven streaming architecture (Kafka, Flink, KServe)
+- **Transparency** — Provide explainable predictions (SHAP values, feature importance) so risk teams can audit and trust the model's decisions
+- **Operational readiness** — Deliver a production-grade MLOps platform with model versioning, feature store, monitoring, and automated retraining infrastructure 
+
 ## Results
 
 | Metric | Value |
