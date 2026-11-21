@@ -10,6 +10,8 @@ from typing import Optional
 from pyflink.table.udf import udf
 from pyflink.table.types import DataTypes
 
+from application_transforms import days_employed
+
 
 @udf(result_type=DataTypes.DOUBLE())
 def decode_decimal_base64(base64_str: str, scale: int) -> Optional[float]:
@@ -108,38 +110,8 @@ def calculate_days_birth(birth_date_str: str, created_at_str: str) -> Optional[i
 
 @udf(result_type=DataTypes.INT())
 def calculate_days_employed(employment_start_str: str, created_at_str: str) -> Optional[int]:
-    """
-    Calculate days_employed field (positive days from employment start to application).
-    
-    Args:
-        employment_start_str: Employment start date as string
-        created_at_str: Application creation timestamp
-    
-    Returns:
-        Days between employment start and application (typically positive)
-    """
-    if not employment_start_str or not created_at_str:
-        return None
-    
-    try:
-        from dateutil import parser as dtparser
-        
-        # Parse created_at
-        created_at = dtparser.parse(created_at_str).date()
-        
-        # Handle employment_start_date - could be ISO string or integer days
-        if employment_start_str.isdigit() or (employment_start_str.startswith('-') and employment_start_str[1:].isdigit()):
-            # Integer days since epoch
-            employment_start = _date_from_days_since_epoch(int(employment_start_str))
-        else:
-            # ISO string format
-            employment_start = dtparser.parse(employment_start_str).date()
-        
-        if employment_start and created_at:
-            return (created_at - employment_start).days
-        return None
-    except Exception:
-        return None
+    """DAYS_EMPLOYED as in training: <= 0 while employed, 365243 when not employed (E2, F-01)."""
+    return days_employed(employment_start_str, created_at_str)
 
 
 @udf(result_type=DataTypes.INT())
