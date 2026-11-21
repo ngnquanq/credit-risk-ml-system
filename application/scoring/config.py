@@ -38,6 +38,12 @@ class ScoringSettings(BaseSettings):
     # Decision bands on P(default) (E5): below approve_below -> approve,
     # above reject_above -> reject, otherwise manual review.
     approve_below: float = Field(default=0.25, description="P(default) below this is approved")
+    # Explanations (E14)
+    explain_enabled: bool = Field(default=True, description="Compute SHAP reason codes for each decision")
+    reason_map_path: str = Field(
+        default=os.path.join(os.path.dirname(__file__), "bundle", "reason_map.json"),
+        description="feature -> reason code map generated from the feature catalog",
+    )
     reject_above: float = Field(default=0.35, description="P(default) above this is rejected")
     feature_names: Optional[str] = Field(
         default=None, description="Comma-separated feature order"

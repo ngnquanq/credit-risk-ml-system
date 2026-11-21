@@ -92,6 +92,9 @@ class Catalog:
         reasons = yaml.safe_load((root / "reasons.yaml").read_text(encoding="utf-8")) or {}
         return cls(definitions, reasons)
 
+    def names(self) -> list[str]:
+        return list(self._definitions)
+
     def __contains__(self, name: str) -> bool:
         return name in self._definitions
 

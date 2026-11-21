@@ -142,6 +142,12 @@ def main() -> None:
     print(f"Saving model to {model_file}")
     joblib.dump(mdl, model_file)
 
+    # Reason codes for explanations (E14): generated from the feature catalog in the same commit.
+    sh(
+        f"python application/training/feature_catalog/export.py reason-map {os.path.join(bundle_dir, 'reason_map.json')}",
+        cwd=repo_dir,
+    )
+
     # Do NOT modify mlflow.env here; runtime (KServe) will provide
     # SCORING_MODEL_SOURCE=local and SCORING_MODEL_PATH via container env.
 

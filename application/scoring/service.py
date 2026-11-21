@@ -35,6 +35,8 @@ ScoreRequest = None  # type: ignore
 ScoreResponse = None  # type: ignore
 ScoreByIdRequest = None  # type: ignore
 decision_policy = None  # type: ignore
+explain_safely = None  # type: ignore
+EXPLAINER = None  # type: ignore  # built after the model loads (E14)
 configure_logger = None  # type: ignore
 
 # Import ALL dependencies that might not be available during `bentoml build`
@@ -47,6 +49,7 @@ with bentoml.importing():
     from config import settings as _settings
     from schemas import ScoreRequest as _ScoreRequest, ScoreResponse as _ScoreResponse, ScoreByIdRequest as _ScoreByIdRequest
     from policy import DecisionPolicy as _DecisionPolicy
+    from explain import explain_safely as _explain_safely
     from logger import configure_logger as _configure_logger
 
     try:
@@ -67,6 +70,7 @@ with bentoml.importing():
     ScoreResponse = _ScoreResponse
     ScoreByIdRequest = _ScoreByIdRequest
     decision_policy = _DecisionPolicy(approve_below=settings.approve_below, reject_above=settings.reject_above)
+    explain_safely = _explain_safely
     configure_logger = _configure_logger
     trace = _trace
     extract_or_create_trace_context = _extract_or_create
@@ -483,9 +487,11 @@ def _predict_and_create_response(
     X_df = _as_dataframe_row(features)
     raw = _predict_proba_local(X_df)
     prob = float(raw[0]) if hasattr(raw, "__len__") else float(raw)
-    decision = decision_policy.decide(prob)
+    explanation = explain_safely(EXPLAINER, X_df) if explain_safely is not None else None
+    decision = decision_policy.decide(prob, explanation.reason_codes if explanation else ())
 
     return {
+        **(explanation.to_event_fields() if explanation else {}),
         "event_id": event_id or str(uuid.uuid4()),
         "sk_id_curr": sk_id_curr,
         **decision.to_event_fields(),
@@ -568,6 +574,21 @@ def _resolve_feast_repo_path() -> str:
 _init_lock = threading.Lock()
 _initialized = False
 
+def _init_explainer(loaded_model) -> None:
+    """Build the SHAP explainer once per model (E14). Failure disables explanations, never scoring."""
+    global EXPLAINER
+    EXPLAINER = None
+    if not settings.explain_enabled or not hasattr(loaded_model, "named_steps"):
+        return
+    try:
+        from explain import Explainer, ReasonMap
+
+        EXPLAINER = Explainer(loaded_model, ReasonMap.load(settings.reason_map_path))
+        logger.info("✓ Explanations enabled")
+    except Exception as exc:  # pragma: no cover - depends on shap and the model type
+        logger.warning(f"Explanations disabled: {exc}")
+
+
 def ensure_model_loaded() -> None:
     global model, MODEL_NAME, MODEL_VERSION, MODEL_FEAST_METADATA, _initialized
     if _initialized and model is not None:
@@ -590,6 +611,7 @@ def ensure_model_loaded() -> None:
         MODEL_NAME = name
         MODEL_VERSION = version
         MODEL_FEAST_METADATA = feast_metadata
+        _init_explainer(loaded_model)
 
         # Validate and log feature selection info
         if not feast_metadata:

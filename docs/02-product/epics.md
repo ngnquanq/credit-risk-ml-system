@@ -282,7 +282,7 @@ E10 follows once credit policy confirms the rules.
 | Story | Acceptance criteria |
 |---|---|
 | As an applicant I learn why I was declined | **Given** a reject or under-review decision **then** up to four reason codes from the catalog are shown, ordered by contribution |
-| As a risk manager I trust the attributions | **Given** any scored application **then** the sum of SHAP values plus the base value equals the model's log-odds within 1e-6 |
+| As a risk manager I trust the attributions | **Given** any scored application **then** the sum of SHAP values plus the base value equals the model's log-odds within 1e-4 |
 | As compliance I never see a protected attribute as a reason | **Given** any decision **then** no reason code maps to a `protected` definition or a listed proxy |
 | As an engineer I keep scoring fast | **Given** 30 RPS **then** scoring p95 with explanations stays within the O1 budget |
 

@@ -2,7 +2,7 @@
 
 | Epic | Outcome / KPI | Baseline → target | Size | Depends on |
 |---|---|---|---|---|
-| [E14](../02-product/epics.md#e14-explainability) | O2 consistent decisions; O8 explainable decisions | No reasons are produced → 100% of reject and under-review decisions carry up to four reason codes; attributions additive to 1e-6; no protected attribute ever used as a reason | M | E6 (gender-free model), E5 (decision record), E2 (catalog definitions with `reason_code`) |
+| [E14](../02-product/epics.md#e14-explainability) | O2 consistent decisions; O8 explainable decisions | No reasons are produced → 100% of reject and under-review decisions carry up to four reason codes; attributions additive to 1e-4; no protected attribute ever used as a reason | M | E6 (gender-free model), E5 (decision record), E2 (catalog definitions with `reason_code`) |
 
 ## 1. Why
 
@@ -91,7 +91,7 @@ classDiagram
   1. transforms the row with `pipeline.named_steps["pre"]`;
   2. computes SHAP values;
   3. maps output columns back to input names using the ColumnTransformer's group order, which comes from the feature set;
-  4. checks additivity: `abs(base + sum(contributions) - margin) < 1e-6`, otherwise it logs, counts and returns no reasons;
+  4. checks additivity: `abs(base + sum(contributions) - margin) < 1e-4` (float32 boosters), otherwise it logs, counts and returns no reasons;
   5. builds the reason codes.
 - **Calibrated models.** If a model is wrapped in a calibrator, contributions explain the uncalibrated margin. The ranking of reasons is unchanged because calibration is monotonic. This is stated in the model card.
 
@@ -160,7 +160,7 @@ CREDIT_AMOUNT_HIGH: {en: "Requested credit amount is high for the profile", vi: 
 
 | # | Given / When / Then | Test |
 |---|---|---|
-| AC1 | Given a fitted pipeline on a synthetic 2,000-row dataset, then for 100 rows `base + sum(contributions)` equals the booster margin within 1e-6 | `tests/unit/scoring/test_explain.py` |
+| AC1 | Given a fitted pipeline on a synthetic 2,000-row dataset, then for 100 rows `base + sum(contributions)` equals the booster margin within 1e-4 (XGBoost evaluates in float32) | `tests/unit/scoring/test_explain.py` |
 | AC2 | Given features sharing a reason code, then their contributions are summed into one code | same |
 | AC3 | Given a feature marked `protected` or `proxy_for`, then it never appears in `reason_codes`, even when its contribution is the largest | same |
 | AC4 | Given an approve decision, then `reason_codes` is empty; given reject or under-review, then 1–4 codes, ordered by contribution | `tests/unit/scoring/test_policy_reasons.py` |
