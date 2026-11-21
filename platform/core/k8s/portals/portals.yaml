@@ -1,0 +1,177 @@
+# Portals (E12): two BFF deployments, a session Redis, public and internal ingresses, default-deny NetworkPolicy.
+# Images are pinned by digest through the environment overlays (platform/environments/*), never :latest.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: portals
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: session-redis
+  namespace: portals
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: session-redis}}
+  template:
+    metadata: {labels: {app: session-redis}}
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.4.1-alpine
+          args: ["--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "volatile-ttl"]
+          ports: [{containerPort: 6379}]
+          resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 192Mi}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: session-redis, namespace: portals}
+spec:
+  selector: {app: session-redis}
+  ports: [{port: 6379}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: applicant-portal
+  namespace: portals
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: applicant-portal}}
+  template:
+    metadata: {labels: {app: applicant-portal, tier: portal}}
+    spec:
+      securityContext: {runAsNonRoot: true}
+      containers:
+        - name: portal
+          image: crs-applicant-portal:dev
+          ports: [{containerPort: 3000}]
+          env:
+            - {name: OIDC_ISSUER, value: "https://auth.credit.local/realms/customers"}
+            - {name: OIDC_CLIENT_ID, value: applicant-portal}
+            - name: OIDC_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: portal-secrets, key: applicant-portal}}
+            - {name: PORTAL_BASE_URL, value: "https://apply.credit.local"}
+            - {name: SESSION_REDIS_URL, value: "redis://session-redis.portals.svc:6379/0"}
+            - {name: API_BASE_URL, value: "http://api-service.api-gateway.svc"}
+          readinessProbe: {httpGet: {path: /, port: 3000}, periodSeconds: 10}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true}
+          resources: {requests: {cpu: 100m, memory: 192Mi}, limits: {memory: 384Mi}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: staff-portal
+  namespace: portals
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: staff-portal}}
+  template:
+    metadata: {labels: {app: staff-portal, tier: portal}}
+    spec:
+      securityContext: {runAsNonRoot: true}
+      containers:
+        - name: portal
+          image: crs-staff-portal:dev
+          ports: [{containerPort: 3000}]
+          env:
+            - {name: OIDC_ISSUER, value: "https://auth.credit.local/realms/staff"}
+            - {name: OIDC_CLIENT_ID, value: staff-portal}
+            - name: OIDC_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: portal-secrets, key: staff-portal}}
+            - {name: PORTAL_BASE_URL, value: "https://staff.credit.local"}
+            - {name: SESSION_REDIS_URL, value: "redis://session-redis.portals.svc:6379/1"}
+            - {name: API_BASE_URL, value: "http://api-service.api-gateway.svc"}
+          readinessProbe: {httpGet: {path: /forbidden, port: 3000}, periodSeconds: 10}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true}
+          resources: {requests: {cpu: 100m, memory: 192Mi}, limits: {memory: 384Mi}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: applicant-portal, namespace: portals}
+spec:
+  selector: {app: applicant-portal}
+  ports: [{port: 80, targetPort: 3000}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: staff-portal, namespace: portals}
+spec:
+  selector: {app: staff-portal}
+  ports: [{port: 80, targetPort: 3000}]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: portals, namespace: portals}
+spec:
+  minAvailable: 1
+  selector: {matchLabels: {tier: portal}}
+---
+# Public host: rate-limited per client IP (threat T17).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: applicant-portal
+  namespace: portals
+  annotations:
+    nginx.ingress.kubernetes.io/limit-rps: "5"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "4"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: apply.credit.local
+      http:
+        paths: [{path: /, pathType: Prefix, backend: {service: {name: applicant-portal, port: {number: 80}}}}]
+---
+# Staff host: reachable only from the staff network (simulated with a source allow-list).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: staff-portal
+  namespace: portals
+  annotations:
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,192.168.0.0/16,127.0.0.1/32"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: staff.credit.local
+      http:
+        paths: [{path: /, pathType: Prefix, backend: {service: {name: staff-portal, port: {number: 80}}}}]
+---
+# Default deny, then allow: ingress controller -> portals; portals -> session Redis, API, Keycloak, DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: portals}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: portal-traffic, namespace: portals}
+spec:
+  podSelector: {matchLabels: {tier: portal}}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ingress-nginx}}}]
+      ports: [{port: 3000}]
+  egress:
+    - to: [{podSelector: {matchLabels: {app: session-redis}}}]
+      ports: [{port: 6379}]
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: api-gateway}}}]
+      ports: [{port: 8000}, {port: 80}]
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: identity}}}]
+      ports: [{port: 8080}]
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ingress-nginx}}}]
+      ports: [{port: 443}, {port: 80}]   # OIDC discovery via the public auth host
+    - ports: [{port: 53, protocol: UDP}, {port: 53, protocol: TCP}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: session-redis, namespace: portals}
+spec:
+  podSelector: {matchLabels: {app: session-redis}}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {tier: portal}}}]
+      ports: [{port: 6379}]
