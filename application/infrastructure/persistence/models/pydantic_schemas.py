@@ -59,7 +59,8 @@ class LoanApplicationCreate(BaseModel):
     sk_id_curr: str = Field(..., description="Customer ID")
     
     # Basic Demographics 
-    code_gender: GenderType = Field(..., description="Gender of the applicant")
+    # Not asked in the portals and never a model input (ADR-0013, E6); kept optional for KYC data and bias audits.
+    code_gender: Optional[GenderType] = Field(None, description="Gender of the applicant (optional, audit only)")
     birth_date: date = Field(..., description="Date of birth")
     cnt_children: int = Field(0, description="Number of children", ge=0)
     
@@ -95,6 +96,9 @@ class LoanApplicationCreate(BaseModel):
     
     # Document IDs (from MinIO uploads)
     document_ids: Optional[dict] = Field(None, description="Document IDs from uploaded files")
+
+    # Consent to the credit bureau check (E11); recorded with a timestamp
+    bureau_consent: bool = Field(False, description="Applicant consented to the credit bureau check")
 
     model_config = {
         "json_schema_extra": {
@@ -142,7 +146,7 @@ class LoanApplicationCreate(BaseModel):
 class LoanApplicationResponse(BaseModel):
     """Response schema for loan applications."""
     sk_id_curr: str
-    code_gender: str
+    code_gender: Optional[str] = None
     birth_date: date
     cnt_children: int
     amt_income_total: float

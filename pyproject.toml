@@ -38,6 +38,7 @@ dependencies = [
     "opentelemetry-instrumentation-fastapi>=0.43b0",
     "python-dotenv>=1.0",
     "requests>=2.31",
+    "PyJWT[crypto]>=2.8",
     "streamlit>=1.31",
 ]
 

@@ -1,0 +1,138 @@
+"""API access control (E11 AC1–AC12, ADR-0013) with audited decisions (E13)."""
+
+from datetime import date, datetime
+
+import pytest
+
+from infrastructure.persistence.models.sqlalchemy_models import ApplicationStatusLog, LoanApplication
+
+
+async def _application(db, sk, **kw):
+    row = LoanApplication(
+        sk_id_curr=sk,
+        birth_date=date(1991, 3, 14),
+        amt_income_total=15_000_000,
+        amt_credit=40_000_000,
+        name_income_type="Working",
+        name_education_type="Higher education",
+        name_family_status="Married",
+        name_housing_type="House / apartment",
+        **kw,
+    )
+    db.add(row)
+    await db.commit()
+    return row
+
+
+async def _status(db, sk, status, created_by="decision-recorder", **meta):
+    db.add(ApplicationStatusLog(sk_id_curr=sk, status=status, created_by=created_by, event_metadata=meta,
+                                created_at=datetime.utcnow()))
+    await db.commit()
+
+
+@pytest.fixture
+async def apps(db_session):
+    await _application(db_session, "S1", channel="self", applicant_sub="cust-a", created_by_sub="cust-a")
+    await _application(db_session, "B1", channel="staff", created_by_sub="off-1", branch_id="HN01",
+                       bureau_consent_at=datetime.utcnow())
+    await _application(db_session, "B2", channel="staff", created_by_sub="off-2", branch_id="HCM02")
+    await _status(db_session, "S1", "manual_review", score=0.31, reason_codes=["EXT_SCORE_LOW"],
+                  contributions={"EXT_SOURCE_2": 0.84}, model_version="7")
+    await _status(db_session, "B1", "manual_review", score=0.30, reason_codes=["INCOME_LOW"])
+
+
+async def test_missing_token_is_401(test_app, api_client):
+    from entrypoints.api.security import get_principal
+
+    test_app.dependency_overrides.pop(get_principal)
+    resp = await api_client.get("/api/v1/applications/S1")
+    assert resp.status_code == 401
+    assert resp.headers["www-authenticate"].startswith("Bearer")
+
+
+async def test_applicant_reads_own_but_not_others(api_client, act_as, apps, audit):
+    act_as("cust-a", "customers", {"applicant"})
+    assert (await api_client.get("/api/v1/applications/S1")).status_code == 200
+    resp = await api_client.get("/api/v1/applications/B1")
+    assert resp.status_code == 403
+    assert resp.json()["detail"]["rule"] == "own"
+    assert audit.events[-1]["outcome"] == "denied" and audit.events[-1]["resource_id"] == "B1"
+
+
+async def test_loan_officer_is_limited_to_their_branch(api_client, act_as, apps):
+    act_as("off-1", "staff", {"loan_officer"}, "HN01")
+    assert (await api_client.get("/api/v1/applications/B1")).status_code == 200
+    assert (await api_client.get("/api/v1/applications/B2")).status_code == 403
+
+
+async def test_applicant_sees_reasons_but_not_score(api_client, act_as, apps):
+    act_as("cust-a", "customers", {"applicant"})
+    body = (await api_client.get("/api/v1/applications/S1/decision?locale=en")).json()
+    assert body["status"] == "manual_review"
+    assert body["reasons"] == [{"code": "EXT_SCORE_LOW", "text": "External credit scores are low"}]
+    assert "score" not in body and "contributions" not in body
+    assert (await api_client.get("/api/v1/applications/S1/explanation")).status_code == 403
+
+
+async def test_loan_officer_cannot_see_the_explanation(api_client, act_as, apps):
+    act_as("off-1", "staff", {"loan_officer"}, "HN01")
+    assert (await api_client.get("/api/v1/applications/B1/decision")).status_code == 200
+    assert (await api_client.get("/api/v1/applications/B1/explanation")).status_code == 403
+
+
+async def test_underwriter_sees_the_explanation(api_client, act_as, apps):
+    act_as("uw-1", "staff", {"underwriter"})
+    body = (await api_client.get("/api/v1/applications/S1/explanation")).json()
+    assert body["score"] == 0.31 and body["contributions"] == {"EXT_SOURCE_2": 0.84}
+
+
+async def test_underwriter_cannot_review_own_submission(api_client, act_as, apps):
+    act_as("off-1", "staff", {"underwriter"})  # the same person who entered B1
+    resp = await api_client.post("/api/v1/reviews/B1/decision", json={
+        "outcome": "approved", "reason_code": "INCOME_VERIFIED", "reason": "Payslips confirm the income"})
+    assert resp.status_code == 403
+    assert resp.json()["detail"]["rule"] == "separation_of_duties"
+
+
+async def test_underwriter_review_is_recorded_and_audited(api_client, act_as, apps, audit):
+    act_as("uw-1", "staff", {"underwriter"})
+    queue = (await api_client.get("/api/v1/reviews")).json()
+    assert {q["customer_id"] for q in queue} == {"S1", "B1"}
+    resp = await api_client.post("/api/v1/reviews/B1/decision", json={
+        "outcome": "approved", "reason_code": "INCOME_VERIFIED", "reason": "Payslips confirm the income"})
+    assert resp.status_code == 201
+    assert (await api_client.get("/api/v1/applications/B1/status")).json()["status"] == "approved"
+    review = [e for e in audit.events if e["action"] == "review_decision"][-1]
+    assert review["outcome"] == "allowed"
+    assert review["details"]["to_status"] == "approved"
+
+
+async def test_loan_officer_cannot_decide(api_client, act_as, apps):
+    act_as("off-1", "staff", {"loan_officer"}, "HN01")
+    resp = await api_client.post("/api/v1/reviews/B1/decision", json={
+        "outcome": "approved", "reason_code": "X_CODE", "reason": "I know this customer well"})
+    assert resp.status_code == 403
+    assert (await api_client.get("/api/v1/reviews")).status_code == 403
+
+
+async def test_status_defaults_to_submitted(api_client, act_as, db_session):
+    await _application(db_session, "N1", channel="staff", created_by_sub="off-1", branch_id="HN01")
+    act_as("off-1", "staff", {"loan_officer"}, "HN01")
+    assert (await api_client.get("/api/v1/applications/N1/status")).json()["status"] == "submitted"
+
+
+async def test_submit_takes_ownership_from_the_token(api_client, act_as, mock_workflow, valid_payload):
+    act_as("cust-z", "customers", {"applicant"})
+    payload = {**valid_payload, "sk_id_curr": "NEW1", "branch_id": "HN01", "created_by_sub": "someone-else"}
+    resp = await api_client.post("/api/v1/applications", json=payload)
+    assert resp.status_code == 201
+    ownership = mock_workflow.execute.call_args.args[1]
+    assert ownership["channel"] == "self"
+    assert ownership["applicant_sub"] == "cust-z"
+    assert ownership["branch_id"] is None
+
+
+async def test_existing_application_cannot_be_overwritten(api_client, act_as, apps, valid_payload):
+    act_as("cust-b", "customers", {"applicant"})
+    resp = await api_client.post("/api/v1/applications", json={**valid_payload, "sk_id_curr": "S1"})
+    assert resp.status_code == 409

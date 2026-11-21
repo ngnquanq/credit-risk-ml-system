@@ -66,6 +66,26 @@ class Settings(BaseSettings):
         description="CORS allowed origins"
     )
 
+    # Identity (E11): Keycloak realms whose tokens the API accepts
+    oidc_issuers: str = Field(
+        default="",
+        description="Comma-separated issuer URLs, e.g. https://auth.credit.local/realms/staff,https://auth.credit.local/realms/customers",
+    )
+    oidc_audience: str = Field(default="credit-api", description="Required audience in access tokens")
+    oidc_jwks_ttl_seconds: int = Field(default=300, description="How long signing keys are cached")
+    oidc_staff_required_acr: str = Field(
+        default="mfa", description="acr claim required on staff-realm tokens (empty disables the check)"
+    )
+
+    @property
+    def oidc_issuer_list(self) -> list[str]:
+        return [i.strip().rstrip("/") for i in self.oidc_issuers.split(",") if i.strip()]
+
+    # Audit trail (E13): separate database; empty = structured log only
+    audit_database_url: Optional[SecretStr] = Field(
+        default=None, description="postgresql+asyncpg://audit_writer:...@host:5432/audit"
+    )
+
     # MinIO / S3-compatible object storage
     minio_endpoint: str = Field(default="minio-server:9000", description="MinIO endpoint host:port", alias="MINIO_ENDPOINT")
     minio_access_key: Optional[SecretStr] = Field(default=None, description="MinIO access key")

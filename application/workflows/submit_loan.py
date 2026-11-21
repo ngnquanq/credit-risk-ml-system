@@ -14,7 +14,8 @@ class SubmitLoanWorkflow:
         self.scoring_gateway = scoring_gateway
         self.logger = logging.getLogger(__name__)
 
-    async def execute(self, input_data: SubmitLoanInput) -> SubmitLoanOutput:
+    async def execute(self, input_data: SubmitLoanInput, ownership: dict | None = None) -> SubmitLoanOutput:
+        """``ownership`` (channel, created_by_sub, applicant_sub, branch_id) comes from the verified caller, never the body."""
         # 1. Create Domain Entity
         application = LoanApplication(
             sk_id_curr=input_data.sk_id_curr,
@@ -22,7 +23,7 @@ class SubmitLoanWorkflow:
             amt_income_total=input_data.amt_income_total,
             amt_goods_price=input_data.amt_goods_price,
             # Pass all fields for persistence
-            details=input_data.model_dump()
+            details={**input_data.model_dump(), **(ownership or {})}
         )
         
         self.logger.info(f"Received application for {application.sk_id_curr}")

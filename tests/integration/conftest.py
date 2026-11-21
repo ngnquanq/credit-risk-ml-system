@@ -104,6 +104,25 @@ async def test_app(db_session, mock_workflow):
         app.dependency_overrides[get_db] = override_get_db
         app.dependency_overrides[get_submit_loan_workflow] = override_get_workflow
 
+        # E11/E13: a signed-in loan officer by default; tests switch identity with `act_as`.
+        from audit.writer import InMemoryAuditWriter
+        from authz import Principal
+        from entrypoints.api.dependencies import get_audit_writer
+        from entrypoints.api.security import get_principal
+
+        audit_writer = InMemoryAuditWriter()
+        app.state.test_principal = Principal("off-1", "staff", frozenset({"loan_officer"}), "HN01")
+        app.state.audit_writer = audit_writer
+
+        async def override_get_principal():
+            return app.state.test_principal
+
+        async def override_get_audit_writer():
+            return audit_writer
+
+        app.dependency_overrides[get_principal] = override_get_principal
+        app.dependency_overrides[get_audit_writer] = override_get_audit_writer
+
         yield app
 
         app.dependency_overrides.clear()
@@ -118,3 +137,36 @@ async def api_client(test_app):
     transport = ASGITransport(app=test_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
+
+
+@pytest.fixture
+def act_as(test_app):
+    """Switch the caller identity: act_as(sub, realm, roles, branch_id=None)."""
+    from authz import Principal
+
+    def _act_as(sub, realm, roles, branch_id=None):
+        test_app.state.test_principal = Principal(sub, realm, frozenset(roles), branch_id)
+
+    return _act_as
+
+
+@pytest.fixture
+def audit(test_app):
+    """The in-memory audit writer; read ``audit.events`` after the calls under test."""
+    return test_app.state.audit_writer
+
+
+@pytest.fixture
+def valid_payload():
+    return {
+        "sk_id_curr": "100001",
+        "birth_date": "1990-01-15",
+        "cnt_children": 0,
+        "amt_income_total": 180_000.0,
+        "amt_credit": 406_597.5,
+        "name_income_type": "Working",
+        "name_education_type": "Higher education",
+        "name_family_status": "Married",
+        "name_housing_type": "House / apartment",
+        "bureau_consent": True,
+    }

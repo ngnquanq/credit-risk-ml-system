@@ -24,6 +24,10 @@ kafka-python==2.2.15
 # Additional dependencies
 python-multipart==0.0.6
 
+# Token verification (E11)
+PyJWT[crypto]==2.10.1
+PyYAML==6.0.2  # reason texts from the feature catalog (E14)
+
 # OpenTelemetry (Tracing)
 opentelemetry-api==1.22.0
 opentelemetry-sdk==1.22.0

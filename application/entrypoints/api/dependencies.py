@@ -7,6 +7,9 @@ from infrastructure.external.kafka_scoring import KafkaScoringGateway
 from workflows.submit_loan import SubmitLoanWorkflow
 from domain.interfaces.loan_repository import LoanRepository
 from domain.interfaces.scoring_gateway import ScoringGateway
+from functools import lru_cache
+
+from audit.writer import AuditWriter, LoggingAuditWriter, PostgresAuditWriter
 
 async def get_loan_repository(db: AsyncSession = Depends(get_db)) -> LoanRepository:
     """Dependency for LoanRepository."""
@@ -24,3 +27,19 @@ async def get_submit_loan_workflow(
 ) -> SubmitLoanWorkflow:
     """Dependency for SubmitLoanWorkflow."""
     return SubmitLoanWorkflow(repo, gateway)
+
+
+@lru_cache(maxsize=1)
+def _audit_writer() -> AuditWriter:
+    from core import settings
+
+    if settings.audit_database_url is None:
+        return LoggingAuditWriter()
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    return PostgresAuditWriter(create_async_engine(settings.audit_database_url.get_secret_value(), pool_size=5))
+
+
+async def get_audit_writer() -> AuditWriter:
+    """Dependency for the audit writer (E13)."""
+    return _audit_writer()

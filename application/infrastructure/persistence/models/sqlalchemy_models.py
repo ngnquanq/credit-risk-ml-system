@@ -73,6 +73,13 @@ class LoanApplication(Base):
     document_id_21 = Column(String(255))
     
     # Audit Fields
+    # Ownership and consent (E11, migration 004)
+    channel = Column(String(10), nullable=False, default="staff")  # staff | self
+    created_by_sub = Column(String(64))   # who entered it (staff user or the applicant)
+    applicant_sub = Column(String(64))    # customer-realm subject for self-service applications
+    branch_id = Column(String(16))        # staff applications only
+    bureau_consent_at = Column(DateTime)  # when the applicant consented to the bureau check
+
     created_at = Column(DateTime, server_default=func.current_timestamp())
     updated_at = Column(DateTime, server_default=func.current_timestamp())
 
@@ -81,7 +88,8 @@ class ApplicationStatusLog(Base):
     """Event sourcing table for application status changes."""
     __tablename__ = "application_status_log"
     
-    id = Column(BIGINT, primary_key=True, autoincrement=True)
+    # BIGSERIAL in PostgreSQL; INTEGER in SQLite so the test database autoincrements.
+    id = Column(BIGINT().with_variant(Integer(), "sqlite"), primary_key=True, autoincrement=True)
     sk_id_curr = Column(String(255), nullable=False)  # Foreign key to loan_applications
     
     # Status Information
