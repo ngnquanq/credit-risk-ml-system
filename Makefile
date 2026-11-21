@@ -1,4 +1,4 @@
-.PHONY: help k8s-restart cleanup-load-test cleanup-load-test-soft k8s-secrets k8s-cnpg-operator k8s-identity-secrets k8s-identity contracts check
+.PHONY: help k8s-restart cleanup-load-test cleanup-load-test-soft k8s-secrets k8s-cnpg-operator k8s-identity-secrets k8s-identity contracts check k8s-decision-recorder k8s-portals k8s-kafka-ha k8s-ops-db-ha chaos-drill restore-drill
 
 # Load environment variables from root .env file
 ifneq (,$(wildcard .env))
@@ -25,10 +25,36 @@ contracts: ## Regenerate cross-language contracts (OpenAPI for the portals, reas
 	$(PYTHON) application/training/feature_catalog/export.py reason-map contracts/reason_map.json
 
 check: ## Local gate: lint, tests, and contracts unchanged
-	ruff check --select F application tests jobs scripts
+	ruff check --select F application tests scripts
 	OTEL_SDK_DISABLED=true $(PYTHON) -m pytest tests/unit tests/integration -q
 	$(MAKE) contracts
 	git diff --exit-code contracts/
+
+# ─── Release readiness: portals, decisions, high availability, drills (E5, E12, E15) ──
+k8s-decision-recorder: ## Deploy the decision recorder and the daily audit verification job
+	kubectl apply -f platform/core/k8s/09-decision-recorder.yaml
+
+k8s-portals: ## Deploy both portals, the session Redis, ingresses and NetworkPolicies
+	@test -n "$(STAFF_PORTAL_CLIENT_SECRET)" || (echo "STAFF_PORTAL_CLIENT_SECRET is required" && exit 2)
+	@test -n "$(APPLICANT_PORTAL_CLIENT_SECRET)" || (echo "APPLICANT_PORTAL_CLIENT_SECRET is required" && exit 2)
+	kubectl apply -f platform/core/k8s/portals/portals.yaml
+	kubectl create secret generic portal-secrets -n portals --from-literal=staff-portal="$(STAFF_PORTAL_CLIENT_SECRET)" --from-literal=applicant-portal="$(APPLICANT_PORTAL_CLIENT_SECRET)" --dry-run=client -o yaml | kubectl apply -f -
+
+k8s-kafka-ha: ## Replace the single broker with three (RF 3, min ISR 2); topics are recreated
+	kubectl delete statefulset kafka-broker -n data-services --ignore-not-found
+	kubectl apply -f platform/data/k8s/message-broker/ha/01-kafka-ha.yaml
+	kubectl rollout status statefulset/kafka-broker -n data-services --timeout=600s
+
+k8s-ops-db-ha: k8s-cnpg-operator ## Operational DB on CloudNativePG with WAL archiving to MinIO
+	kubectl apply -f platform/data/k8s/operational-db/03-db-init.yaml
+	kubectl apply -f platform/data/k8s/operational-db/ha/ops-db-cnpg.yaml
+	kubectl wait --for=condition=Ready cluster/ops-db -n data-services --timeout=600s
+
+chaos-drill: ## Failover drill under load: make chaos-drill TARGET=scoring|kafka-1|ops-db|api|decision-recorder|keycloak-0
+	TARGET=$(TARGET) scripts/chaos/drill.sh
+
+restore-drill: ## Restore the operational DB from backup into a new cluster and check RPO/RTO
+	scripts/chaos/restore.sh
 
 # ─── Port-forward shortcuts ────────────────────────────────────────────────────
 pf-clickhouse: ## Port-forward ClickHouse HTTP API to localhost:8123 (for local notebooks)

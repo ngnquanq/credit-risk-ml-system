@@ -1,0 +1,57 @@
+# E15: operational database on CloudNativePG: primary + replica, automatic failover,
+# continuous WAL archiving to MinIO (RPO <= 5 min) and a daily base backup (restore drill: scripts/chaos/restore.sh).
+# Applications connect to ops-db-rw.data-services.svc; Debezium uses the same -rw service.
+# The audit database (E13) lives in the same cluster as a second database owned by its own roles.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: ops-db
+  namespace: data-services
+spec:
+  instances: 2
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.4
+  primaryUpdateStrategy: unsupervised
+  postgresql:
+    parameters:
+      wal_level: logical            # Debezium CDC
+      max_replication_slots: "10"
+      max_wal_senders: "10"
+      archive_timeout: "300"        # RPO <= 5 minutes
+  bootstrap:
+    initdb:
+      database: operations
+      owner: ops_admin
+      secret: {name: ops-db-credentials}
+      postInitApplicationSQLRefs:
+        configMapRefs:
+          - {name: db-init-scripts, key: 001_create_loan_applications.sql}
+          - {name: db-init-scripts, key: 002_create_application_status_log.sql}
+          - {name: db-init-scripts, key: 003_status_log_event_id.sql}
+          - {name: db-init-scripts, key: 004_ownership_and_policy.sql}
+          - {name: db-init-scripts, key: 005_case_note.sql}
+  storage:
+    size: 5Gi
+  backup:
+    retentionPolicy: "14d"
+    barmanObjectStore:
+      destinationPath: s3://pg-backups/ops-db
+      endpointURL: http://data-minio-server.data-services.svc:9000
+      s3Credentials:
+        accessKeyId: {name: minio-root-credentials, key: MINIO_ROOT_USER}
+        secretAccessKey: {name: minio-root-credentials, key: MINIO_ROOT_PASSWORD}
+      wal:
+        compression: gzip
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {memory: 1Gi}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: ops-db-daily
+  namespace: data-services
+spec:
+  schedule: "0 0 2 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: ops-db

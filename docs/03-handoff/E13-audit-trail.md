@@ -79,7 +79,7 @@ classDiagram
         +hash: bytea
     }
     class ChainVerifier {
-        <<jobs/audit_verify.py>>
+        <<application/audit/verify_job.py>>
         +verify(from_id) VerifyResult
     }
     class DetailsSanitizer {
@@ -179,7 +179,7 @@ GRANT SELECT ON audit_trace TO audit_reader;
 |---|---|
 | `platform/core/schemas/audit/001_audit_event.sql` | **new** |
 | `application/audit/{__init__,writer,sanitizer}.py` | **new** |
-| `jobs/audit_verify.py`, `platform/core/k8s/audit/cronjob-verify.yaml` | **new**: daily CronJob; Prometheus metric `audit_chain_ok` |
+| `application/audit/verify_job.py`, CronJob in `platform/core/k8s/09-decision-recorder.yaml` | **new**: daily CronJob; Prometheus metric `audit_chain_ok` |
 | `application/entrypoints/api/*.py` | call `record` on every allowed or denied action (E11) |
 | decision recorder (E5) | `decision` and `decision_fallback` events |
 | `platform/ml/k8s/mlflow-watcher/poller-configmap.yaml` (watcher script) | `model_promoted` event |

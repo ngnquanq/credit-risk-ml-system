@@ -1,0 +1,64 @@
+# E5/E15: decision recorder. Two replicas in one consumer group; offsets are committed only
+# after the status row is written, so a pod loss neither loses nor duplicates a decision.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: decision-recorder
+  namespace: api-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: decision-recorder}
+  template:
+    metadata:
+      labels: {app: decision-recorder}
+    spec:
+      containers:
+        - name: recorder
+          image: ngnquanq/credit-risk-consumers:dev   # pinned by digest in platform/environments/*
+          command: ["python", "entrypoints/decision_recorder.py"]
+          env:
+            - {name: KAFKA_BOOTSTRAP_SERVERS, value: "kafka-broker.data-services.svc.cluster.local:9092"}
+            - {name: CONSUMER_GROUP_ID, value: decision-recorder}
+            - {name: OPS_DB_HOST, value: "ops-postgres.data-services.svc.cluster.local"}
+            - {name: OPS_DB_NAME, value: operations}
+            - {name: OPS_DB_USER, value: ops_admin}
+            - name: OPS_DB_PASSWORD
+              valueFrom: {secretKeyRef: {name: api-secrets, key: OPS_DB_PASSWORD}}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 256Mi}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: decision-recorder, namespace: api-gateway}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: decision-recorder}
+---
+# E13: daily audit chain verification. Exits non-zero (failed Job -> alert) when the chain is broken.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: audit-verify
+  namespace: api-gateway
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: verify
+              image: ngnquanq/credit-risk-consumers:dev
+              command: ["python", "-m", "audit.verify_job"]
+              env:
+                - name: AUDIT_DB_DSN
+                  valueFrom: {secretKeyRef: {name: audit-secrets, key: verifier-dsn}}
+              resources:
+                requests: {cpu: 50m, memory: 64Mi}
+                limits: {memory: 256Mi}

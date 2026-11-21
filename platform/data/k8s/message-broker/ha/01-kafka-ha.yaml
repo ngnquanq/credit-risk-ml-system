@@ -1,0 +1,92 @@
+# E15: three KRaft brokers (combined broker + controller), RF 3, min.insync.replicas 2.
+# Replaces 01-kafka.yaml when deployed with `make k8s-kafka-ha`. Topics must be recreated with
+# TOPIC_REPLICATION_FACTOR=3 (04-kafka-init.yaml); CDC snapshots again from PostgreSQL afterwards.
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-broker-headless
+  namespace: data-services
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector: {app: kafka-broker}
+  ports:
+    - {name: broker, port: 9092}
+    - {name: controller, port: 9093}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-broker
+  namespace: data-services
+spec:
+  selector: {app: kafka-broker}
+  ports:
+    - {name: broker, port: 9092, targetPort: 9092}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka-broker
+  namespace: data-services
+spec:
+  serviceName: kafka-broker-headless
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels: {app: kafka-broker}
+  template:
+    metadata:
+      labels: {app: kafka-broker}
+    spec:
+      containers:
+        - name: kafka
+          image: confluentinc/cp-kafka:7.7.1
+          command: ["bash", "-c"]
+          args:
+            - |
+              ORDINAL="${HOSTNAME##*-}"
+              export KAFKA_NODE_ID=$((ORDINAL + 1))
+              export KAFKA_ADVERTISED_LISTENERS="PLAINTEXT://${HOSTNAME}.kafka-broker-headless.data-services.svc.cluster.local:9092"
+              exec /etc/confluent/docker/run
+          env:
+            - {name: CLUSTER_ID, value: "MkU3OEVBTTJENzI0RjA2Qg"}
+            - {name: KAFKA_PROCESS_ROLES, value: "broker,controller"}
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: "1@kafka-broker-0.kafka-broker-headless.data-services.svc.cluster.local:9093,2@kafka-broker-1.kafka-broker-headless.data-services.svc.cluster.local:9093,3@kafka-broker-2.kafka-broker-headless.data-services.svc.cluster.local:9093"
+            - {name: KAFKA_LISTENERS, value: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"}
+            - {name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP, value: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"}
+            - {name: KAFKA_CONTROLLER_LISTENER_NAMES, value: CONTROLLER}
+            - {name: KAFKA_INTER_BROKER_LISTENER_NAME, value: PLAINTEXT}
+            - {name: KAFKA_DEFAULT_REPLICATION_FACTOR, value: "3"}
+            - {name: KAFKA_MIN_INSYNC_REPLICAS, value: "2"}
+            - {name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR, value: "3"}
+            - {name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR, value: "3"}
+            - {name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR, value: "2"}
+            - {name: KAFKA_UNCLEAN_LEADER_ELECTION_ENABLE, value: "false"}
+            - {name: KAFKA_LOG_RETENTION_HOURS, value: "24"}
+            - {name: KAFKA_LOG_DIRS, value: /var/lib/kafka/data}
+            - {name: KAFKA_HEAP_OPTS, value: "-Xms384m -Xmx768m"}
+          ports:
+            - {containerPort: 9092, name: broker}
+            - {containerPort: 9093, name: controller}
+          readinessProbe: {tcpSocket: {port: 9092}, initialDelaySeconds: 30, periodSeconds: 10}
+          livenessProbe: {tcpSocket: {port: 9092}, initialDelaySeconds: 90, periodSeconds: 15}
+          resources:
+            requests: {cpu: 300m, memory: 1Gi}
+            limits: {memory: 1536Mi}
+          volumeMounts:
+            - {name: kafka-data, mountPath: /var/lib/kafka/data}
+  volumeClaimTemplates:
+    - metadata: {name: kafka-data}
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: {requests: {storage: 2Gi}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: kafka-broker, namespace: data-services}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels: {app: kafka-broker}

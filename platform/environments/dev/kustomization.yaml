@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../core/k8s/identity/00-namespace.yaml
+  - ../../core/k8s/identity/01-keycloak-db.yaml
+  - ../../core/k8s/identity/02-keycloak.yaml
+  - ../../core/k8s/portals/portals.yaml
+  - ../../core/k8s/09-decision-recorder.yaml
+# Local images built by `docker build` and loaded into Minikube.
+images:
+  - {name: crs-applicant-portal, newTag: dev}
+  - {name: crs-staff-portal, newTag: dev}
+  - {name: ngnquanq/credit-risk-consumers, newTag: dev}
+patches:
+  # One replica each is enough on a laptop.
+  - target: {kind: StatefulSet, name: keycloak}
+    patch: |-
+      - {op: replace, path: /spec/replicas, value: 1}
+  - target: {kind: Deployment, name: "(applicant|staff)-portal"}
+    patch: |-
+      - {op: replace, path: /spec/replicas, value: 1}

@@ -17,7 +17,10 @@ data:
         if not to_create:
             print("All topics exist.")
             return
-        new_topics = [NewTopic(t, num_partitions=4, replication_factor=1) for t in to_create]
+        # E15: RF 3 and min.insync.replicas 2 on the HA cluster; RF 1 on single-broker dev.
+        rf = int(os.getenv("TOPIC_REPLICATION_FACTOR", "1"))
+        config = {"min.insync.replicas": str(min(2, rf))}
+        new_topics = [NewTopic(t, num_partitions=4, replication_factor=rf, config=config) for t in to_create]
         fs = admin.create_topics(new_topics)
         for t, f in fs.items():
             try:
@@ -35,7 +38,9 @@ data:
         "hc.application_dwh",
         "hc.scoring",
         "hc.scoring.dlq",
-        "hc.feature_ready"
+        "hc.feature_ready",
+        "hc.feature_timeout",
+        "hc.decisions.dlq"
     ]
     create_topics(bootstrap, topics)
 ---

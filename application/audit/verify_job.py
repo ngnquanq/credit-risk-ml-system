@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Daily audit chain verification (E13).
+"""Daily audit chain verification (E13). Run: python -m audit.verify_job
 
 Recomputes the hash chain from the last verified id and exits non-zero on a break.
 Run as a Kubernetes CronJob with the audit_reader role plus SELECT on audit_event.
@@ -13,9 +13,7 @@ import os
 import sys
 from datetime import timezone
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "application"))
-
-from audit.chain import GENESIS_HASH, verify_chain  # noqa: E402
+from audit.chain import GENESIS_HASH, verify_chain
 
 
 def _rows(cur, from_id: int):

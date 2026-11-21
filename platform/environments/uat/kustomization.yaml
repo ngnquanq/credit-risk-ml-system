@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# UAT (E16): same manifests as dev, full replicas, images pinned by digest.
+# A release candidate changes only the digests below (scripts in E16 check that every image has one).
+resources:
+  - ../../core/k8s/identity/00-namespace.yaml
+  - ../../core/k8s/identity/01-keycloak-db.yaml
+  - ../../core/k8s/identity/02-keycloak.yaml
+  - ../../core/k8s/portals/portals.yaml
+  - ../../core/k8s/09-decision-recorder.yaml
+images:
+  - name: crs-applicant-portal
+    newName: docker-registry.model-serving.svc:5000/crs-applicant-portal
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000   # set per release candidate
+  - name: crs-staff-portal
+    newName: docker-registry.model-serving.svc:5000/crs-staff-portal
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  - name: ngnquanq/credit-risk-consumers
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+patches:
+  - target: {kind: Ingress, name: applicant-portal}
+    patch: |-
+      - {op: replace, path: /spec/rules/0/host, value: apply.uat.credit.local}
+  - target: {kind: Ingress, name: staff-portal}
+    patch: |-
+      - {op: replace, path: /spec/rules/0/host, value: staff.uat.credit.local}
