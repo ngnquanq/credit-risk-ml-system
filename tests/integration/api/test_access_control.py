@@ -136,3 +136,26 @@ async def test_existing_application_cannot_be_overwritten(api_client, act_as, ap
     act_as("cust-b", "customers", {"applicant"})
     resp = await api_client.post("/api/v1/applications", json={**valid_payload, "sk_id_curr": "S1"})
     assert resp.status_code == 409
+
+
+async def test_policy_change_needs_a_second_risk_manager(api_client, act_as, audit):
+    act_as("rm-1", "staff", {"risk_manager"})
+    created = await api_client.post("/api/v1/policy-changes", json={
+        "approve_below": 0.22, "reject_above": 0.33, "rationale": "Cost matrix update for Q1"})
+    assert created.status_code == 201
+    change_id = created.json()["id"]
+
+    own = await api_client.post(f"/api/v1/policy-changes/{change_id}/decision", json={"approve": True})
+    assert own.status_code == 403 and own.json()["detail"]["rule"] == "four_eyes"
+
+    act_as("rm-2", "staff", {"risk_manager"})
+    approved = await api_client.post(f"/api/v1/policy-changes/{change_id}/decision", json={"approve": True})
+    assert approved.status_code == 200
+    assert approved.json()["state"] == "active" and approved.json()["approved_by"] == "rm-2"
+
+
+async def test_underwriter_cannot_propose_policy(api_client, act_as):
+    act_as("uw-1", "staff", {"underwriter"})
+    resp = await api_client.post("/api/v1/policy-changes", json={
+        "approve_below": 0.2, "reject_above": 0.3, "rationale": "Looser bands please"})
+    assert resp.status_code == 403

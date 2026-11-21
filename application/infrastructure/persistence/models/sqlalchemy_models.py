@@ -103,3 +103,16 @@ class ApplicationStatusLog(Base):
     # Map attribute 'event_metadata' to DB column named 'metadata' to avoid
     # clashing with SQLAlchemy's Base.metadata and match migration DDL.
     event_metadata = Column('metadata', JSONB)
+
+
+class PolicyChange(Base):
+    """Proposed decision-band changes; active only after a second risk manager approves (E11, migration 004)."""
+    __tablename__ = "policy_change"
+
+    id = Column(BIGINT().with_variant(Integer(), "sqlite"), primary_key=True, autoincrement=True)
+    proposed_by = Column(String(64), nullable=False)
+    approved_by = Column(String(64))
+    payload = Column(JSONB, nullable=False)
+    state = Column(String(12), nullable=False, default="proposed")
+    created_at = Column(DateTime, server_default=func.current_timestamp(), nullable=False)
+    decided_at = Column(DateTime)
