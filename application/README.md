@@ -10,7 +10,7 @@ The goal is to decouple business logic from frameworks.
 - **Purpose**: Pure business logic and rules.
 - **Dependencies**: None (Standard Library only).
 - **Key Files**:
-    - `entities/loan_application.py`: The `LoanApplication` entity with `evaluate_worthiness` logic.
+    - `entities/loan_application.py`: The `LoanApplication` entity and its `ApplicationStatus`.
     - `interfaces/`: Protocols/Abstract Base Classes for repositories and gateways.
 
 ### `workflows/` (The Orchestration)
@@ -26,8 +26,8 @@ The goal is to decouple business logic from frameworks.
 - **Key Files**:
     - `persistence/postgres_loan_repo.py`: Saves entities to Postgres.
     - `external/kafka_scoring.py`: Publishes applications to the Kafka event bus.
-    - `external/bureau_adapter.py`: Wraps the legacy bureau service.
-    - `external/dwh_adapter.py`: Adapts the ClickHouse DWH client.
+    - `external/bureau_client.py`: ClickHouse client for bureau lookups (used by the bureau consumer).
+    - `external/dwh_client_ch.py`: ClickHouse client for the dbt marts (used by the DWH consumer).
 
 ---
 

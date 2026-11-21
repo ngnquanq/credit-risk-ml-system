@@ -26,7 +26,7 @@ This load test measures the **complete real-time ML prediction pipeline** from l
    [Redis Feature Store]
         ↓ (~10ms feature lookup)
    [KServe Predictor]
-        ↓ (LightGBM inference, ~50ms)
+        ↓ (XGBoost inference, ~50ms)
    [Kafka Topic: hc.scoring]
         ↓
 [PREDICTION OUTPUT] ✓
@@ -294,3 +294,16 @@ latency at <throughput> RPS, with <parallelism> Flink task managers processing
 5. **Optional**: Run stress test to find system limits
 
 Happy load testing! 🎉
+
+## Files in this directory
+
+| File | Purpose |
+|---|---|
+| `run_e2e_load_test.sh` + `locustfile_e2e_prediction.py` | **Main harness.** Inserts rows straight into PostgreSQL and correlates decisions on `hc.scoring` / `hc.scoring.dlq` (bypasses the API) |
+| `e2e_message_parsing.py`, `test_prediction_monitor_parsing.py` | Message parsing shared by the E2E locustfile, and its unit tests |
+| `capture_k8s_cycle_metrics.py`, `capture_kafka_channel_offsets.py` | Before/after snapshots: pod CFS throttling, restarts, KafkaChannel lag |
+| `run_load_test.sh` + `locustfile.py` | API-path load test: submits applications through `POST /api/v1/applications` |
+| `run_500user_test.sh`, `k8s-load-test-job.yaml` | 500-user run executed as a Kubernetes Job |
+| `probe_kserve_latency.py` | Calls the predictor's `/v1/score-by-id` directly to isolate serving latency |
+| `setup_load_test.sh` | Installs Locust and client libraries into a conda environment |
+| `RESULTS.md`, `reports/INVESTIGATION-LOG.md` | Findings; generated HTML reports in `reports/` are git-ignored |

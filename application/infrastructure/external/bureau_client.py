@@ -106,16 +106,3 @@ async def fetch_external_scores(sk_id_curr: int) -> Dict[str, Any]:
     )
     rows = await asyncio.to_thread(_query_dicts, sql)
     return rows[0] if rows else {}
-
-
-async def close_bureau_client() -> None:
-    global _pool
-    if _pool is None:
-        return
-    while not _pool.empty():
-        try:
-            client = _pool.get_nowait()
-            client.close()
-        except Exception as e:
-            logger.error(f"Error closing ClickHouse client: {e}")
-    _pool = None

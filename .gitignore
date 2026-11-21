@@ -149,6 +149,9 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
+!*.example
 .envrc
 .venv
 env/
@@ -273,7 +276,6 @@ application/scoring/mlflow.env
 
 # Jenkins CI/CD artifacts
 jenkins_home/
-services/ops/scripts/automation/automation_helper/backups/
 *.bak
 
 # lock file

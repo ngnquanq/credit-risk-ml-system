@@ -14,7 +14,6 @@ from pydantic import BaseModel
 from minio import Minio
 from minio.error import S3Error
 import uuid
-import json
 
 from core import settings, get_db, init_db, close_db
 from infrastructure.persistence.models.sqlalchemy_models import (
@@ -24,21 +23,16 @@ from infrastructure.persistence.models.sqlalchemy_models import (
 from infrastructure.persistence.models import (
     LoanApplicationCreate,
     LoanApplicationResponse,
-    DocumentUploadRequest,
-    DocumentUploadResponse,
     HealthResponse,
-    ApplicationStatus
 )
-from infrastructure.external.bureau_client import close_bureau_client
 from .dependencies import get_submit_loan_workflow
 from workflows.submit_loan import SubmitLoanWorkflow
 
 from pydantic import Field
 
 # Tracing
-from opentelemetry import trace
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from core.tracing import setup_tracing, extract_or_create_trace_context
+from core.tracing import setup_tracing
 
 # Initialize tracing
 tracer = setup_tracing("api-service", sampling_rate=0.1)
@@ -53,8 +47,6 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     logger.info("Shutting down Home Credit Loan API...")
-    # Close external clients
-    await close_bureau_client()
     await close_db()
 
 

@@ -1,4 +1,4 @@
-.PHONY: help cleanup-load-test cleanup-load-test-soft k8s-secrets
+.PHONY: help k8s-restart cleanup-load-test cleanup-load-test-soft k8s-secrets
 
 # Load environment variables from root .env file
 ifneq (,$(wildcard .env))
@@ -47,6 +47,9 @@ pf-postgres: ## Port-forward PgBouncer to localhost:6432 (connection-pooled acce
 pf-kafka: ## Port-forward Kafka broker to localhost:9092 (for load tests / local consumers)
 	@echo "Kafka broker available at localhost:9092"
 	kubectl port-forward -n data-services svc/kafka-broker 9092:9092
+
+k8s-restart: ## Resume the platform after `minikube stop` (resubmits Flink jobs, re-registers Debezium; idempotent)
+	./scripts/restart-platform.sh
 
 cleanup-load-test: ## Reset platform state after an E2E load test (hard mode)
 	./scripts/cleanup_load_test.sh --mode hard
@@ -372,9 +375,10 @@ k8s-model-serving: ## Deploy model serving components (bundle storage + serving 
 		-n model-serving --dry-run=client -o yaml | kubectl apply -f -
 	cd platform/ml/k8s/model-serving/bundle-storage && \
 		helm upgrade --install serving-minio . -n model-serving -f values.internal.yaml --set auth.rootUser="$(MINIO_ACCESS_KEY)" --set auth.rootPassword="$(MINIO_SECRET_KEY)"
+	kubectl apply -f platform/ml/k8s/model-serving/registry-deployment.yaml
 	kubectl apply -f platform/ml/k8s/model-serving/watcher-rbac.yaml
 	@echo "Generating serving-watcher ConfigMap from source files..."
-	kubectl create configmap serving-watcher -n model-serving --from-file=platform/ml/k8s/kserve/serving-watcher/watcher.py --from-file=platform/ml/k8s/kserve/serving-watcher/isvc-template-serverless.yaml --from-file=platform/ml/k8s/kserve/serving-watcher/isvc-template.yaml --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create configmap serving-watcher -n model-serving --from-file=platform/ml/k8s/kserve/serving-watcher/watcher.py --from-file=platform/ml/k8s/kserve/serving-watcher/isvc-template-serverless.yaml --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply -f platform/ml/k8s/model-serving/watcher-deployment.yaml
 	kubectl rollout restart -n model-serving deployment/serving-watcher
 	@echo "Model serving deployed (namespace: model-serving)"
@@ -383,7 +387,6 @@ k8s-sync-watcher-config: ## Sync serving-watcher ConfigMap from source files (us
 	kubectl create configmap serving-watcher -n model-serving \
 		--from-file=platform/ml/k8s/kserve/serving-watcher/watcher.py \
 		--from-file=platform/ml/k8s/kserve/serving-watcher/isvc-template-serverless.yaml \
-		--from-file=platform/ml/k8s/kserve/serving-watcher/isvc-template.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 	kubectl rollout restart -n model-serving deployment/serving-watcher
 
@@ -404,13 +407,12 @@ k8s-feature-registry: build-feast-repo ## Deploy Feast feature registry + Redis 
 	@echo "Feast feature registry deployed (namespace: feature-registry)"
 
 k8s-monitoring: ## Deploy Prometheus + Grafana monitoring stack
-	@echo "Deploying monitoring stack (Prometheus + Grafana + cAdvisor)..."
+	@echo "Deploying monitoring stack (Prometheus + Grafana)..."
 	kubectl create namespace monitoring || true
 	cd platform/ops/k8s/monitoring && \
 		helm upgrade --install kube-prometheus-stack ./kube-prometheus-stack \
 		-n monitoring \
 		-f kube-prometheus-stack/values.custom.yaml
-	kubectl apply -f platform/ops/k8s/monitoring/kube-prometheus-stack/docker-cadvisor-servicemonitor.yaml
 	@echo "Monitoring stack deployed (namespace: monitoring)"
 	@echo "Port-forward Grafana: kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80"
 	@echo "Default credentials: admin/prom-operator"

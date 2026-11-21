@@ -24,18 +24,14 @@ import random
 import time
 import uuid
 import sys
-import psycopg2
-from psycopg2.extras import RealDictCursor
 from psycopg2.pool import SimpleConnectionPool
 from kafka import KafkaConsumer
-from kafka.admin import KafkaAdminClient
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from locust import User, task, constant_throughput, events
 from locust.runners import WorkerRunner
 from pathlib import Path
 import json
 from threading import Thread, Event, Lock
-from queue import Queue
 import logging
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))

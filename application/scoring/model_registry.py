@@ -1,6 +1,6 @@
 """Model loading helpers with local or MLflow backends."""
 
-from typing import Any, Optional, Tuple, Dict, List
+from typing import Any, Optional, Tuple, Dict
 from loguru import logger
 import importlib
 import os

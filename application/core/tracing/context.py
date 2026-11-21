@@ -5,7 +5,7 @@ Trace context utilities for distributed tracing across services
 import hashlib
 from typing import Optional, Dict
 from opentelemetry import trace
-from opentelemetry.trace import SpanContext, TraceFlags, Link
+from opentelemetry.trace import SpanContext, TraceFlags
 from opentelemetry.propagate import extract, inject
 from opentelemetry.context import Context
 

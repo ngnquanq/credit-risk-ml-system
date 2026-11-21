@@ -25,7 +25,6 @@ from typing import Any, Dict, Optional
 
 from confluent_kafka import Consumer, Producer
 from loguru import logger
-from opentelemetry import trace
 from opentelemetry.propagate import inject
 
 from infrastructure.external.bureau_client import fetch_bureau_by_loan_id, fetch_external_scores
@@ -55,7 +54,7 @@ class ExternalBureauService:
             'bootstrap.servers': self.bootstrap_servers,
         })
 
-        logger.info(f"External Bureau Service initialized")
+        logger.info("External Bureau Service initialized")
         logger.info(f"Source topic: {self.source_topic}")
         logger.info(f"Raw topic: {self.raw_topic} (for Flink aggregation)")
 

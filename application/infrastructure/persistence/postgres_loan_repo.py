@@ -1,8 +1,7 @@
-from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from domain.entities.loan_application import LoanApplication, ApplicationStatus
+from domain.entities.loan_application import LoanApplication
 from domain.interfaces.loan_repository import LoanRepository
 from infrastructure.persistence.models.sqlalchemy_models import LoanApplication as DbLoanApplication
 
@@ -56,25 +55,3 @@ class PostgresLoanRepository(LoanRepository):
             self.session.add(db_model)
             
         await self.session.commit()
-
-    async def get_by_id(self, application_id: str) -> Optional[LoanApplication]:
-        """
-        Fetches DB Model and converts to Domain Entity.
-        """
-        stmt = select(DbLoanApplication).where(DbLoanApplication.sk_id_curr == application_id)
-        result = await self.session.execute(stmt)
-        db_model = result.scalar_one_or_none()
-        
-        if not db_model:
-            return None
-            
-        # Convert DB Model -> Domain Entity
-        return LoanApplication(
-            sk_id_curr=db_model.sk_id_curr,
-            amt_credit=db_model.amt_credit,
-            amt_income_total=db_model.amt_income_total,
-            amt_goods_price=db_model.amt_goods_price,
-            status=ApplicationStatus(db_model.status),
-            request_date=db_model.created_at,
-            details={} # Populate if needed
-        )

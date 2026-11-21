@@ -1,6 +1,6 @@
 import os
 from datetime import timedelta
-from feast import Field, FeatureView
+from feast import Field
 from feast.stream_feature_view import StreamFeatureView
 from feast.types import Float32, Int64, String
 from feast import KafkaSource, FileSource
@@ -8,7 +8,6 @@ from feast.data_format import JsonFormat
 
 from entities import customer
 from schema_loaders import infer_application_fields, infer_external_fields, infer_dwh_fields_from_json
-from feast import stream_feature_view
 
 # Environment-driven configuration (single source of truth via env)
 BOOTSTRAP = os.getenv("FEAST_KAFKA_BROKERS", "host.minikube.internal:39092")
@@ -49,7 +48,6 @@ def _kafka_source_with_optional_batch(
     name: str,
     topic: str,
     ts_field: str,
-    brokers: str,
     fields: list[Field],
     batch_source: FileSource,
 ) -> KafkaSource:
@@ -107,7 +105,6 @@ application_features_source = _kafka_source_with_optional_batch(
     name="application_features_source",
     topic=TOPIC_APP_FEATURES,
     ts_field=TS_APP,
-    brokers=BOOTSTRAP,
     fields=_app_fields,
     batch_source=application_batch_source,
 )
@@ -120,7 +117,6 @@ external_features_source = _kafka_source_with_optional_batch(
     name="external_features_source",
     topic=TOPIC_EXTERNAL,
     ts_field=TS_EXT,
-    brokers=BOOTSTRAP,
     fields=_ext_fields,
     batch_source=external_batch_source,
 )
@@ -133,7 +129,6 @@ dwh_features_source = _kafka_source_with_optional_batch(
     name="dwh_features_source",
     topic=TOPIC_DWH,
     ts_field=TS_DWH,
-    brokers=BOOTSTRAP,
     fields=_dwh_fields,
     batch_source=dwh_batch_source,
 )
@@ -143,7 +138,7 @@ dwh_features_source = _kafka_source_with_optional_batch(
 # For Feast 0.40.1, StreamFeatureView requires both stream_source and batch_source
 # We need to modify the KafkaSource to include batch_source reference
 # Create StreamFeatureViews with proper batch source configuration on the SFV itself
-def _make_stream_fv(name: str, schema: list[Field], stream_src, batch_src, ttl_days: int) -> StreamFeatureView:
+def _make_stream_fv(name: str, schema: list[Field], stream_src, ttl_days: int) -> StreamFeatureView:
     """Create a StreamFeatureView using source only.
 
     On Feast 0.47+, batch_source must be attached to the DataSource (KafkaSource),
@@ -161,7 +156,6 @@ fv_application_features = _make_stream_fv(
     name="application_features",
     schema=_app_fields,
     stream_src=application_features_source,
-    batch_src=application_batch_source,
     ttl_days=1,
 )
 
@@ -169,7 +163,6 @@ fv_external = _make_stream_fv(
     name="external_features",
     schema=_ext_fields,
     stream_src=external_features_source,
-    batch_src=external_batch_source,
     ttl_days=7,
 )
 
@@ -177,7 +170,6 @@ fv_dwh = _make_stream_fv(
     name="dwh_features",
     schema=_dwh_fields,
     stream_src=dwh_features_source,
-    batch_src=dwh_batch_source,
     ttl_days=7,
 )
 

@@ -1,6 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any
-from domain.entities.loan_application import LoanApplication
 
 class ScoringGateway(ABC):
     @abstractmethod

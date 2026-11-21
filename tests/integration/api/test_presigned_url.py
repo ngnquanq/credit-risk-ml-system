@@ -1,7 +1,7 @@
 """Integration tests for /api/v1/presigned-url endpoint."""
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from minio.error import S3Error
 
 

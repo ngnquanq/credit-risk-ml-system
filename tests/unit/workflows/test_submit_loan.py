@@ -1,11 +1,9 @@
 """Tests for SubmitLoanWorkflow orchestration."""
 
 import pytest
-from unittest.mock import AsyncMock, call
 
 from workflows.submit_loan import SubmitLoanWorkflow
-from workflows.dtos import SubmitLoanInput, SubmitLoanOutput
-from domain.entities.loan_application import ApplicationStatus
+from workflows.dtos import SubmitLoanInput
 
 
 @pytest.fixture

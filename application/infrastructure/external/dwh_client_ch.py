@@ -105,16 +105,3 @@ async def fetch_all_by_sk_id_curr(sk_id_curr: int) -> Dict[str, List[Dict[str, A
         rows = await asyncio.to_thread(_query_dicts, sql)
         results[tbl] = rows
     return results
-
-
-async def close_dwh_client() -> None:
-    global _pool
-    if _pool is None:
-        return
-    while not _pool.empty():
-        try:
-            client = _pool.get_nowait()
-            client.close()
-        except Exception as e:
-            logger.error(f"Error closing CH DWH client: {e}")
-    _pool = None

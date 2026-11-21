@@ -16,9 +16,8 @@ class Settings(BaseSettings):
     # API Configuration
     api_host: str = Field(default="0.0.0.0", description="API host")
     api_port: int = Field(default=8000, description="API port")
-    api_prefix: str = Field(default="/api/v1", description="API prefix")
 
-    # Database Configuration - Using same variables as .env.core
+    # Database configuration (variable names match .env.example)
     ops_db_host: str = Field(default="ops-postgres", description="PostgreSQL host", alias="OPS_DB_HOST")
     ops_db_port: int = Field(default=5432, description="PostgreSQL port", alias="OPS_DB_PORT")
     ops_db_user: str = Field(default="ops_admin", description="PostgreSQL user", alias="OPS_DB_USER")
@@ -33,22 +32,6 @@ class Settings(BaseSettings):
         return f"postgresql+asyncpg://{self.ops_db_user}:{password}@{self.ops_db_host}:{self.ops_db_port}/{self.ops_db_name}"
     database_pool_size: int = Field(default=10, description="Database connection pool size")
     database_max_overflow: int = Field(default=20, description="Database max overflow connections")
-
-    # External Bureau Database (read-only) Configuration
-    bureau_database_url: Optional[str] = Field(
-        default=None,
-        description="External bureau database connection URL"
-    )
-    bureau_db_pool_size: int = Field(default=10, description="Bureau DB connection pool size")
-    bureau_db_max_overflow: int = Field(default=20, description="Bureau DB max overflow connections")
-
-    # Data Warehouse Database Configuration
-    dwh_database_url: Optional[str] = Field(
-        default=None,
-        description="Data warehouse database connection URL"
-    )
-    dwh_db_pool_size: int = Field(default=10, description="DWH DB connection pool size")
-    dwh_db_max_overflow: int = Field(default=20, description="DWH DB max overflow connections")
 
     # ClickHouse configuration (used for bureau and/or DWH)
     clickhouse_host: str = Field(default="localhost", description="ClickHouse host")
@@ -66,10 +49,6 @@ class Settings(BaseSettings):
         default="localhost:9092",
         description="Kafka bootstrap servers"
     )
-    enable_kafka_consumer: bool = Field(default=True, description="Enable Kafka consumer for bureau requests")
-    kafka_consumer_group: str = Field(default="bureau-api-service", description="Kafka consumer group ID")
-    kafka_request_topic: str = Field(default="bureau-requests", description="Kafka topic for bureau requests")
-    kafka_response_topic: str = Field(default="bureau-responses", description="Kafka topic for bureau responses")
 
     # Topic for submitting loan applications (Source of Truth for DWH and Scoring)
     kafka_application_topic: str = Field(
@@ -86,10 +65,6 @@ class Settings(BaseSettings):
         default=["http://localhost:3000", "http://localhost:8080"],
         description="CORS allowed origins"
     )
-
-    # Application Limits
-    max_application_amount: float = Field(default=1000000.0, description="Maximum loan amount")
-    min_application_amount: float = Field(default=1000.0, description="Minimum loan amount")
 
     # MinIO / S3-compatible object storage
     minio_endpoint: str = Field(default="minio-server:9000", description="MinIO endpoint host:port", alias="MINIO_ENDPOINT")

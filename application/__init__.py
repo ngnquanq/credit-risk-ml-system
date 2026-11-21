@@ -1,12 +1,6 @@
-"""
-Application package - Home Credit Credit Risk System
-"""
+"""Credit risk decisioning platform: application code.
 
-# Export tracing utilities for easy import across all services
-from .tracing import setup_tracing, TracingKafkaProducer, TracingKafkaConsumer
-
-__all__ = [
-    "setup_tracing",
-    "TracingKafkaProducer",
-    "TracingKafkaConsumer",
-]
+Each deployable (API, consumers, scoring, Feast repo, Flink jobs, frontend)
+is run with PYTHONPATH=application and imports its siblings by top-level name
+(for example ``from core.config import settings``).
+"""

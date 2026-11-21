@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 from infrastructure.external import bureau_client as mod
 from infrastructure.external.bureau_client import (
     _query_dicts,
-    close_bureau_client,
     fetch_bureau_by_loan_id,
     fetch_external_scores,
 )
@@ -107,21 +106,3 @@ class TestFetchExternalScores:
         mock_query.return_value = []
         result = await fetch_external_scores(100)
         assert result == {}
-
-
-class TestCloseBureauClient:
-    async def test_close_calls_client_close(self):
-        mock_client = MagicMock()
-        mod._pool = _pool_with(mock_client)
-
-        await close_bureau_client()
-
-        mock_client.close.assert_called_once()
-        assert mod._pool is None
-
-    async def test_close_swallows_error(self):
-        mock_client = MagicMock()
-        mock_client.close.side_effect = Exception("already closed")
-        mod._pool = _pool_with(mock_client)
-
-        await close_bureau_client()

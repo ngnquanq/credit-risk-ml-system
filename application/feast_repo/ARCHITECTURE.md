@@ -46,11 +46,10 @@ Raw Credit Data → Kafka Topics → Feast Stream Processor → Redis → BentoM
 - **Why dual views**: Compatibility across Feast versions and different use cases
 - **TTL settings**: 1 day for application data, 7 days for external/DWH data
 
-#### `dwh_schema.py`
-- **What it does**: Automatically discovers DWH feature schema from ClickHouse
-- **Why it's smart**: Avoids manually maintaining 100+ feature definitions
-- **Data sources**: `mart_credit_card_balance`, `mart_pos_cash_balance`, `mart_previous_application`
-- **Fallback**: Provides minimal schema if ClickHouse is unavailable
+#### `schema_loaders.py` + `feature_schema/*.json`
+- **What it does**: Loads the field lists for the three views from JSON files that `generate_schemas_from_kafka.py` produced by sampling the Kafka topics
+- **Data sources**: `hc.application_features`, `hc.application_ext`, `hc.application_dwh`
+- **Caveat**: schemas follow whatever was on the topic when sampled (see docs/architecture/c4/docs/07-findings.md, F-07)
 
 ### **🎯 Service Orchestration Files**
 
@@ -137,7 +136,7 @@ Raw Credit Data → Kafka Topics → Feast Stream Processor → Redis → BentoM
 4. **Verify**: Check Redis for feature keys, monitor logs
 
 ### **Making Schema Changes**
-1. **Modify**: Update `feature_views.py` or `dwh_schema.py`
+1. **Modify**: Update `feature_views.py` or regenerate `feature_schema/*.json`
 2. **Re-apply**: Run `python repository.py` to update registry
 3. **Restart streams**: Restart `stream_processor.py` to pick up changes
 4. **Test**: Verify BentoML can retrieve updated features

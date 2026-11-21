@@ -57,7 +57,7 @@ The objective of this project is to build an **automated loan approval process**
 
 ![Model Evaluation](assets/final_evaluation.png)
 
-AUC was chosen over accuracy due to the class imbalance (91.9% repay / 8.1% default). See [`notebook/model_evaluation.ipynb`](notebook/model_evaluation.ipynb) for ROC curves, precision-recall, calibration, and threshold tradeoff analysis. See [`MODEL_CARD.md`](MODEL_CARD.md) for full model documentation.
+AUC was chosen over accuracy due to the class imbalance (91.9% repay / 8.1% default). See [`notebook/model_evaluation.ipynb`](notebook/model_evaluation.ipynb) for ROC curves, precision-recall, calibration, and threshold tradeoff analysis.
 
 ## Architecture
 
@@ -123,12 +123,14 @@ pip install -r requirements.txt
 cp .env.example .env
 # Edit .env — at minimum set OPS_DB_HOST, OPS_DB_PASSWORD, KAFKA_BOOTSTRAP_SERVERS
 
-# 3. Start required backing services (Postgres + Kafka only)
-docker compose -f platform/core/docker-compose.dev.yml up -d   # if available
+# 3. Start PostgreSQL (Kafka is optional for the API: a failed publish is logged, not raised)
+docker run -d --name ops-postgres -p 5432:5432 \
+  -e POSTGRES_DB=operations -e POSTGRES_USER=ops_admin -e POSTGRES_PASSWORD="$OPS_DB_PASSWORD" \
+  -v "$PWD/platform/core/schemas:/docker-entrypoint-initdb.d:ro" postgres:15-alpine
 # or point .env at existing services
 
 # 4. Run the API
-PYTHONPATH=application uvicorn application.entrypoints.api.main:app --reload --port 8000
+PYTHONPATH=application uvicorn entrypoints.api.main:app --reload --port 8000
 
 # 5. Run tests (no infrastructure needed — uses SQLite in-memory)
 PYTHONPATH=application pytest tests/unit tests/integration -v
@@ -398,32 +400,29 @@ The application flows through: **API → PostgreSQL → Debezium CDC → Kafka �
 
 ```
 .
-├── application/                  # Application code (Clean Architecture)
-│   ├── core/                     #   Config (Pydantic), tracing, database
-│   ├── domain/                   #   Business logic & entities
-│   ├── workflows/                #   Use case orchestration
-│   ├── infrastructure/           #   Adapters (DB, Kafka, ClickHouse, MinIO)
-│   ├── entrypoints/              #   FastAPI API + Kafka consumers
-│   ├── scoring/                  #   BentoML scoring service
+├── application/                  # Python source; each deployable runs with PYTHONPATH=application
+│   ├── core/                     #   Settings (Pydantic), tracing, database session
+│   ├── domain/                   #   Loan application entity and repository/scoring ports
+│   ├── workflows/                #   Use cases (submit loan)
+│   ├── infrastructure/           #   Postgres repository, Kafka publisher, ClickHouse clients
+│   ├── entrypoints/              #   FastAPI API + bureau/DWH Kafka consumers   (image: credit-risk-api / -consumers)
+│   ├── scoring/                  #   BentoML scoring service                    (Bento → KServe)
+│   ├── feast_repo/               #   Feast definitions + stream materialiser     (image: feast-repo)
+│   ├── flink/                    #   PyFlink CDC and bureau aggregation jobs    (image: flink-pyflink)
 │   ├── training/                 #   XGBoost training + MLflow registration
-│   ├── feast_repo/               #   Feast feature definitions + stream processor
-│   ├── flink/                    #   PyFlink CDC & bureau aggregation ETL
-│   └── frontend/                 #   Streamlit dashboard
-├── platform/                     # Infrastructure-as-Code (K8s manifests)
-│   ├── core/k8s/                 #   API, PostgreSQL, PgBouncer, Ingress
-│   ├── data/k8s/                 #   Kafka, ClickHouse, Flink, CDC, MinIO
-│   ├── ml/k8s/                   #   KServe, MLflow, Kubeflow, Feast, Ray
-│   └── ops/k8s/                  #   Prometheus, Grafana, ECK
-├── tests/                        # Unit, integration, and load-test coverage
-│   ├── unit/                     #   Unit tests
-│   ├── integration/              #   Integration tests (in-memory SQLite)
-│   └── test_load/                #   Locust load tests
-├── notebook/                     # Jupyter notebooks (EDA, modeling, evaluation)
-├── ml_data_mart/                 # dbt models for ClickHouse
-├── docs/adr/                     # Architecture Decision Records
-├── Makefile                      # Orchestration targets
-├── MODEL_CARD.md                 # Model documentation
-└── LICENSE                       # MIT License
+│   └── frontend/                 #   Streamlit UI                               (image: credit-risk-frontend)
+├── ml_data_mart/                 # dbt project for the ClickHouse marts           (image: dbt-clickhouse)
+├── platform/                     # Kubernetes manifests and Helm values, by plane
+│   ├── core/                     #   API, frontend, ingress; DB schemas and PgBouncer config
+│   ├── data/                     #   Postgres, Kafka, Debezium, ClickHouse, Flink, consumers
+│   ├── ml/                       #   MLflow, KServe/Knative, Feast, Kubeflow, Ray, watchers
+│   └── ops/                      #   Prometheus/Grafana, ECK logging, tracing, cert-manager
+├── notebook/                     # EDA and modelling notebooks; model_pipeline.py (tuning)
+├── tests/                        # unit/, integration/ (in-memory SQLite), test_load/ (Locust)
+├── scripts/                      # Platform restart and load-test cleanup helpers
+├── docs/                         # C4 model, ADRs, data and business docs (see docs/README.md)
+├── assets/                       # Images and diagrams used by the README
+└── Makefile                      # Build, deploy (k8s-*), and port-forward targets
 ```
 
 ## Testing

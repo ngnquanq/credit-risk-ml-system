@@ -29,7 +29,7 @@ def _mock_bentoml_and_import():
     # 2. The bentoml.importing() block does bare imports:
     #    from config import settings
     #    from schemas import ScoreRequest, ...
-    #    from pipeline import as_vector, postprocess
+    #    from pipeline import postprocess
     #    from logger import configure_logger
     #    These resolve to application/scoring/{config,schemas,pipeline,logger}.py
     #    when PYTHONPATH=application, "config" resolves to core.config. We need
@@ -51,12 +51,11 @@ def _mock_bentoml_and_import():
 
     # 3. Populate globals that bentoml.importing() would set
     import pandas as pd
-    from scoring.pipeline import as_vector as _as_vector, postprocess as _postprocess
+    from scoring.pipeline import postprocess as _postprocess
     from scoring.schemas import ScoreRequest, ScoreResponse, ScoreByIdRequest
     from scoring.logger import configure_logger
 
     svc.pd = pd
-    svc.as_vector = _as_vector
     svc.postprocess = _postprocess
     svc.ScoreRequest = ScoreRequest
     svc.ScoreResponse = ScoreResponse
@@ -224,37 +223,6 @@ class TestGetExpectedColumns:
         svc.MODEL_FEAST_METADATA = {}
         with pytest.raises(RuntimeError):
             svc._get_expected_columns()
-
-
-# ---------------------------------------------------------------------------
-# _extract_sk_id_curr_from_cdc
-# ---------------------------------------------------------------------------
-
-class TestServiceExtractCdc:
-    def _call(self, msg):
-        from scoring.service import _extract_sk_id_curr_from_cdc
-        return _extract_sk_id_curr_from_cdc(msg)
-
-    def test_plain(self):
-        assert self._call({"sk_id_curr": "100"}) == "100"
-
-    def test_debezium(self):
-        assert self._call({"payload": {"after": {"sk_id_curr": "200"}}}) == "200"
-
-    def test_before(self):
-        assert self._call({"payload": {"before": {"sk_id_curr": "300"}}}) == "300"
-
-    def test_value_nested(self):
-        assert self._call({"value": {"sk_id_curr": "400"}}) == "400"
-
-    def test_empty(self):
-        assert self._call({}) is None
-
-    def test_none(self):
-        assert self._call(None) is None
-
-    def test_int_to_str(self):
-        assert self._call({"sk_id_curr": 12345}) == "12345"
 
 
 # ---------------------------------------------------------------------------

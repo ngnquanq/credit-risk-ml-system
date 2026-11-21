@@ -11,7 +11,7 @@ This mirrors the _transform_bureau_data() logic from external_bureau_service.py
 from pyflink.table import DataTypes
 from pyflink.table.udf import udf
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 @udf(result_type=DataTypes.STRING())

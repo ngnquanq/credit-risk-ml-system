@@ -71,8 +71,6 @@ spec:
             value: us-east-1
 
           # Kafka - DISABLED (event-driven via Knative)
-          - name: SCORING_ENABLE_KAFKA
-            value: "false"
 
           # Observability
           - name: OTEL_EXPORTER_OTLP_ENDPOINT

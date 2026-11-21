@@ -23,7 +23,7 @@ Usage:
 
 import csv
 import random
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from locust import HttpUser, task, between
 from pathlib import Path
 
@@ -164,8 +164,6 @@ class LoanApplicationUser(HttpUser):
 
 
 if __name__ == "__main__":
-    import os
-    import sys
 
     # Check if running in correct directory
     if not Path("data/application_train.csv").exists():

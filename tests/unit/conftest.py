@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import AsyncMock
 
-from domain.entities.loan_application import LoanApplication, ApplicationStatus
+from domain.entities.loan_application import LoanApplication
 from domain.interfaces.loan_repository import LoanRepository
 from domain.interfaces.scoring_gateway import ScoringGateway
 
@@ -42,7 +42,6 @@ def mock_loan_repo():
     """AsyncMock repository implementing LoanRepository."""
     repo = AsyncMock(spec=LoanRepository)
     repo.save.return_value = None
-    repo.get_by_id.return_value = None
     return repo
 
 

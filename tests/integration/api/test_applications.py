@@ -1,8 +1,6 @@
 """Integration tests for /api/v1/applications endpoints."""
 
 import pytest
-from unittest.mock import AsyncMock
-from workflows.dtos import SubmitLoanOutput
 
 
 @pytest.fixture

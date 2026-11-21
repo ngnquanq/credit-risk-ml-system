@@ -1,5 +1,4 @@
 import os
-import re
 import time
 import logging
 import subprocess
@@ -126,12 +125,12 @@ def build_and_push_image(version: str) -> bool:
             env_python_path = os.path.join(bento_dir, "env/python")
             env_python_requirements = os.path.join(env_python_path, "requirements.txt")
 
-            log.info(f"Checking for env/python/requirements.txt:")
+            log.info("Checking for env/python/requirements.txt:")
             log.info(f"  env/python exists: {os.path.exists(env_python_path)}")
             log.info(f"  requirements.txt exists: {os.path.exists(env_python_requirements)}")
 
             if os.path.exists(env_python_path):
-                log.info(f"  Contents of env/python/:")
+                log.info("  Contents of env/python/:")
                 for item in os.listdir(env_python_path):
                     log.info(f"    - {item}")
 
@@ -324,7 +323,7 @@ def create_or_update_inferenceservice(version: str) -> bool:
 
         # Try to get existing InferenceService
         try:
-            existing = custom_api.get_namespaced_custom_object(
+            custom_api.get_namespaced_custom_object(  # raises 404 if absent
                 group="serving.kserve.io",
                 version="v1beta1",
                 namespace=KSERVE_NAMESPACE,

@@ -4,10 +4,9 @@ Only includes fields that customers can realistically provide.
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime, date
 from enum import Enum
-from domain.entities.loan_application import ApplicationStatus
 
 
 class GenderType(str, Enum):
@@ -51,40 +50,6 @@ class HousingType(str, Enum):
     MUNICIPAL_APARTMENT = "Municipal apartment"
     OFFICE_APARTMENT = "Office apartment"
     CO_OP_APARTMENT = "Co-op apartment"
-
-
-class DocumentType(int, Enum):
-    """Document types based on Home Credit FLAG_DOCUMENT_* fields."""
-    PASSPORT = 2
-    IDENTITY_CARD = 3
-    DRIVERS_LICENSE = 4
-    BIRTH_CERTIFICATE = 5
-    INCOME_CERTIFICATE = 6
-    BANK_STATEMENT = 7
-    EMPLOYMENT_LETTER = 8
-    TAX_RETURN = 9
-    UTILITY_BILL = 10
-    PROPERTY_DEED = 11
-    MARRIAGE_CERTIFICATE = 12
-    DIVORCE_DECREE = 13
-    EDUCATION_CERTIFICATE = 14
-    MEDICAL_CERTIFICATE = 15
-    PENSION_CERTIFICATE = 16
-    BUSINESS_LICENSE = 17
-    INSURANCE_POLICY = 18
-    LOAN_AGREEMENT = 19
-    COURT_JUDGMENT = 20
-    OTHER_DOCUMENT = 21
-
-
-class DocumentUpload(BaseModel):
-    """Document upload information."""
-    document_type: DocumentType = Field(..., description="Type of document")
-    file_name: str = Field(..., description="Original filename")
-    file_size: int = Field(..., description="File size in bytes")
-    file_url: Optional[str] = Field(None, description="URL to uploaded file (set by system)")
-    upload_timestamp: Optional[datetime] = Field(None, description="When document was uploaded")
-    is_verified: bool = Field(False, description="Whether document has been verified")
 
 
 class LoanApplicationCreate(BaseModel):
@@ -205,24 +170,6 @@ class LoanApplicationResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
-
-class DocumentUploadRequest(BaseModel):
-    """Request schema for uploading individual documents."""
-    application_id: int = Field(..., description="ID of the loan application")
-    document_type: DocumentType = Field(..., description="Type of document being uploaded")
-    
-    
-class DocumentUploadResponse(BaseModel):
-    """Response after successful document upload."""
-    id: int
-    application_id: int
-    document_type: DocumentType
-    file_name: str
-    file_size: int
-    file_url: str
-    upload_timestamp: datetime
-    is_verified: bool
-    
 
 class HealthResponse(BaseModel):
     """Health check response."""

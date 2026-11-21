@@ -1,9 +1,7 @@
 from domain.entities.loan_application import LoanApplication, ApplicationStatus
 from domain.interfaces.loan_repository import LoanRepository
-from domain.interfaces.bureau_gateway import BureauGateway
 from domain.interfaces.scoring_gateway import ScoringGateway
 from workflows.dtos import SubmitLoanInput, SubmitLoanOutput
-import uuid
 import logging
 
 class SubmitLoanWorkflow:

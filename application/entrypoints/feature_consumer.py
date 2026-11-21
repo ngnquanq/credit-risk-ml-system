@@ -23,10 +23,8 @@ from typing import Any, Dict, Optional
 
 from confluent_kafka import Consumer, Producer
 from loguru import logger
-from opentelemetry import trace
 from opentelemetry.propagate import inject
 
-from core.config import settings
 from infrastructure.external.dwh_client_ch import fetch_all_by_sk_id_curr, get_table_columns, MART_TABLES
 from core.tracing import setup_tracing, extract_or_create_trace_context
 
@@ -54,7 +52,7 @@ class DWHFeaturesService:
             'bootstrap.servers': self.bootstrap_servers,
         })
         
-        logger.info(f"DWH Features Service initialized")
+        logger.info("DWH Features Service initialized")
         logger.info(f"Source topic: {self.source_topic}")
         logger.info(f"Sink topic: {self.sink_topic}")
 
@@ -65,11 +63,6 @@ class DWHFeaturesService:
             
             # Fetch ALL tables that have SK_ID_CURR in the mart DB
             tables_data = await fetch_all_by_sk_id_curr(sk_id_curr_int)
-
-            # Package raw data; include simple flat fields for Feast ingestion
-            prev_cnt = len(tables_data.get("mart_previous_application", []))
-            pos_cnt = len(tables_data.get("mart_pos_cash_balance", []))
-            cc_cnt = len(tables_data.get("mart_credit_card_balance", []))
 
             # Schema-driven flattening: always emit all columns (None when missing)
             flat: Dict[str, Any] = {}
@@ -84,8 +77,6 @@ class DWHFeaturesService:
                 for col in cols:
                     flat[col] = row0_lc.get(col, None)
 
-            # Flatten record_counts keys to top-level for Feast ingestion
-            rc = {k: len(v) for k, v in tables_data.items()}
             dwh_raw_data = {
                 "sk_id_curr": sk_id_curr,
                 # Use epoch seconds for Feast timestamp alignment

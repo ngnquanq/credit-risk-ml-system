@@ -12,20 +12,16 @@ from datetime import date
 try:
     from .config import APP_NAME
     from .utils import (
-        get_presigned_url,
         submit_application,
         get_application_status,
-        upload_file_to_presigned_url,
         upload_document_via_api,
     )
 except Exception:
     sys.path.append(os.path.dirname(__file__))
     from config import APP_NAME
     from utils import (
-        get_presigned_url,
         submit_application,
         get_application_status,
-        upload_file_to_presigned_url,
         upload_document_via_api,
     )
 

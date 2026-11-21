@@ -1,7 +1,5 @@
-"""Tests for core/tracing — context and kafka_tracing modules."""
+"""Tests for core/tracing context helpers."""
 
-import pytest
-from unittest.mock import patch, MagicMock
 
 from core.tracing.context import (
     create_deterministic_trace_context,
@@ -76,48 +74,3 @@ class TestInjectTraceContext:
     def test_returns_dict(self):
         result = inject_trace_context()
         assert isinstance(result, dict)
-
-
-class TestTracingKafkaProducer:
-    @patch("core.tracing.kafka_tracing.KafkaProducer")
-    def test_send_traced(self, MockKP):
-        mock_producer = MagicMock()
-        MockKP.return_value = mock_producer
-
-        from core.tracing.kafka_tracing import TracingKafkaProducer
-        tp = TracingKafkaProducer(bootstrap_servers="localhost:9092")
-        tp.send_traced("test-topic", {"key": "value"}, sk_id="100")
-
-        mock_producer.send.assert_called_once()
-        call_kwargs = mock_producer.send.call_args
-        assert call_kwargs.args[0] == "test-topic"
-
-    @patch("core.tracing.kafka_tracing.KafkaProducer")
-    def test_send_without_sk_id(self, MockKP):
-        MockKP.return_value = MagicMock()
-
-        from core.tracing.kafka_tracing import TracingKafkaProducer
-        tp = TracingKafkaProducer(bootstrap_servers="localhost:9092")
-        tp.send_traced("topic", {"data": 1})  # no sk_id — should not error
-
-    @patch("core.tracing.kafka_tracing.KafkaProducer")
-    def test_close(self, MockKP):
-        mock_producer = MagicMock()
-        MockKP.return_value = mock_producer
-
-        from core.tracing.kafka_tracing import TracingKafkaProducer
-        tp = TracingKafkaProducer(bootstrap_servers="localhost:9092")
-        tp.close()
-        mock_producer.close.assert_called_once()
-
-
-class TestTracingKafkaConsumer:
-    @patch("core.tracing.kafka_tracing.KafkaConsumer")
-    def test_close(self, MockKC):
-        mock_consumer = MagicMock()
-        MockKC.return_value = mock_consumer
-
-        from core.tracing.kafka_tracing import TracingKafkaConsumer
-        tc = TracingKafkaConsumer("topic", bootstrap_servers="localhost:9092", group_id="g")
-        tc.close()
-        mock_consumer.close.assert_called_once()

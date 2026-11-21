@@ -152,9 +152,3 @@ class TestLoanApplicationResponseBugs:
         )
         # `status` was silently dropped — attribute doesn't exist on model
         assert not hasattr(resp, "status") or "status" not in resp.model_fields
-
-    def test_max_application_amount_not_enforced(self, valid_create_payload):
-        """BUG DOC: settings.max_application_amount=1M is never checked by schema."""
-        payload = {**valid_create_payload, "amt_credit": 999_999_999}
-        obj = LoanApplicationCreate(**payload)
-        assert obj.amt_credit == 999_999_999  # passes despite max_application_amount

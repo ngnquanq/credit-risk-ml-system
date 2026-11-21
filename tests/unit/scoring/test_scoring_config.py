@@ -1,6 +1,5 @@
 """Tests for scoring/config.py — ScoringSettings."""
 
-import pytest
 import os
 from unittest.mock import patch
 
@@ -31,10 +30,6 @@ class TestScoringSettings:
         s = self._make(SCORING_MODEL_SOURCE="mlflow", SCORING_MLFLOW_MODEL_URI="models:/m/1")
         assert s.model_source == "mlflow"
         assert s.mlflow_model_uri == "models:/m/1"
-
-    def test_kafka_disabled_by_default(self):
-        s = self._make()
-        assert s.enable_kafka is False
 
     def test_feast_repo_path_default_is_absolute(self):
         s = self._make()

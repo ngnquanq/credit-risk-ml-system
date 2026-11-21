@@ -11,7 +11,6 @@ Implements micro-batching for Redis writes to improve throughput and reduce cont
 import json
 import os
 import queue
-import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -410,7 +409,7 @@ class FeastStreamProcessor:
         # Test Feast online store connectivity
         try:
             # Try a simple query to verify setup
-            result = self.fs.get_online_features(
+            self.fs.get_online_features(
                 features=["application_features:cnt_children"],
                 entity_rows=[{"sk_id_curr": "test_connectivity"}]
             )

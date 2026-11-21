@@ -67,24 +67,6 @@ class ScoringSettings(BaseSettings):
         description="Comma-separated Feast feature references (set via env var or loaded from model's feast_metadata.yaml)",
     )
 
-    # Kafka integration (disabled - using Knative Eventing)
-    enable_kafka: bool = Field(default=False, description="Kafka consumer disabled in serverless mode")
-    kafka_bootstrap_servers: str = Field(
-        default="host.minikube.internal:39092", description="Kafka bootstrap servers"
-    )
-    loan_application_topic: str = Field(
-        default="hc.applications.public.loan_applications", description="Kafka topic with loan application events"
-    )
-    kafka_group_id: str = Field(
-        default="bento-scoring", description="Kafka consumer group id for scoring"
-    )
-    scoring_output_topic: Optional[str] = Field(
-        default="hc.scoring", description="Optional Kafka topic to publish scoring results"
-    )
-    feature_ready_topic: str = Field(
-        default="hc.feature_ready", description="Kafka topic with feature readiness notifications"
-    )
-
     # Data validation
     require_customer_data: bool = Field(
         default=True, description="Require customer data to exist in Redis before prediction"

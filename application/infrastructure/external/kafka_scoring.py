@@ -1,6 +1,4 @@
 import json
-import asyncio
-from typing import Optional
 from confluent_kafka import Producer
 from loguru import logger
 import socket

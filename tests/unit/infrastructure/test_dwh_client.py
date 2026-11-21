@@ -82,18 +82,3 @@ class TestFetchAllBySkIdCurr:
 
         for tbl_rows in result.values():
             assert tbl_rows == []
-
-
-class TestCloseDwhClient:
-    async def test_close(self):
-        mock_client = MagicMock()
-        mod._pool = _pool_with(mock_client)
-
-        await mod.close_dwh_client()
-
-        mock_client.close.assert_called_once()
-        assert mod._pool is None
-
-    async def test_close_with_none_pool(self):
-        mod._pool = None
-        await mod.close_dwh_client()

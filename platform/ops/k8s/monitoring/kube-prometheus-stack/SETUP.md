@@ -1,58 +1,36 @@
-# Quick Setup Guide
+# Monitoring setup (kube-prometheus-stack)
 
-This is a custom deployment of kube-prometheus-stack with Docker container monitoring for the hc-network.
-
-## Prerequisites
-
-- Minikube running (`minikube -p mlops start`)
-- Helm 3 installed
-- Docker cAdvisor running (see `services/ops/docker-compose.monitoring.yml`)
-
-## Installation
+Prometheus, Alertmanager, Grafana, kube-state-metrics and node-exporter for the Minikube cluster. Deployed by `make k8s-monitoring`, which runs:
 
 ```bash
-# Add Prometheus Community Helm repo
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
-
-# Install/Upgrade with custom values
-helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack \
-  -n monitoring --create-namespace \
-  -f values.custom.yaml
-
-# Apply Docker cAdvisor ServiceMonitor
-kubectl apply -f docker-cadvisor-servicemonitor.yaml
-
-# Apply Dashboards (optional, auto-loaded)
-kubectl apply -f dashboards/docker-dashboard-configmap.yaml
-kubectl apply -f dashboards/cadvisor-dashboard-configmap.yaml
+helm upgrade --install kube-prometheus-stack ./kube-prometheus-stack \
+  -n monitoring -f kube-prometheus-stack/values.custom.yaml
 ```
+
+`values.custom.yaml` holds our overrides; everything else in this directory is the upstream chart.
 
 ## Access
 
-- **Grafana**: http://localhost:30300 (user: `admin`, password: `admin`)
-  - **Docker + System Dashboard**: General system monitoring (Dashboard 893)
-  - **cAdvisor Exporter**: Container-focused metrics (Dashboard 14282) - **Recommended**
-- **Alertmanager**: http://localhost:30903
-
-## Monitoring Sources
-
-1. **Kubelet cAdvisor** - K8s pods (job=`kubelet`)
-2. **Docker cAdvisor** - hc-network containers (job=`docker-cadvisor`)
-
-## Query Examples
-
-```promql
-# Docker containers memory
-container_memory_working_set_bytes{cadvisor_source="docker-hc-network"}
-
-# K8s pods CPU
-rate(container_cpu_usage_seconds_total{job="kubelet"}[5m])
+```bash
+kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
+# Grafana: http://localhost:3000 (default admin / prom-operator; change it)
 ```
 
-## Configuration Highlights
+## What is scraped
 
-- **Timezone**: GMT+7 (Hanoi Time)
-- **Retention**: 7 days
-- **Scrape interval**: 30s
-- **Security**: Only hc-network containers monitored (Minikube/system containers excluded)
+- Kubelet / cAdvisor: CPU, memory and CFS throttling for every pod (used by `tests/test_load/capture_k8s_cycle_metrics.py`).
+- kube-state-metrics and node-exporter.
+- ServiceMonitors shipped by other charts (MLflow, KubeRay, MinIO) when their `serviceMonitor` option is enabled.
+
+## Example queries
+
+```promql
+# CPU throttling ratio per pod (the load-test bottleneck signal)
+sum by (pod) (rate(container_cpu_cfs_throttled_periods_total{namespace="data-services"}[5m]))
+  / sum by (pod) (rate(container_cpu_cfs_periods_total{namespace="data-services"}[5m]))
+
+# Pod memory
+sum by (pod) (container_memory_working_set_bytes{namespace="kserve"})
+```
+
+The Docker-host cAdvisor dashboards and ServiceMonitor from the Docker Compose era were removed with that stack (ADR-0005).

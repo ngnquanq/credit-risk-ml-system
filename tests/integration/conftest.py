@@ -2,12 +2,10 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, date
 import sys
 import types
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy import JSON, event
 from sqlalchemy.dialects.postgresql import JSONB
 try:
     from sqlalchemy.ext.asyncio import async_sessionmaker

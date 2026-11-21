@@ -1,11 +1,16 @@
 # System Architecture
 
+> **Superseded by the C4 model in [`c4/`](c4/README.md)**, which is verified against the code. This page is kept as a short summary.
+
 ## Data Flow
 
 ```
-Loan App → PostgreSQL → Debezium (CDC) → Kafka
-  → Flink → Redis (online features) + ClickHouse (DWH)
-  → Kafka (feature_ready) → KServe → Kafka (scoring results)
+Loan App → PostgreSQL → Debezium (CDC) → Kafka hc.applications.public.loan_applications
+  ├─ Flink CDC job ─────────────────────────────→ hc.application_features
+  ├─ bureau service (ClickHouse) → hc.application_ext_raw → Flink bureau job → hc.application_ext
+  └─ DWH service (ClickHouse marts) ────────────→ hc.application_dwh
+       → Feast materialiser → Redis → hc.feature_ready
+       → Knative KafkaSource → Sequence → KServe predictor → KafkaSink → hc.scoring
 ```
 
 ## Architecture Diagram

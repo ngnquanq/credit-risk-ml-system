@@ -5,7 +5,7 @@ from datetime import date
 
 from infrastructure.persistence.postgres_loan_repo import PostgresLoanRepository
 from infrastructure.persistence.models.sqlalchemy_models import LoanApplication as DbLoanApplication
-from domain.entities.loan_application import LoanApplication, ApplicationStatus
+from domain.entities.loan_application import LoanApplication
 
 
 @pytest.fixture
@@ -107,27 +107,3 @@ class TestSave:
         )
         row = result.scalar_one()
         assert row.cnt_children == 3
-
-
-class TestGetById:
-    async def test_get_by_id_crashes_due_to_missing_status_column(self, repo):
-        """
-        BUG DOC: get_by_id tries to read db_model.status, but the SQLAlchemy
-        LoanApplication model has no `status` column → AttributeError.
-        """
-        await repo.save(_make_app())
-        with pytest.raises(AttributeError, match="status"):
-            await repo.get_by_id("T001")
-
-    async def test_nonexistent_returns_none(self, repo):
-        result = await repo.get_by_id("NOPE")
-        assert result is None
-
-    async def test_get_by_id_returns_empty_details_when_status_bug_fixed(self, repo):
-        """
-        BUG DOC: Even if the status bug is fixed, get_by_id always returns
-        details={} — data loss on round-trip. This test documents the intended
-        behavior once the status column issue is resolved.
-        """
-        # Can't test round-trip until the status bug is fixed
-        pytest.skip("Blocked by get_by_id status column bug")

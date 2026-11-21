@@ -34,7 +34,6 @@ settings = None  # type: ignore
 ScoreRequest = None  # type: ignore
 ScoreResponse = None  # type: ignore
 ScoreByIdRequest = None  # type: ignore
-as_vector = None  # type: ignore
 postprocess = None  # type: ignore
 configure_logger = None  # type: ignore
 
@@ -42,11 +41,12 @@ configure_logger = None  # type: ignore
 # These are installed after the build process reads bentofile.yaml
 with bentoml.importing():
     from fastapi import FastAPI, Request
+    from fastapi.responses import JSONResponse
     from loguru import logger as _logger
     import pandas as _pd
     from config import settings as _settings
     from schemas import ScoreRequest as _ScoreRequest, ScoreResponse as _ScoreResponse, ScoreByIdRequest as _ScoreByIdRequest
-    from pipeline import as_vector as _as_vector, postprocess as _postprocess
+    from pipeline import postprocess as _postprocess
     from logger import configure_logger as _configure_logger
 
     try:
@@ -66,7 +66,6 @@ with bentoml.importing():
     ScoreRequest = _ScoreRequest
     ScoreResponse = _ScoreResponse
     ScoreByIdRequest = _ScoreByIdRequest
-    as_vector = _as_vector
     postprocess = _postprocess
     configure_logger = _configure_logger
     trace = _trace
@@ -91,16 +90,7 @@ with bentoml.importing():
 
     @app.on_event("startup")
     def _on_startup() -> None:  # pragma: no cover
-        """Ensure model and optional Kafka consumer start when server starts."""
-        try:
-            logger.info(
-                "Initializing scoring service (kafka_enabled=%s, topic=%s, bootstrap=%s)",
-                settings.enable_kafka,
-                settings.loan_application_topic,
-                settings.kafka_bootstrap_servers,
-            )
-        except Exception as e:
-            logger.error(f"Error during startup initialization: {e}")
+        """Load the model (and resolve Feast feature refs) before serving traffic."""
         ensure_model_loaded()
 
     @app.get("/healthz")
@@ -286,25 +276,6 @@ model = None  # type: ignore[var-annotated]
 MODEL_NAME: str = "unknown"
 MODEL_VERSION: Optional[str] = None
 MODEL_FEAST_METADATA: Optional[Dict[str, Any]] = None  # Feature selection from training
-
-
-def _extract_sk_id_curr_from_cdc(message: Any) -> Optional[str]:
-    """Extract sk_id_curr from plain, Debezium, or nested Kafka payloads."""
-    if not isinstance(message, dict):
-        return None
-
-    record = message
-    if isinstance(message.get("payload"), dict):
-        payload = message["payload"]
-        record = payload.get("after") or payload.get("before") or payload
-    elif isinstance(message.get("value"), dict):
-        record = message["value"]
-
-    if not isinstance(record, dict):
-        return None
-
-    sk_id_curr = record.get("sk_id_curr")
-    return str(sk_id_curr) if sk_id_curr is not None else None
 
 
 def _elapsed_ms(start: float, end: float) -> float:
@@ -588,10 +559,9 @@ def _resolve_feast_repo_path() -> str:
 # Lazy, thread-safe model initializer to avoid loading at import/build time
 _init_lock = threading.Lock()
 _initialized = False
-_kafka_started = False
 
 def ensure_model_loaded() -> None:
-    global model, MODEL_NAME, MODEL_VERSION, MODEL_FEAST_METADATA, _initialized, _kafka_started
+    global model, MODEL_NAME, MODEL_VERSION, MODEL_FEAST_METADATA, _initialized
     if _initialized and model is not None:
         return
     with _init_lock:
@@ -619,7 +589,7 @@ def ensure_model_loaded() -> None:
                 f"Model '{name}' is missing feast_metadata.yaml. "
                 "This file must be generated during training with fields: "
                 "'selected_features', 'feast_feature_refs', 'feature_mapping', 'num_features', 'training_date'. "
-                "See download_model_with_metadata.py for details."
+                "The training scripts in application/training write it next to the model."
             )
 
         if not feast_metadata.get("selected_features"):
@@ -696,10 +666,10 @@ def ensure_model_loaded() -> None:
                         f"ACTION REQUIRED:\n"
                         f"  1. Update Feast StreamFeatureViews to include missing features\n"
                         f"  2. Sample Kafka topics to generate schemas:\n"
-                        f"     python application/feast/generate_schemas_from_kafka.py\n"
+                        f"     python application/feast_repo/generate_schemas_from_kafka.py\n"
                         f"  3. Update feature_views.py to use generated schemas\n"
                         f"  4. Rebuild Docker image and redeploy Feast:\n"
-                        f"     kubectl apply -k services/ml/k8s/feature-store/\n"
+                        f"     kubectl apply -k platform/ml/k8s/feature-store/\n"
                         f"  5. Redeploy this service\n"
                         f"{'='*70}\n"
                     )
@@ -714,7 +684,7 @@ def ensure_model_loaded() -> None:
                     MODEL_FEAST_METADATA["feature_mapping"] = feature_mapping
                     logger.info(f"   Stored dynamically generated feature_mapping ({len(feature_mapping)} entries)")
                 else:
-                    logger.info(f"   Preserving existing feature_mapping from feast_metadata.yaml")
+                    logger.info("   Preserving existing feature_mapping from feast_metadata.yaml")
                 MODEL_FEAST_METADATA["feast_feature_refs"] = settings.feast_feature_refs
 
                 logger.info(f"✅ Startup validation passed: All {len(required_features)} features found in Feast")
@@ -734,11 +704,6 @@ def ensure_model_loaded() -> None:
             logger.warning("⚠ Feast disabled or no feature refs configured")
 
         _initialized = True
-
-        # Kafka consumer disabled - using Knative Eventing instead
-        # if settings.enable_kafka and not _kafka_started:  # pragma: no cover
-        #     threading.Thread(target=_run_kafka_consumer, daemon=True).start()
-        #     _kafka_started = True
 
 
 # Mount FastAPI app into Bento service

@@ -1,0 +1,5 @@
+# Structurizr local runtime data (logs, search index)
+.structurizr/
+
+# Structurizr local workspace cache
+workspace.json
