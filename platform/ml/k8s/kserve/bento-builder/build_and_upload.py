@@ -25,11 +25,11 @@ Required env:
 from __future__ import annotations
 
 import os
-import sys
 import subprocess
 import tempfile
 import pathlib
 import shutil
+import sys
 
 
 def sh(cmd: str, cwd: str | None = None) -> None:
@@ -66,7 +66,7 @@ def _git_clone(repo: str, ref: str, dest: str) -> None:
 
 
 def main() -> None:
-    mlflow, joblib, boto3 = _import_or_install()
+    mlflow, joblib, _ = _import_or_install()  # also ensures boto3 is installed
 
     tracking_uri = os.environ.get("MLFLOW_TRACKING_URI")
     model_name = os.environ.get("MODEL_NAME")
@@ -81,7 +81,6 @@ def main() -> None:
     prefix = os.environ.get("BENTO_PREFIX", "bentos")
 
     s3_endpoint = os.environ.get("AWS_S3_ENDPOINT")
-    force_path_style = os.environ.get("AWS_S3_FORCE_PATH_STYLE", "true").lower() == "true"
 
     if not (tracking_uri and model_name and model_uri and version_tag and (app_repo or app_local_path) and bkt):
         missing = [k for k, v in {
@@ -128,6 +127,12 @@ def main() -> None:
                 mdl = mlflow.pyfunc.load_model(model_uri)
     except Exception as e:
         raise SystemExit(f"Failed to load model from MLflow: {e}")
+
+    # MLflow loads the transformer using the run's packaged code. Joblib
+    # stores its import path, so carry that exact file into the scoring context.
+    recipe = sys.modules.get("feature_preprocessing")
+    if recipe is not None:
+        shutil.copy2(recipe.__file__, pathlib.Path(svc_dir) / "feature_preprocessing.py")
 
     # Serialize to a single file included in the Bento context
     bundle_dir = os.path.join(svc_dir, "bundle")

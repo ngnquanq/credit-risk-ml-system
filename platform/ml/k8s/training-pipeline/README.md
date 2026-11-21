@@ -8,14 +8,25 @@ Components
 - train_and_register: trains with best params and registers/logs to MLflow; optionally transitions stage.
 
 Notes
-- This is a quick-iteration skeleton; swap `tune_hyperparams` with Katib or a validated production pipeline before making production training claims.
+- This is a quick-iteration skeleton; swap `ray_tune_hyperparams` with Katib or a validated production pipeline before making production training claims.
 - All credentials are provided as parameters/envs; do not hardcode secrets.
 
 Quick Start
-1) Compile pipeline spec
-   python platform/ml/k8s/training-pipeline/compile_pipeline.py
+1) Build both recipe images from the repository root, then compile the pipeline.
 
-   Outputs `training_pipeline.json` next to the script.
+   ```bash
+   docker build -f platform/ml/k8s/training-pipeline/Dockerfile -t credit-risk-kfp-trainer:dev .
+   docker build -f platform/ml/k8s/training-pipeline/Dockerfile \
+     --build-arg BASE_IMAGE=python:3.9-slim -t credit-risk-kfp-ray:dev .
+   python platform/ml/k8s/training-pipeline/compile_pipeline.py
+   ```
+
+   The compiler writes `training_pipeline.yaml`. Load both images into the trial cluster or
+   compile with `CRQ_KFP_TRAINER_IMAGE` and `CRQ_KFP_RAY_IMAGE` set to pullable, versioned
+   image references. Both images must contain the recipe from the same source revision.
+   The pipeline expects the same 24 input columns as the local CLI plus `TARGET`.
+   Extra snapshot columns, including `SK_ID_CURR`, are excluded from model inputs.
+
 
 2) (Optional) Deploy Ray for distributed tuning
    - Install KubeRay operator (Helm) and apply the cluster manifest:
@@ -23,7 +34,7 @@ Quick Start
      helm install kuberay-operator kuberay/kuberay-operator -n ray-system --create-namespace
      kubectl apply -f platform/ml/k8s/kuberay-operator/raycluster.yaml
 
-3) Upload to KFP UI and run with parameters (defaults pre-filled; you can run without changes):
+3) Upload to KFP UI and supply the snapshot, registry and trial run parameters:
    - s3_endpoint: http://minio.minio.svc.cluster.local:9000 (example)
    - bucket: your-bucket
    - object_key: path/to/your.csv
@@ -32,8 +43,9 @@ Quick Start
    - aws_access_key_id / aws_secret_access_key: MinIO creds (consider K8s secrets + KFP params)
    - experiment: credit-risk
    - register_name: credit_risk_model
-   - stage: Production (or leave empty to skip)
-   - ray_address: (optional) ray://raycluster-k8s-head-svc.ray.svc.cluster.local:10001 (leave empty to run Ray locally)
+   - stage: leave empty during validation so the candidate stays unpromoted
+   - ray_address: leave empty for the first trial. For remote Ray, every worker must use
+     the recipe module, the same dependency versions as the tuning task, and access to the snapshot path.
    - ray_num_samples: 12 (number of HPO trials)
    - ray_cpus_per_trial: 1.0
    - ray_gpus_per_trial: 0.0

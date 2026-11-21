@@ -23,17 +23,14 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import json
 from datetime import datetime, timezone
 
-import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.calibration import CalibratedClassifierCV
-from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
 from sklearn.metrics import (
     average_precision_score,
     brier_score_loss,
@@ -44,9 +41,14 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OrdinalEncoder
 from xgboost import XGBClassifier
 from loguru import logger
+
+if __package__ in (None, ""):
+    from feature_preprocessing import CAT_COLS, FEATURES, NUM_COLS, build_preprocessor, ece_score, select_training_data
+else:
+    from .feature_preprocessing import CAT_COLS, FEATURES, NUM_COLS, build_preprocessor, ece_score, select_training_data
+
 
 try:
     from catboost import CatBoostClassifier
@@ -54,20 +56,6 @@ try:
 except ImportError:
     CATBOOST_AVAILABLE = False
 
-
-
-def ece_score(y_true: np.ndarray, y_prob: np.ndarray, n_bins: int = 10) -> float:
-    """Expected Calibration Error — must stay in sync with notebook/model_pipeline.py."""
-    y_true = np.asarray(y_true)
-    y_prob = np.asarray(y_prob)
-    bins = np.linspace(0.0, 1.0, n_bins + 1)
-    ece = 0.0
-    for lo, hi in zip(bins[:-1], bins[1:]):
-        mask = (y_prob >= lo) & (y_prob < hi)
-        if mask.sum() == 0:
-            continue
-        ece += mask.mean() * abs(y_true[mask].mean() - y_prob[mask].mean())
-    return float(ece)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -117,74 +105,18 @@ def main() -> int:
 
     logger.info(f"📥 Loading data from: {args.data}\n")
     df = pd.read_csv(args.data)
-    # Ensure expected columns exist
-    target_col = "TARGET"
-    if target_col not in df.columns:
-        raise ValueError(f"TARGET column not found in {args.data}")
-
-    # Exact feature set provided (uppercase, as in the dataset)
-    FEATURES: List[str] = [
-        "EXT_SOURCE_3",
-        "EXT_SOURCE_2",
-        "EXT_SOURCE_1",
-        "DAYS_BIRTH",
-        "AMT_GOODS_PRICE",
-        "AMT_CREDIT",
-        "AMT_ANNUITY",
-        "DAYS_EMPLOYED",
-        "CODE_GENDER",
-        "BUREAU_DEBT_TO_CREDIT_RATIO",
-        "BUREAU_ACTIVE_CREDIT_SUM",
-        "NAME_EDUCATION_TYPE",
-        "POS_MEAN_CONTRACT_LENGTH",
-        "PREV_ANNUITY_MEAN",
-        "PREV_GOODS_TO_CREDIT_RATIO",
-        "NAME_FAMILY_STATUS",
-        "POS_LATEST_MONTH",
-        "ORGANIZATION_TYPE",
-        "BUREAU_AMT_MAX_OVERDUE_EVER",
-        "POS_TOTAL_MONTHS_OBSERVED",
-        "AMT_INCOME_TOTAL",
-        "PREV_REFUSAL_RATE",
-        "NAME_INCOME_TYPE",
-        "CNT_CHILDREN"
-    ]
-
-    missing_feat = [c for c in FEATURES if c not in df.columns]
-    if missing_feat:
-        raise ValueError(f"Missing expected feature columns: {missing_feat}")
-
-    # Identify categorical subset from the provided list
-    cat_cols: List[str] = [
-        "CODE_GENDER",
-        "NAME_EDUCATION_TYPE",
-        "NAME_FAMILY_STATUS",
-        "ORGANIZATION_TYPE",
-        "NAME_INCOME_TYPE",
-    ]
-    num_cols: List[str] = [c for c in FEATURES if c not in cat_cols]
-
-    missing = [c for c in num_cols + cat_cols if c not in df.columns]
-    if missing:
-        raise ValueError(f"Missing columns in data: {missing}")
-
     logger.info("🔎 Validating columns present and splitting features/target\n")
-    X = df[FEATURES]
-    y = df[target_col].astype(int)
+    try:
+        X, y = select_training_data(df)
+    except ValueError as exc:
+        raise ValueError(f"{exc} ({args.data})") from exc
+    cat_cols, num_cols = CAT_COLS, NUM_COLS
 
     logger.info("✂️  Train/test split (stratified)")
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=args.test_size, random_state=args.random_state, stratify=y
     )
     logger.info(f"   Train: {X_train.shape}, Test: {X_test.shape}\n")
-
-    class ReplaceInf(BaseEstimator, TransformerMixin):
-        def fit(self, X, y=None):
-            return self
-        def transform(self, X):
-            return pd.DataFrame(X, columns=self.features_) if hasattr(self, 'features_') else pd.DataFrame(X)
-        def set_output(self, *, transform=None):
-            return self
 
     class ClipQuantiles(BaseEstimator, TransformerMixin):
         def __init__(self, qlow=0.001, qhigh=0.999):
@@ -199,41 +131,8 @@ def main() -> int:
             Xdf = pd.DataFrame(X).clip(self.lower_, self.upper_, axis=1)
             return Xdf.values
 
-    # Specialized imputers per business logic for PREV_ columns
-    prev_ratio_cols = [c for c in num_cols if c.startswith("PREV_") and ("RATIO" in c or "RATE" in c)]
-    prev_other_cols = [c for c in num_cols if c.startswith("PREV_") and c not in prev_ratio_cols]
-    other_num_cols = [c for c in num_cols if not c.startswith("PREV_")]
-
     logger.info("🧹 Building preprocessing pipelines (clip + impute + encode)")
-    # Column-wise pipelines
-    num_prev_ratio_pipe = Pipeline([
-        ("clip", ClipQuantiles()),
-        ("impute", SimpleImputer(strategy="median")),
-    ])
-    num_prev_other_pipe = Pipeline([
-        ("clip", ClipQuantiles()),
-        ("impute", SimpleImputer(strategy="constant", fill_value=0)),
-    ])
-    num_other_pipe = Pipeline([
-        ("clip", ClipQuantiles()),
-        ("impute", SimpleImputer(strategy="median")),
-    ])
-    cat_pipe = Pipeline([
-        ("impute", SimpleImputer(strategy="most_frequent")),
-        ("ord", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)),
-    ])
-
-    transformers = []
-    if other_num_cols:
-        transformers.append(("num_other", num_other_pipe, other_num_cols))
-    if prev_ratio_cols:
-        transformers.append(("num_prev_ratio", num_prev_ratio_pipe, prev_ratio_cols))
-    if prev_other_cols:
-        transformers.append(("num_prev_other", num_prev_other_pipe, prev_other_cols))
-    if cat_cols:
-        transformers.append(("cat", cat_pipe, cat_cols))
-
-    pre = ColumnTransformer(transformers, remainder="drop")
+    pre = build_preprocessor(ClipQuantiles)
 
     # ── Construct classifier ─────────────────────────────────────────────────
     if MODEL_TYPE == "catboost":

@@ -41,7 +41,7 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import matplotlib
 matplotlib.use("Agg")  # headless — no display required
@@ -53,7 +53,6 @@ from loguru import logger
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.calibration import CalibratedClassifierCV, calibration_curve
 from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
 from sklearn.metrics import (
     ConfusionMatrixDisplay,
     average_precision_score,
@@ -68,7 +67,6 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OrdinalEncoder
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
@@ -78,28 +76,20 @@ try:
 except ImportError:
     CATBOOST_AVAILABLE = False
 
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from application.training.feature_preprocessing import (
+    CAT_COLS,
+    FEATURES,
+    NUM_COLS,
+    build_preprocessor as _build_preprocessor,
+    ece_score,
+)
+
 import optuna
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
-
-# ---------------------------------------------------------------------------
-# Feature contract
-# Must stay in sync with application/training/train_register.py.
-# ---------------------------------------------------------------------------
-FEATURES: List[str] = [
-    "EXT_SOURCE_3", "EXT_SOURCE_2", "EXT_SOURCE_1",
-    "DAYS_BIRTH", "AMT_GOODS_PRICE", "AMT_CREDIT", "AMT_ANNUITY", "DAYS_EMPLOYED",
-    "CODE_GENDER", "BUREAU_DEBT_TO_CREDIT_RATIO", "BUREAU_ACTIVE_CREDIT_SUM",
-    "NAME_EDUCATION_TYPE", "POS_MEAN_CONTRACT_LENGTH", "PREV_ANNUITY_MEAN",
-    "PREV_GOODS_TO_CREDIT_RATIO", "NAME_FAMILY_STATUS", "POS_LATEST_MONTH",
-    "ORGANIZATION_TYPE", "BUREAU_AMT_MAX_OVERDUE_EVER", "POS_TOTAL_MONTHS_OBSERVED",
-    "AMT_INCOME_TOTAL", "PREV_REFUSAL_RATE", "NAME_INCOME_TYPE", "CNT_CHILDREN",
-]
-CAT_COLS: List[str] = [
-    "CODE_GENDER", "NAME_EDUCATION_TYPE", "NAME_FAMILY_STATUS",
-    "ORGANIZATION_TYPE", "NAME_INCOME_TYPE",
-]
-NUM_COLS: List[str] = [c for c in FEATURES if c not in CAT_COLS]
 
 # Business decision threshold — prioritises recall over precision.
 # Missing a real default (FN) is costlier than declining a good applicant (FP).
@@ -128,75 +118,7 @@ class ClipQuantiles(BaseEstimator, TransformerMixin):
 
 
 def build_preprocessor() -> ColumnTransformer:
-    """
-    Return the production-identical preprocessing pipeline.
-
-    Call this function fresh for every CV fold and Optuna trial to prevent
-    leakage — the ColumnTransformer must be refit on each training partition.
-
-    Pipeline mirrors application/training/train_register.py exactly.
-    """
-    prev_ratio_cols = [
-        c for c in NUM_COLS if c.startswith("PREV_") and ("RATIO" in c or "RATE" in c)
-    ]
-    prev_other_cols = [
-        c for c in NUM_COLS if c.startswith("PREV_") and c not in prev_ratio_cols
-    ]
-    other_num_cols = [c for c in NUM_COLS if not c.startswith("PREV_")]
-
-    transformers = []
-    if other_num_cols:
-        transformers.append((
-            "num_other",
-            Pipeline([("clip", ClipQuantiles()), ("impute", SimpleImputer(strategy="median"))]),
-            other_num_cols,
-        ))
-    if prev_ratio_cols:
-        # PREV_* ratio/rate columns: median fill (missing = no previous loan at all)
-        transformers.append((
-            "num_prev_ratio",
-            Pipeline([("clip", ClipQuantiles()), ("impute", SimpleImputer(strategy="median"))]),
-            prev_ratio_cols,
-        ))
-    if prev_other_cols:
-        # PREV_* count/amount columns: zero fill (absence is a meaningful signal)
-        transformers.append((
-            "num_prev_other",
-            Pipeline([
-                ("clip", ClipQuantiles()),
-                ("impute", SimpleImputer(strategy="constant", fill_value=0)),
-            ]),
-            prev_other_cols,
-        ))
-    if CAT_COLS:
-        transformers.append((
-            "cat",
-            Pipeline([
-                ("impute", SimpleImputer(strategy="most_frequent")),
-                ("ord", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)),
-            ]),
-            CAT_COLS,
-        ))
-    return ColumnTransformer(transformers, remainder="drop")
-
-
-def ece_score(y_true: np.ndarray, y_prob: np.ndarray, n_bins: int = 10) -> float:
-    """
-    Expected Calibration Error (ECE).
-
-    Weighted mean absolute gap between predicted probability and observed positive
-    rate across equal-width probability bins. Lower is better; 0 = perfect.
-    """
-    y_true = np.asarray(y_true)
-    y_prob = np.asarray(y_prob)
-    bins = np.linspace(0.0, 1.0, n_bins + 1)
-    ece = 0.0
-    for lo, hi in zip(bins[:-1], bins[1:]):
-        mask = (y_prob >= lo) & (y_prob < hi)
-        if mask.sum() == 0:
-            continue
-        ece += mask.mean() * abs(y_true[mask].mean() - y_prob[mask].mean())
-    return float(ece)
+    return _build_preprocessor(ClipQuantiles)
 
 
 def _metrics_dict(
@@ -720,15 +642,14 @@ def run_final_evaluation(
         else:
             base = final_pipe
         clf_step = base.named_steps.get("clf")
-        pre_step = base.named_steps.get("pre")
         importances = getattr(clf_step, "feature_importances_", None)
         if importances is not None:
-            # Reconstruct feature order from ColumnTransformer column lists
-            # (same order as build_preprocessor: other_num, prev_ratio, prev_other, cat)
-            prev_ratio = [c for c in NUM_COLS if c.startswith("PREV_") and ("RATIO" in c or "RATE" in c)]
-            prev_other = [c for c in NUM_COLS if c.startswith("PREV_") and c not in prev_ratio]
-            other_num  = [c for c in NUM_COLS if not c.startswith("PREV_")]
-            clean_names = other_num + prev_ratio + prev_other + CAT_COLS
+            clean_names = [
+                column
+                for name, _, columns in base.named_steps["pre"].transformers_
+                if name != "remainder"
+                for column in columns
+            ]
             fi_df = (
                 pd.DataFrame({"feature": clean_names, "importance": importances})
                 .sort_values("importance", ascending=True)
@@ -831,15 +752,15 @@ def export_config(
     logger.info("  └───────────────────────────────────────────────────────────────┘")
 
     logger.info("\n  Production checklist:")
-    logger.info(f"    ✓ best_model_config.json written")
+    logger.info("    ✓ best_model_config.json written")
     logger.info(f"    ✓ Calibration: {'isotonic applied' if cal_adopted else 'not applied (already well-calibrated)'}")
     logger.info(f"    ✓ Threshold {threshold} validated on PR curve")
     logger.info(f"    ✓ {len(FEATURES)} features match serving pipeline contract")
     logger.info("\n  Next step — register to MLflow Production:")
-    logger.info(f"    python application/training/train_register.py \\")
-    logger.info(f"      --data data/complete_feature_dataset.csv \\")
+    logger.info("    python application/training/train_register.py \\")
+    logger.info("      --data data/complete_feature_dataset.csv \\")
     logger.info(f"      --config {config_out} \\")
-    logger.info(f"      --register-name credit_risk_model --stage Production")
+    logger.info("      --register-name credit_risk_model --stage Production")
 
 
 # ---------------------------------------------------------------------------

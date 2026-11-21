@@ -1,3 +1,5 @@
+import os
+
 from kfp import dsl
 from kfp.dsl import component, Input, Output, Dataset
 
@@ -65,69 +67,13 @@ def fetch_minio_snapshot(
 
 
 @component(
-    base_image="python:3.11-slim",
-    packages_to_install=[
-        "pandas==2.2.2",
-        "scikit-learn==1.5.1",
-        "xgboost==2.1.0",
-    ],
-)
-def tune_hyperparams(data: Input[Dataset], config_json: str = "{}") -> str:
-    """
-    Skeleton grid search for XGBoost AUC. Returns JSON string of best params.
-    Replace later with Katib or a richer search.
-    """
-    import json
-    import pandas as pd
-    from sklearn.model_selection import train_test_split
-    from sklearn.metrics import roc_auc_score
-    from xgboost import XGBClassifier
-
-    df = pd.read_csv(data.path)
-    target_col = "TARGET"
-    if target_col not in df.columns:
-        raise ValueError("TARGET column not found in data")
-
-    # Basic feature subset (adjust to your data schema)
-    FEATURES = [c for c in df.columns if c != target_col]
-    X = df[FEATURES]
-    y = df[target_col].astype(int)
-
-    X_train, X_val, y_train, y_val = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
-
-    cfg = json.loads(config_json) if config_json else {}
-    base_params = cfg.get("base_params", {
-        "eval_metric": "logloss",
-        "n_jobs": -1,
-        "subsample": 0.8,
-        "colsample_bytree": 0.8,
-        "random_state": 42
-    })
-
-    search_space = cfg.get("grid_search", [
-        {"n_estimators": 300, "max_depth": 6, "learning_rate": 0.05},
-        {"n_estimators": 400, "max_depth": 4, "learning_rate": 0.03},
-    ])
-
-    best = {"auc": -1.0, "params": None}
-    for p in search_space:
-        clf = XGBClassifier(**{**base_params, **p})
-        clf.fit(X_train, y_train)
-        proba = clf.predict_proba(X_val)[:, 1]
-        auc = float(roc_auc_score(y_val, proba))
-        if auc > best["auc"]:
-            best = {"auc": auc, "params": p}
-
-    return json.dumps(best["params"]) if best["params"] else json.dumps({})
-
-
-@component(
     # Match Ray cluster runtime (Ray 2.31.0 on Python 3.9)
-    base_image="rayproject/ray:2.31.0-py39",
+    base_image=os.environ.get("CRQ_KFP_RAY_IMAGE", "credit-risk-kfp-ray:dev"),
     packages_to_install=[
+        "ray[tune]==2.31.0",
+        "pyarrow==15.0.2",
         "pandas==2.2.2",
+        "numpy==1.26.4",
         "scikit-learn==1.5.1",
         "xgboost==2.1.0",
     ],
@@ -141,22 +87,14 @@ def ray_tune_hyperparams(
     ray_address: str = "",
 ) -> str:
     """
-    Distributed (or parallel) hyperparameter tuning using Ray Tune via tune-sklearn.
+    Distributed (or parallel) hyperparameter tuning using Ray Tune.
     - If `ray_address` is provided, connects to an existing Ray cluster (e.g., KubeRay);
       otherwise starts a local Ray runtime inside the pod and parallelizes across CPUs.
     Returns best params as JSON.
     """
     import json
     import os
-    import pandas as pd
     import ray
-    from sklearn.model_selection import train_test_split
-    from sklearn.metrics import roc_auc_score
-    from sklearn.compose import ColumnTransformer
-    from sklearn.pipeline import Pipeline
-    from sklearn.preprocessing import OrdinalEncoder, FunctionTransformer
-    from sklearn.impute import SimpleImputer
-    from xgboost import XGBClassifier
     from ray.tune.schedulers import ASHAScheduler
 
     # Connect/start Ray
@@ -183,39 +121,17 @@ def ray_tune_hyperparams(
         import pandas as pd
         from sklearn.model_selection import train_test_split
         from sklearn.metrics import roc_auc_score
-        from sklearn.compose import ColumnTransformer
         from sklearn.pipeline import Pipeline
-        from sklearn.preprocessing import OrdinalEncoder
-        from sklearn.impute import SimpleImputer
         from xgboost import XGBClassifier
         from ray.air import session
 
-        df = pd.read_csv(data.path, low_memory=False)
-        target_col = "TARGET"
-        if target_col not in df.columns:
-            raise ValueError("TARGET column not found in data")
+        from feature_preprocessing import build_preprocessor, select_training_data
 
-        cat_cols = [c for c in df.columns if df[c].dtype == "object" and c != target_col]
-        FEATURES = [c for c in df.columns if c != target_col]
-        num_cols = [c for c in FEATURES if c not in cat_cols]
-
-        X = df[FEATURES]
-        y = df[target_col].astype(int)
+        X, y = select_training_data(pd.read_csv(data.path, low_memory=False))
         X_train, X_val, y_train, y_val = train_test_split(
             X, y, test_size=0.2, stratify=y, random_state=42
         )
-
-        num_pipe = Pipeline([("impute", SimpleImputer(strategy="median"))])
-        cat_pipe = Pipeline([
-            ("impute", SimpleImputer(strategy="most_frequent")),
-            ("ord", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)),
-        ])
-        transformers = []
-        if num_cols:
-            transformers.append(("num", num_pipe, num_cols))
-        if cat_cols:
-            transformers.append(("cat", cat_pipe, cat_cols))
-        pre = ColumnTransformer(transformers, remainder="drop")
+        pre = build_preprocessor()
 
         # Build model with current config
         params = {
@@ -274,13 +190,15 @@ def ray_tune_hyperparams(
 
 
 @component(
-    base_image="python:3.11-slim",
+    base_image=os.environ.get("CRQ_KFP_TRAINER_IMAGE", "credit-risk-kfp-trainer:dev"),
     packages_to_install=[
         "pandas==2.2.2",
         "numpy==1.26.4",
         "scikit-learn==1.5.1",
         "xgboost==2.1.0",
         "mlflow==2.14.3",
+        "setuptools==80.9.0",  # MLflow 2.14 imports pkg_resources.
+        "boto3==1.40.26",
         "pyyaml==6.0.1",
     ],
 )
@@ -310,15 +228,14 @@ def train_and_register(
     import yaml
     import numpy as np
     import pandas as pd
-    from sklearn.compose import ColumnTransformer
-    from sklearn.impute import SimpleImputer
     from sklearn.model_selection import train_test_split
     from sklearn.pipeline import Pipeline
-    from sklearn.preprocessing import OrdinalEncoder, FunctionTransformer
     from sklearn.metrics import roc_auc_score, precision_score, recall_score
     from xgboost import XGBClassifier
     import mlflow
     import mlflow.sklearn
+    import feature_preprocessing
+    from feature_preprocessing import CAT_COLS, FEATURES, NUM_COLS, build_preprocessor, select_training_data
 
     def bootstrap_evaluate(y_true, y_proba, n_bootstrap, ci_level, threshold):
         """Compute metrics with bootstrap confidence intervals.
@@ -375,41 +292,11 @@ def train_and_register(
     os.environ["AWS_ACCESS_KEY_ID"] = aws_access_key_id
     os.environ["AWS_SECRET_ACCESS_KEY"] = aws_secret_access_key
 
-    df = pd.read_csv(data.path, low_memory=False)
-    target_col = "TARGET"
-    if target_col not in df.columns:
-        raise ValueError("TARGET column not found in data")
-
-    # Feature preparation
-    cat_cols = [c for c in df.columns if df[c].dtype == "object" and c != target_col]
-    FEATURES = [c for c in df.columns if c != target_col]
-    num_cols = [c for c in FEATURES if c not in cat_cols]
-
-    X = df[FEATURES]
-    y = df[target_col].astype(int)
+    X, y = select_training_data(pd.read_csv(data.path, low_memory=False))
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
-
-    # Build pipeline - convert categorical columns to string before pipeline
-    # This avoids unpicklable FunctionTransformer with custom functions
-    if cat_cols:
-        for col in cat_cols:
-            X_train[col] = X_train[col].astype(str)
-            X_test[col] = X_test[col].astype(str)
-
-    num_pipe = Pipeline([("impute", SimpleImputer(strategy="median"))])
-    cat_pipe = Pipeline([
-        ("impute", SimpleImputer(strategy="most_frequent")),
-        ("ord", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)),
-    ])
-
-    transformers = []
-    if num_cols:
-        transformers.append(("num", num_pipe, num_cols))
-    if cat_cols:
-        transformers.append(("cat", cat_pipe, cat_cols))
-    pre = ColumnTransformer(transformers, remainder="drop")
+    pre = build_preprocessor()
 
     cfg = json.loads(config_json) if config_json else {}
     base = cfg.get("base_params", dict(
@@ -462,18 +349,19 @@ def train_and_register(
             mlflow.log_metric(f"{metric_name}_ci_upper", stats["upper"])
 
         input_example = X_train.iloc[:1]
-        model_info = mlflow.sklearn.log_model(
+        mlflow.sklearn.log_model(
             sk_model=pipe,
             artifact_path="model",
             input_example=input_example,
+            code_paths=[feature_preprocessing.__file__],
             registered_model_name=register_name,
         )
         feast_metadata = {
             "selected_features": [f.lower() for f in FEATURES],  # Features the model needs (serving discovers which views have them)
             "entity_key": entity_key.lower(),  # Entity key for Feast queries
             "num_features": len(FEATURES),
-            "categorical_features": [c.lower() for c in cat_cols],
-            "numerical_features": [c.lower() for c in num_cols],
+            "categorical_features": [c.lower() for c in CAT_COLS],
+            "numerical_features": [c.lower() for c in NUM_COLS],
             "model_signature": {
                 "inputs": list(X_train.columns),
                 "output": "binary_classification",
@@ -519,12 +407,11 @@ def train_and_register(
             else:
                 print(f"Warning: could not find registered version for run {run.info.run_id}")
         else:
-            print(f"Stage not set — model registered but NOT promoted (MLflow Watcher will not trigger)")
-            print(f"To promote later, run: python promote_model.py --version <N>")
+            print("Stage not set — model registered but NOT promoted (MLflow Watcher will not trigger)")
+            print("To promote later, run: python promote_model.py --version <N>")
         return run.info.run_id
 
 
-import os
 import json
 import yaml
 
@@ -575,7 +462,7 @@ def training_pipeline(
         gpus_per_trial=ray_gpus_per_trial,
         ray_address=ray_address,
     ).set_caching_options(False)
-    train_register = train_and_register(
+    train_and_register(
         data=snap.outputs["output_csv"],
         best_params_json=tune.output,
         config_json=config_json,
