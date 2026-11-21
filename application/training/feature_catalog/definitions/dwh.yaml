@@ -1,0 +1,52 @@
+# Features from the applicant's history with the lender (dbt marts in ClickHouse).
+# Producer: DWH consumer reading mart_pos_cash_balance and mart_previous_application
+# -> hc.application_dwh -> Feast. Field semantics: see definitions/application.yaml header.
+
+- name: POS_MEAN_CONTRACT_LENGTH
+  dtype: float
+  producer: dwh_consumer.mart_pos_cash_balance
+  feast_field: pos_mean_contract_length
+  description: Mean length of previous point-of-sale contracts.
+  reason_code: SHORT_CREDIT_HISTORY
+  valid_min: 0
+
+- name: POS_LATEST_MONTH
+  dtype: float
+  producer: dwh_consumer.mart_pos_cash_balance
+  feast_field: pos_latest_month
+  description: Most recent month with point-of-sale activity, relative to the application (negative).
+  reason_code: SHORT_CREDIT_HISTORY
+  valid_max: 0
+
+- name: POS_TOTAL_MONTHS_OBSERVED
+  dtype: float
+  producer: dwh_consumer.mart_pos_cash_balance
+  feast_field: pos_total_months_observed
+  description: Months of point-of-sale history observed.
+  reason_code: SHORT_CREDIT_HISTORY
+  valid_min: 0
+
+- name: PREV_ANNUITY_MEAN
+  dtype: float
+  producer: dwh_consumer.mart_previous_application
+  feast_field: prev_annuity_mean
+  description: Mean instalment of previous applications; missing means no previous application.
+  reason_code: null
+  valid_min: 0
+
+- name: PREV_GOODS_TO_CREDIT_RATIO
+  dtype: float
+  producer: dwh_consumer.mart_previous_application
+  feast_field: prev_goods_to_credit_ratio
+  description: Mean goods price divided by credit across previous applications.
+  reason_code: null
+  valid_min: 0
+
+- name: PREV_REFUSAL_RATE
+  dtype: float
+  producer: dwh_consumer.mart_previous_application
+  feast_field: prev_refusal_rate
+  description: Share of previous applications that were refused.
+  reason_code: PREVIOUS_REFUSALS
+  valid_min: 0
+  valid_max: 1

@@ -1,0 +1,54 @@
+# Features from outside the lender: external scores and the credit bureau.
+# Producers: external score lookup (ClickHouse external_score) and Flink job bureau_aggregation_etl
+# -> hc.application_ext -> Feast. Field semantics: see definitions/application.yaml header.
+
+- name: EXT_SOURCE_1
+  dtype: float
+  producer: bureau_consumer.external_score
+  feast_field: ext_source_1
+  description: Normalised score from external data source 1.
+  reason_code: EXT_SCORE_LOW
+  valid_min: 0
+  valid_max: 1
+
+- name: EXT_SOURCE_2
+  dtype: float
+  producer: bureau_consumer.external_score
+  feast_field: ext_source_2
+  description: Normalised score from external data source 2.
+  reason_code: EXT_SCORE_LOW
+  valid_min: 0
+  valid_max: 1
+
+- name: EXT_SOURCE_3
+  dtype: float
+  producer: bureau_consumer.external_score
+  feast_field: ext_source_3
+  description: Normalised score from external data source 3.
+  reason_code: EXT_SCORE_LOW
+  valid_min: 0
+  valid_max: 1
+
+- name: BUREAU_DEBT_TO_CREDIT_RATIO
+  dtype: float
+  producer: flink.bureau_aggregation_etl
+  feast_field: BUREAU_DEBT_TO_CREDIT_RATIO
+  description: Outstanding debt divided by total credit across bureau records.
+  reason_code: EXTERNAL_DEBT_HIGH
+  valid_min: 0
+
+- name: BUREAU_ACTIVE_CREDIT_SUM
+  dtype: float
+  producer: flink.bureau_aggregation_etl
+  feast_field: BUREAU_ACTIVE_CREDIT_SUM
+  description: Total credit amount of active bureau records.
+  reason_code: EXTERNAL_CREDIT_HIGH
+  valid_min: 0
+
+- name: BUREAU_AMT_MAX_OVERDUE_EVER
+  dtype: float
+  producer: flink.bureau_aggregation_etl
+  feast_field: BUREAU_AMT_MAX_OVERDUE_EVER
+  description: Largest overdue amount ever reported by the bureau.
+  reason_code: PAST_OVERDUE
+  valid_min: 0

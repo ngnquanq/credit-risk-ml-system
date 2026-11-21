@@ -45,8 +45,10 @@ from xgboost import XGBClassifier
 from loguru import logger
 
 if __package__ in (None, ""):
+    from feature_catalog.catalog import Catalog, load_set_status
     from feature_preprocessing import build_preprocessor, ece_score, load_feature_set, select_training_data
 else:
+    from .feature_catalog.catalog import Catalog, load_set_status
     from .feature_preprocessing import build_preprocessor, ece_score, load_feature_set, select_training_data
 
 
@@ -111,6 +113,18 @@ def main() -> int:
     expected_digest = model_config.get("feature_set_sha256")
     if expected_digest and feature_set.digest != expected_digest:
         raise ValueError("Feature set differs from the one used to tune the model")
+    set_status = load_set_status(feature_set.version)
+    catalog_check = Catalog.load().check_set(feature_set.columns, set_status)
+    if not catalog_check.ok:
+        raise ValueError(
+            f"Feature set {feature_set.version} ({set_status}) fails the catalog check: "
+            f"unresolved={list(catalog_check.unresolved)} protected={list(catalog_check.protected_used)}"
+        )
+    if catalog_check.protected_used:
+        logger.warning(
+            f"⚠️  Feature set {feature_set.version} is legacy and uses protected attributes "
+            f"{list(catalog_check.protected_used)}. Train new candidates with --feature-set v2-no-gender.\n"
+        )
     features = feature_set.columns
     logger.info("🔎 Validating columns present and splitting features/target\n")
     try:
@@ -250,6 +264,7 @@ def main() -> int:
         feast_metadata = {
             "feature_set_version": feature_set.version,
             "feature_set_sha256": feature_set.digest,
+            "feature_set_status": set_status,
             "selected_features": features,
             "num_features": len(features),
             "cat_features": cat_cols,

@@ -1,0 +1,107 @@
+# Features produced from the applicant's own data.
+# Producer: Flink job cdc_application_etl (CDC from loan_applications) -> hc.application_features -> Feast.
+#
+# sensitivity:
+#   protected  must not be a model input in any non-legacy feature set; never a reason
+#   sensitive  allowed as an input after risk/compliance review; never shown as a reason
+#   none       ordinary input
+# reason_code: the code shown to applicants when this feature raises the score; null = never a reason.
+
+- name: AMT_CREDIT
+  dtype: float
+  producer: flink.cdc_application_etl
+  feast_field: amt_credit
+  description: Credit amount requested.
+  reason_code: CREDIT_AMOUNT_HIGH
+  valid_min: 0
+
+- name: AMT_GOODS_PRICE
+  dtype: float
+  producer: flink.cdc_application_etl
+  feast_field: amt_goods_price
+  description: Price of the goods the loan finances.
+  reason_code: CREDIT_AMOUNT_HIGH
+  valid_min: 0
+
+- name: AMT_ANNUITY
+  dtype: float
+  producer: flink.cdc_application_etl
+  feast_field: amt_annuity
+  description: Instalment amount of the requested loan.
+  reason_code: INSTALMENT_HIGH
+  valid_min: 0
+
+- name: AMT_INCOME_TOTAL
+  dtype: float
+  producer: flink.cdc_application_etl
+  feast_field: amt_income_total
+  description: Declared total income.
+  reason_code: INCOME_LOW
+  valid_min: 0
+
+- name: DAYS_BIRTH
+  dtype: float
+  producer: flink.cdc_application_etl
+  feast_field: days_birth
+  description: Age in days relative to the application date (negative).
+  sensitivity: sensitive
+  reason_code: null
+  valid_max: 0
+
+- name: DAYS_EMPLOYED
+  dtype: float
+  producer: flink.cdc_application_etl
+  feast_field: days_employed
+  description: Days employed in the current job relative to the application date (negative); 365243 means not employed.
+  reason_code: EMPLOYMENT_LENGTH_SHORT
+  valid_max: 0
+  sentinel: 365243
+
+- name: CNT_CHILDREN
+  dtype: float
+  producer: flink.cdc_application_etl
+  feast_field: cnt_children
+  description: Number of children.
+  sensitivity: sensitive
+  reason_code: null
+  valid_min: 0
+
+- name: CODE_GENDER
+  dtype: category
+  producer: flink.cdc_application_etl
+  feast_field: code_gender
+  description: Gender. Kept only for offline bias audits.
+  sensitivity: protected
+  reason_code: null
+
+- name: NAME_FAMILY_STATUS
+  dtype: category
+  producer: flink.cdc_application_etl
+  feast_field: name_family_status
+  description: Marital status. Protected in some jurisdictions; review before each model release.
+  sensitivity: sensitive
+  reason_code: null
+
+- name: NAME_EDUCATION_TYPE
+  dtype: category
+  producer: flink.cdc_application_etl
+  feast_field: name_education_type
+  description: Highest education level.
+  sensitivity: sensitive
+  reason_code: null
+
+- name: NAME_INCOME_TYPE
+  dtype: category
+  producer: flink.cdc_application_etl
+  feast_field: name_income_type
+  description: Income type (working, pensioner, maternity leave, ...). Value "Maternity leave" is a gender proxy.
+  sensitivity: sensitive
+  proxy_for: CODE_GENDER
+  reason_code: null
+
+- name: ORGANIZATION_TYPE
+  dtype: category
+  producer: flink.cdc_application_etl
+  feast_field: organization_type
+  description: Employer's sector.
+  reason_code: null

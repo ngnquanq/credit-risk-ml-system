@@ -1,5 +1,7 @@
 {
   "version": "legacy-v1",
+  "status": "legacy",
+  "description": "Feature set of the models trained before the catalog existed. Contains CODE_GENDER; kept only so existing models stay loadable and comparable.",
   "features": [
     {
       "name": "EXT_SOURCE_3",

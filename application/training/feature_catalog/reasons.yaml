@@ -1,0 +1,31 @@
+# Applicant-facing texts for reason codes (E14). Wording describes the assessment, never the person.
+EXT_SCORE_LOW:
+  en: External credit scores are low
+  vi: Điểm tín dụng từ nguồn bên ngoài thấp
+CREDIT_AMOUNT_HIGH:
+  en: Requested credit is high relative to the goods price or income
+  vi: Số tiền vay cao so với giá trị hàng hoá hoặc thu nhập
+INSTALMENT_HIGH:
+  en: The monthly instalment is high for the profile
+  vi: Số tiền góp hằng tháng cao so với hồ sơ
+INCOME_LOW:
+  en: Declared income is low for the requested loan
+  vi: Thu nhập khai báo thấp so với khoản vay
+EMPLOYMENT_LENGTH_SHORT:
+  en: Short time in current employment
+  vi: Thời gian làm công việc hiện tại còn ngắn
+EXTERNAL_DEBT_HIGH:
+  en: Outstanding debt with other lenders is high relative to credit
+  vi: Dư nợ tại các tổ chức khác cao so với hạn mức
+EXTERNAL_CREDIT_HIGH:
+  en: Large amount of active credit with other lenders
+  vi: Tổng hạn mức tín dụng đang hoạt động tại tổ chức khác lớn
+PAST_OVERDUE:
+  en: Overdue payments reported in credit history
+  vi: Lịch sử tín dụng có khoản quá hạn
+SHORT_CREDIT_HISTORY:
+  en: Limited credit history with us
+  vi: Lịch sử tín dụng với chúng tôi còn ít
+PREVIOUS_REFUSALS:
+  en: Several previous applications were refused
+  vi: Nhiều hồ sơ trước đây đã bị từ chối

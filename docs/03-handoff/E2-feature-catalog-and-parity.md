@@ -100,7 +100,9 @@ classDiagram
         <<training/feature_catalog/catalog.py, new>>
         +load(root) Catalog
         +definition(name) FeatureDefinition
-        +check_set(fs: FeatureSet) CatalogCheck
+        +check_set(columns, status) CatalogCheck
+        +missing_from_serving(columns, schema_dir) list
+        +reason_code(name) str or None
         +export_feast(dir) None
         +export_flink(path) None
     }
@@ -108,6 +110,8 @@ classDiagram
         <<value object>>
         +unresolved: list~str~
         +protected_used: list~str~
+        +sensitive_used: list~str~
+        +status: legacy or candidate or approved
         +ok: bool
     }
     class load_feature_set {
@@ -190,7 +194,9 @@ Initial definitions: import the 43 + 57 + 156 fields from today's `feature_schem
 
 | File | Change |
 |---|---|
-| `application/training/feature_catalog/catalog.py`, `definitions/*.yaml`, `export.py` | **new** |
+| `application/training/feature_catalog/catalog.py`, `definitions/{application,external,dwh}.yaml` (the 24 model inputs), `reasons.yaml` | **done** (2026-11-22); `train_register.py` refuses a non-legacy set with a protected input |
+| `application/training/feature_catalog/sets/v2-no-gender.json` | **done**: candidate set for E6 |
+| `application/training/feature_catalog/export.py`; definitions for the remaining Feast-only fields | **new** (pending) |
 | `application/training/feature_catalog/sets/legacy-v1.json`, `feature_preprocessing.load_feature_set` | **done** |
 | `Makefile` | `features` target (runs the exporter); `check` runs it and `git diff --exit-code` |
 | `application/feast_repo/feature_schema/*.json` | now generated |

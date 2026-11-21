@@ -56,7 +56,7 @@ test = [
 where = ["application"]
 
 [tool.setuptools.package-data]
-training = ["feature_catalog/sets/*.json"]
+training = ["feature_catalog/sets/*.json", "feature_catalog/definitions/*.yaml", "feature_catalog/reasons.yaml"]
 
 # --- Formatting & Linting ---
 
