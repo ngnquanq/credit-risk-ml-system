@@ -175,3 +175,49 @@ async def test_auditor_traces_a_decision_and_the_search_is_audited(api_client, a
 async def test_only_auditors_read_the_audit_trail(api_client, act_as):
     act_as("rm-1", "staff", {"risk_manager"})
     assert (await api_client.get("/api/v1/audit", params={"resource": "application:B1"})).status_code == 403
+
+
+@pytest.fixture
+def fake_profile(test_app):
+    from entrypoints.api.dependencies import get_profile_provider
+    from infrastructure.external.customer_profile import summarize
+
+    class Fake:
+        async def profile(self, sk_id_curr):
+            return summarize({"mart_pos_cash_balance": [{"POS_COUNT_LOANS_TOTAL": 3, "POS_MAX_MAX_DPD": 12}]},
+                             {"bureau_active_count": 2})
+
+    async def override():
+        return Fake()
+
+    test_app.dependency_overrides[get_profile_provider] = override
+
+
+async def test_officer_sees_profile_only_for_own_case_with_consent(api_client, act_as, apps, fake_profile, db_session):
+    act_as("off-1", "staff", {"loan_officer"}, "HN01")
+    body = (await api_client.get("/api/v1/applications/B1/customer-profile")).json()
+    assert body["pos_loans"]["count"] == 3 and body["bureau"]["active_credits"] == 2
+    # same branch, but entered by someone else
+    await _application(db_session, "B3", channel="staff", created_by_sub="off-9", branch_id="HN01",
+                       bureau_consent_at=datetime.utcnow())
+    resp = await api_client.get("/api/v1/applications/B3/customer-profile")
+    assert resp.status_code == 403 and resp.json()["detail"]["rule"] == "handling_application"
+
+
+async def test_officer_notes_reach_the_underwriter(api_client, act_as, apps, audit):
+    act_as("off-1", "staff", {"loan_officer"}, "HN01")
+    resp = await api_client.post("/api/v1/applications/B1/notes", json={"kind": "concern", "text": "ID photo does not match"})
+    assert resp.status_code == 201
+    act_as("uw-1", "staff", {"underwriter"})
+    notes = (await api_client.get("/api/v1/applications/B1/notes")).json()
+    assert notes[0]["kind"] == "concern"
+    flagged = [e for e in audit.events if e["action"] == "flag_concern"][-1]
+    assert flagged["details"] == {"rule": "same_branch", "concern_type": "concern"}  # text never audited
+
+
+async def test_lookup_needs_a_purpose_and_is_audited(api_client, act_as, apps, audit):
+    act_as("off-1", "staff", {"loan_officer"}, "HN01")
+    assert (await api_client.get("/api/v1/customers/B2/summary")).status_code == 422
+    body = (await api_client.get("/api/v1/customers/B2/summary", params={"purpose": "co_applicant"})).json()
+    assert body == {"customer_id": "B2", "applications": 1, "statuses": ["submitted"], "same_branch": False}
+    assert audit.events[-1]["details"]["purpose"] == "co_applicant"

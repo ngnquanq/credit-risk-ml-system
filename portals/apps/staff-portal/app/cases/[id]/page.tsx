@@ -5,13 +5,15 @@ import { notFound, redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
+/** GET /api/v1/applications/{id}/customer-profile: aggregates only (ADR-0013). */
 interface CustomerProfile {
-  contracts: { contract: string; product: string; amount: number; status: string }[];
-  exposure: number | null;
-  on_time_ratio: number | null;
-  max_days_past_due: number | null;
-  bureau: { active_credits: number | null; outstanding: number | null; overdue: number | null } | null;
+  previous_applications: { count: number | null; refusal_rate: number | null };
+  pos_loans: { count: number | null; problem_loans: number | null; max_days_past_due: number | null; months_observed: number | null };
+  credit_card: { utilization: number | null };
+  bureau: { active_credits: number | null; outstanding: number | null; overdue_count: number | null };
 }
+
+const show = (v: number | null | undefined, suffix = "") => (v == null ? "–" : `${v}${suffix}`);
 
 async function addNote(form: FormData) {
   "use server";
@@ -52,26 +54,19 @@ export default async function CaseView({ params }: { params: { id: string } }) {
         <Card title="Relationship with us (internal)">
           {profile ? (
             <>
-              <div className="row">
-                <span className="badge">Exposure {profile.exposure == null ? "–" : `${vnd.format(profile.exposure)} ₫`}</span>
-                <span className="badge">On time {profile.on_time_ratio == null ? "–" : `${Math.round(profile.on_time_ratio * 100)}%`}</span>
-                <span className="badge">Max days past due {profile.max_days_past_due ?? "–"}</span>
-              </div>
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Contract</th><th>Product</th><th>Amount</th><th>Status</th></tr></thead>
                   <tbody>
-                    {profile.contracts.map((c) => (
-                      <tr key={c.contract}><td>{c.contract}</td><td>{c.product}</td><td>{vnd.format(c.amount)} ₫</td><td>{c.status}</td></tr>
-                    ))}
+                    <tr><th scope="row">Previous applications</th><td>{show(profile.previous_applications.count)}</td>
+                      <td>refused {profile.previous_applications.refusal_rate == null ? "–" : `${Math.round(profile.previous_applications.refusal_rate * 100)}%`}</td></tr>
+                    <tr><th scope="row">Point-of-sale loans</th><td>{show(profile.pos_loans.count)}</td>
+                      <td>problem loans {show(profile.pos_loans.problem_loans)} · max days past due {show(profile.pos_loans.max_days_past_due)}</td></tr>
+                    <tr><th scope="row">History observed</th><td colSpan={2}>{show(profile.pos_loans.months_observed, " months")}</td></tr>
+                    <tr><th scope="row">Credit bureau</th><td>{show(profile.bureau.active_credits)} active</td>
+                      <td>outstanding {profile.bureau.outstanding == null ? "–" : `${vnd.format(profile.bureau.outstanding)} ₫`} · overdue {show(profile.bureau.overdue_count)}</td></tr>
                   </tbody>
                 </table>
               </div>
-              {profile.bureau ? (
-                <p className="muted" style={{ margin: 0 }}>
-                  Bureau: {profile.bureau.active_credits ?? 0} active credits, outstanding {vnd.format(profile.bureau.outstanding ?? 0)} ₫
-                </p>
-              ) : null}
             </>
           ) : (
             <p className="muted" style={{ margin: 0 }}>Available only for applications you entered, after the customer's consent.</p>

@@ -11,6 +11,7 @@ ALTER USER ops_admin WITH REPLICATION;
 \i /schemas/002_create_application_status_log.sql
 \i /schemas/003_status_log_event_id.sql
 \i /schemas/004_ownership_and_policy.sql
+\i /schemas/005_case_note.sql
 
 -- Create CDC publication for Debezium
 CREATE PUBLICATION debezium_pub FOR TABLE loan_applications;

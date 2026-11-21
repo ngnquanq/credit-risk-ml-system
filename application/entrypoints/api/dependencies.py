@@ -59,3 +59,11 @@ def _audit_reader() -> AuditReader | None:
 async def get_audit_reader() -> AuditReader | None:
     """Dependency for reading the audit trail (auditor role only, E13)."""
     return _audit_reader()
+
+
+async def get_profile_provider():
+    """Dependency for internal customer factors (ADR-0013)."""
+    from infrastructure.external.customer_profile import ClickHouseProfileProvider
+
+    return ClickHouseProfileProvider()
+

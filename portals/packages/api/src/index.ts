@@ -98,6 +98,10 @@ export const paths = {
   policyDecision: (id: number) => `/api/v1/policy-changes/${id}/decision`,
   applications: "/api/v1/applications",
   presignedUrl: "/api/v1/presigned-url",
+  notes: (id: string) => `/api/v1/applications/${encodeURIComponent(id)}/notes`,
+  customerProfile: (id: string) => `/api/v1/applications/${encodeURIComponent(id)}/customer-profile`,
+  customerSummary: (id: string, purpose: "co_applicant" | "guarantor" | "customer_present") =>
+    `/api/v1/customers/${encodeURIComponent(id)}/summary?purpose=${purpose}`,
 } as const;
 
 /** Monthly instalment for the estimator (annuity formula); the rate is illustrative, not an offer. */

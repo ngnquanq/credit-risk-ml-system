@@ -20,13 +20,14 @@ from infrastructure.persistence.models.sqlalchemy_models import (
     LoanApplication as DbLoanApplication,
     ApplicationStatusLog as DbApplicationStatusLog,
     PolicyChange as DbPolicyChange,
+    CaseNote as DbCaseNote,
 )
 from infrastructure.persistence.models import (
     LoanApplicationCreate,
     LoanApplicationResponse,
     HealthResponse,
 )
-from .dependencies import get_audit_reader, get_audit_writer, get_submit_loan_workflow
+from .dependencies import get_audit_reader, get_audit_writer, get_profile_provider, get_submit_loan_workflow
 from .security import get_principal
 from audit.writer import AuditEvent, AuditReader, AuditWriter
 from authz import Action, Principal, Resource, authorize
@@ -589,4 +590,80 @@ async def audit_trace(
     if reader is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Audit store is not configured")
     return {"resource": resource, "events": await reader.trace(resource_type, resource_id)}
+
+
+# ---------------------------------------------------------------------------
+# Case notes, internal customer factors and lookups (ADR-0013)
+# ---------------------------------------------------------------------------
+class CaseNoteRequest(BaseModel):
+    kind: str = Field(..., pattern="^(note|concern)$")
+    text: str = Field(..., min_length=10, max_length=1000)
+
+
+@app.post("/api/v1/applications/{customer_id}/notes", status_code=status.HTTP_201_CREATED, tags=["Cases"])
+async def add_case_note(
+    customer_id: str,
+    body: CaseNoteRequest,
+    principal: Principal = Depends(get_principal),
+    db: AsyncSession = Depends(get_db),
+    audit: AuditWriter = Depends(get_audit_writer),
+):
+    action = Action.FLAG_CONCERN if body.kind == "concern" else Action.ADD_CASE_NOTE
+    resource = await _application_resource(db, customer_id)
+    if resource is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Application with ID {customer_id} not found")
+    await _require(principal, action, resource, audit, {"note_length": len(body.text), "concern_type": body.kind})
+    db.add(DbCaseNote(sk_id_curr=customer_id, kind=body.kind, text=body.text, author_sub=principal.sub))
+    await db.commit()
+    return {"customer_id": customer_id, "kind": body.kind}
+
+
+@app.get("/api/v1/applications/{customer_id}/notes", tags=["Cases"])
+async def list_case_notes(
+    customer_id: str,
+    principal: Principal = Depends(get_principal),
+    db: AsyncSession = Depends(get_db),
+    audit: AuditWriter = Depends(get_audit_writer),
+):
+    await _require_application(db, customer_id, principal, Action.READ_APPLICATION, audit)
+    rows = (await db.execute(
+        select(DbCaseNote).where(DbCaseNote.sk_id_curr == customer_id).order_by(DbCaseNote.id)
+    )).scalars().all()
+    return [{"kind": r.kind, "text": r.text, "author_sub": r.author_sub, "created_at": r.created_at} for r in rows]
+
+
+@app.get("/api/v1/applications/{customer_id}/customer-profile", tags=["Cases"])
+async def customer_profile(
+    customer_id: str,
+    principal: Principal = Depends(get_principal),
+    db: AsyncSession = Depends(get_db),
+    audit: AuditWriter = Depends(get_audit_writer),
+    provider=Depends(get_profile_provider),
+):
+    """Internal factors, only for the application being handled and after consent (ADR-0013)."""
+    await _require_application(db, customer_id, principal, Action.READ_CUSTOMER_PROFILE, audit)
+    try:
+        return await provider.profile(customer_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No history for this customer")
+
+
+@app.get("/api/v1/customers/{customer_id}/summary", tags=["Cases"])
+async def lookup_customer(
+    customer_id: str,
+    purpose: str = Query(..., pattern="^(co_applicant|guarantor|customer_present)$"),
+    principal: Principal = Depends(get_principal),
+    db: AsyncSession = Depends(get_db),
+    audit: AuditWriter = Depends(get_audit_writer),
+):
+    """Lookup by exact customer ID with a purpose; other branches see counts and statuses only."""
+    rows = (await db.execute(select(DbLoanApplication).where(DbLoanApplication.sk_id_curr == customer_id))).scalars().all()
+    same_branch = any(r.branch_id == principal.branch_id for r in rows) if principal.branch_id else False
+    await _require(principal, Action.LOOKUP_CUSTOMER, Resource(type="customer", id=customer_id, purpose=purpose), audit,
+                   {"purpose": purpose, "result_count": len(rows), "same_branch": same_branch})
+    statuses = []
+    for row in rows:
+        latest = await _latest_status(db, row.sk_id_curr)
+        statuses.append(latest.status if latest else "submitted")
+    return {"customer_id": customer_id, "applications": len(rows), "statuses": statuses, "same_branch": same_branch}
 

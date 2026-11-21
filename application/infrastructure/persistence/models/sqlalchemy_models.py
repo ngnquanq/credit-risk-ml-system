@@ -116,3 +116,16 @@ class PolicyChange(Base):
     state = Column(String(12), nullable=False, default="proposed")
     created_at = Column(DateTime, server_default=func.current_timestamp(), nullable=False)
     decided_at = Column(DateTime)
+
+
+class CaseNote(Base):
+    """Verification notes and concerns from loan officers (ADR-0013, migration 005)."""
+    __tablename__ = "case_note"
+
+    id = Column(BIGINT().with_variant(Integer(), "sqlite"), primary_key=True, autoincrement=True)
+    sk_id_curr = Column(String(255), nullable=False)
+    kind = Column(String(10), nullable=False)  # note | concern
+    text = Column(String(1000), nullable=False)
+    author_sub = Column(String(64), nullable=False)
+    created_at = Column(DateTime, server_default=func.current_timestamp(), nullable=False)
+

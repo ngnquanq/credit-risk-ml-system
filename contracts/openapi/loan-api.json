@@ -1,6 +1,27 @@
 {
   "components": {
     "schemas": {
+      "CaseNoteRequest": {
+        "properties": {
+          "kind": {
+            "pattern": "^(note|concern)$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "text"
+        ],
+        "title": "CaseNoteRequest",
+        "type": "object"
+      },
       "ContractType": {
         "enum": [
           "Cash loans",
@@ -842,6 +863,63 @@
         ]
       }
     },
+    "/api/v1/applications/{customer_id}/customer-profile": {
+      "get": {
+        "description": "Internal factors, only for the application being handled and after consent (ADR-0013).",
+        "operationId": "customer_profile_api_v1_applications__customer_id__customer_profile_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "customer_id",
+            "required": true,
+            "schema": {
+              "title": "Customer Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Customer Profile",
+        "tags": [
+          "Cases"
+        ]
+      }
+    },
     "/api/v1/applications/{customer_id}/decision": {
       "get": {
         "description": "Decision with plain-language reasons. No score or contributions (ADR-0013).",
@@ -967,6 +1045,126 @@
         ]
       }
     },
+    "/api/v1/applications/{customer_id}/notes": {
+      "get": {
+        "operationId": "list_case_notes_api_v1_applications__customer_id__notes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "customer_id",
+            "required": true,
+            "schema": {
+              "title": "Customer Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Case Notes",
+        "tags": [
+          "Cases"
+        ]
+      },
+      "post": {
+        "operationId": "add_case_note_api_v1_applications__customer_id__notes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "customer_id",
+            "required": true,
+            "schema": {
+              "title": "Customer Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseNoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Case Note",
+        "tags": [
+          "Cases"
+        ]
+      }
+    },
     "/api/v1/applications/{customer_id}/status": {
       "get": {
         "description": "Latest status; ``submitted`` until a decision is recorded (E5).",
@@ -1078,6 +1276,73 @@
         "summary": "Audit Trace",
         "tags": [
           "Audit"
+        ]
+      }
+    },
+    "/api/v1/customers/{customer_id}/summary": {
+      "get": {
+        "description": "Lookup by exact customer ID with a purpose; other branches see counts and statuses only.",
+        "operationId": "lookup_customer_api_v1_customers__customer_id__summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "customer_id",
+            "required": true,
+            "schema": {
+              "title": "Customer Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "purpose",
+            "required": true,
+            "schema": {
+              "pattern": "^(co_applicant|guarantor|customer_present)$",
+              "title": "Purpose",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lookup Customer",
+        "tags": [
+          "Cases"
         ]
       }
     },
