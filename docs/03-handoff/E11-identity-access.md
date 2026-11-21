@@ -149,13 +149,17 @@ The four-eyes rule for policy changes is a state machine: see [domain model §9]
 
 ## 5. Data contracts
 
-**Permission matrix.** This is the policy table. Each cell becomes one allow test and at least one deny test.
+**Permission matrix.** This is the policy table. Each cell becomes one allow test and at least one deny test. The visibility rules for internal factors and explanations, and the reason loan officers never decide, are in [ADR-0013](../adr/0013-role-based-data-and-explanation-visibility.md).
 
 | Action | applicant | loan_officer | underwriter | risk_manager | auditor | admin |
 |---|---|---|---|---|---|---|
 | `submit_application` | own (`channel=self`) | own branch (`channel=staff`) | – | – | – | – |
 | `read_application` (PII) | own | own branch | applications in `manual_review` | – | via audit trace only | – |
-| `read_decision` (band, reasons) | own | own branch | any | any | any | – |
+| `read_customer_profile` (internal factors: contracts with us, exposure, repayment, bureau summary) | – | only for an application they handle, after consent is recorded | applications in `manual_review` | – | via audit trace only | – |
+| `lookup_customer` (by exact citizen ID + purpose) | – | yes; other branches return contract count and status only | – | – | – | – |
+| `add_case_note`, `flag_concern` | – | own branch | yes | – | – | – |
+| `read_decision` (band, plain-language reasons) | own | own branch | any | any | any | – |
+| `read_explanation` (score, contributions, versions) | – | – | applications in `manual_review` | aggregate views only | as recorded | – |
 | `claim_review`, `review_decision` | – | – | any **except** `created_by_sub == sub` | – | – | – |
 | `propose_policy_change` | – | – | – | yes | – | – |
 | `approve_policy_change` | – | – | – | yes, **not** the proposer | – | – |
@@ -237,6 +241,9 @@ Existing rows keep `channel='staff'` and null owners. They are readable only by 
 | AC7 | Given a staff token without `acr=mfa`, then `401` | `test_token_verifier.py` |
 | AC8 | Given a submit body containing `branch_id` or `created_by_sub`, then the values from the token win | `tests/integration/api/test_submit_ownership.py` |
 | AC9 | Given the running cluster, when signing in as a new staff user, then Keycloak forces TOTP enrolment | manual, recorded in UAT (E16) |
+| AC10 | Given a loan officer and an application they did not enter, when reading the customer profile, then `403` with rule `handling_application` | `tests/integration/api/test_customer_profile.py` |
+| AC11 | Given a lookup without a purpose, or by name instead of ID, then `422`; given a valid lookup in another branch, then only contract count and status are returned, and the lookup is audited with its purpose | `tests/integration/api/test_customer_lookup.py` |
+| AC12 | Given a loan officer token, when calling the explanation route, then `403`; the decision route returns reasons without score or contributions | `tests/integration/api/test_explanation_visibility.py` |
 
 ## 8. Test plan by layer
 

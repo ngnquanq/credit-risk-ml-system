@@ -161,7 +161,7 @@ GRANT SELECT ON audit_trace TO audit_reader;
 | Source | Actions |
 |---|---|
 | Keycloak (shipped to ECK, summarised daily into `audit_event` as `realm_login_summary`) | `LOGIN`, `LOGIN_ERROR`, `UPDATE_TOTP`, admin role changes |
-| API | `submit_application`, `read_application`, `read_decision`, `claim_review`, `review_decision`, `propose_policy_change`, `approve_policy_change`, `read_audit`, and every `403` |
+| API | `submit_application`, `read_application`, `read_customer_profile`, `lookup_customer` (with its purpose), `read_decision`, `read_explanation`, `add_case_note`, `flag_concern`, `claim_review`, `review_decision`, `propose_policy_change`, `approve_policy_change`, `read_audit`, and every `403` |
 | Decision recorder | `decision` (band, score, reason codes, model version, feature-set digest), `decision_fallback` (timeout, scoring unavailable) |
 | Promotion watcher | `model_promoted` (model name, version, git commit, approver if recorded in MLflow tags) |
 

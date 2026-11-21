@@ -86,6 +86,8 @@ sequenceDiagram
 | UAT-04 | loan_officer | First sign-in | TOTP enrolment forced | E11 AC9 |
 | UAT-05 | loan_officer | Submit for a walk-in customer; see the decision | `channel=staff`, own branch; decision shown | E1, E12 |
 | UAT-06 | loan_officer | Open an application from another branch | Refused | E11 AC4 |
+| UAT-06b | loan_officer | Look up a co-applicant by citizen ID with a purpose; try a name search | ID lookup works and is audited; name search is not offered | E11 AC11 |
+| UAT-06c | loan_officer | Open the case view of a declined application | Reasons shown; no score, contributions or decide buttons | E11 AC12, ADR-0013 |
 | UAT-07 | underwriter | Claim and decide a review with a reason | Status updated; override audited | E5, E13 AC5 |
 | UAT-08 | underwriter | Try to review an application they submitted | Refused: separation of duties | E11 AC5 |
 | UAT-09 | risk_manager | Propose a band change; approve own proposal; second manager approves | Own approval refused; second approval activates | E11 AC6 |
@@ -106,7 +108,7 @@ sequenceDiagram
 
 | File | Change |
 |---|---|
-| `platform/uat/` | **new**: kustomize overlay (namespaces `uat-*`, image digests, smaller resources) |
+| `platform/environments/uat/` | **new**: Kustomize overlay (namespaces `uat-*`, image digests, smaller resources), see [ADR-0011](../adr/0011-monorepo-layout-for-portals-contracts-and-environments.md) |
 | `scripts/uat/seed_personas.py` | **new**: 200 synthetic personas (fake identity fields, feature values sampled from Kaggle marginals) |
 | `scripts/uat/create_test_users.sh` | **new**: Keycloak admin API; writes generated passwords to a Secret |
 | `docs/release/checklist.md`, `docs/release/uat-signoff-template.md` | **new** |

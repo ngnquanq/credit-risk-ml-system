@@ -68,6 +68,9 @@ flowchart LR
 | T18 | Supply chain | Tampering | Compromised dependency or base image | Pinned versions and digests; `pip-audit`, `npm audit`, trivy; gitleaks | E9, E16 | Designed |
 | T19 | Model | Tampering | Unreviewed model promoted to Production | Registration gate; promotion audited; feature set pinned by digest | E6, E7, E13 | Designed |
 | T20 | Model | Information disclosure | Model or reasons reveal protected attributes | Protected features excluded from sets; proxies excluded from reasons; fairness audit | E6, E14 | Designed |
+| T21 | TB2→TB4 | Information disclosure | Staff browse customers they do not serve (curiosity, relatives) | Profile only for the application being handled; lookup by exact ID with a purpose; monthly review of lookups | E11, ADR-0013 | Designed |
+| T22 | TB2→TB4 | Tampering | Officer coaches applicants to game inputs using model contributions | Officers see plain-language reasons only; contributions limited to underwriters; inputs verified by documents | E14, ADR-0013 | Designed |
+| T23 | TB4 | Elevation | Officer with a sales target decides borderline cases | Maker–checker: officers cannot decide; underwriters cannot review their own submissions | E11, ADR-0013 | Designed |
 
 ## 3. Assumptions
 

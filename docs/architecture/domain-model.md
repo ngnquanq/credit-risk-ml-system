@@ -260,6 +260,11 @@ classDiagram
         submit_application
         read_application
         read_decision
+        read_explanation
+        read_customer_profile
+        lookup_customer
+        add_case_note
+        flag_concern
         review_decision
         propose_policy_change
         approve_policy_change

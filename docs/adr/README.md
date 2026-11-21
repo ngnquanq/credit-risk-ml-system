@@ -16,6 +16,9 @@ Records of significant architectural decisions. Each ADR captures **why** a deci
 | [0008](0008-load-test-pipeline-bottleneck-fixes.md) | Load Test Pipeline Bottleneck Fixes | Accepted |
 | [0009](0009-model-training-and-promotion-pipeline.md) | Automated Model Training and Promotion Pipeline | Accepted |
 | [0010](0010-knative-sequence-scoring-pipeline.md) | Knative Sequence for Scoring Pipeline Reply Routing | Accepted |
+| [0011](0011-monorepo-layout-for-portals-contracts-and-environments.md) | Monorepo layout for portals, contracts and environments | Accepted |
+| [0012](0012-keycloak-realms-and-bff-portals.md) | Keycloak with two realms, and backend-for-frontend portals | Accepted |
+| [0013](0013-role-based-data-and-explanation-visibility.md) | Role-based visibility of customer data and explanations; officers do not decide | Accepted |
 
 ## Creating a New ADR
 

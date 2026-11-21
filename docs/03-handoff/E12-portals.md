@@ -27,11 +27,12 @@
 | Portal | Role | Screens |
 |---|---|---|
 | applicant | applicant | Register / sign in (Keycloak pages), Apply (multi-step form with document upload), My applications, Application detail (status timeline, decision, principal reasons) |
-| staff | loan_officer | New application (for a walk-in customer), Branch applications, Application detail |
-| staff | underwriter | Review queue (oldest first), Claim, Decide (approve or reject with mandatory reason) |
+| staff | loan_officer | New application (for a walk-in customer), Branch applications, Case view: internal factors for the customer they serve, reasons the customer sees, documents to collect, note and flag actions, customer lookup by ID with purpose. No approve or reject, no score ([ADR-0013](../adr/0013-role-based-data-and-explanation-visibility.md)) |
+| staff | underwriter | Review queue (oldest first), Claim, Case in three steps: evidence, then model explanation, then decision (approve or reject with reason code and mandatory text) |
 | staff | risk_manager | Policy (current bands), Propose change, Pending approvals |
 | staff | auditor | Decision trace (by application id): timeline of audit events with hash-chain status |
 
+- **Layouts and look:** every applicant screen exists at phone width (390 px, the primary channel) and desktop width (≥1280 px); staff screens are desktop-first and still usable on a tablet. Palette: red `#C8102E` for primary actions and risk-raising contributions, black `#111111` text, greys `#3F3F46`/`#52525B` for secondary text, `#E4E4E7`/`#F4F4F5` for borders and grounds, white surfaces. All text pairs meet 4.5:1. Fonts: Be Vietnam Pro (applicant, Vietnamese copy), Inter (staff, English).
 - **Removal:** `application/frontend` (Streamlit), its Deployment, Service and Ingress, once both portals pass UAT.
 
 **Out**
@@ -163,7 +164,7 @@ Applicants never see the raw score, band thresholds or contributions. Staff deta
 | File | Change |
 |---|---|
 | `portals/` | **new** pnpm workspace: `apps/staff-portal`, `apps/applicant-portal`, `packages/api-client`, `packages/session`, `packages/ui` |
-| `portals/packages/api-client` | generated from `GET /openapi.json` (`openapi-typescript`), checked in; CI regenerates and diffs |
+| `contracts/openapi/loan-api.json`, `portals/packages/api-client` | schema exported by `make contracts`; client generated from it (`openapi-typescript`); both checked in, CI regenerates and diffs ([ADR-0011](../adr/0011-monorepo-layout-for-portals-contracts-and-environments.md)) |
 | `platform/core/k8s/portals/` | **new**: Deployments (2 replicas each), Services, Ingresses (public with `limit-rps`, internal with source allow-list), Redis for sessions, NetworkPolicies |
 | `application/entrypoints/api/main.py` | `GET /api/v1/applications/{id}/decision`; CORS no longer needed (calls come from the BFF server) |
 | `application/frontend/`, `platform/core/k8s/07-frontend.yaml`, `08-frontend-ingress.yaml` | delete after UAT |

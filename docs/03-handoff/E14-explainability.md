@@ -22,6 +22,15 @@ Wilson (*ML Engineering in Action*, §15.4 "Model interpretability") makes the c
 - **Global explanations.** A mean |SHAP| ranking and a summary plot logged with each model version and included in `model_card.md` (E6).
 - **Version stability check** at registration: top-10 global features overlap with Production by ≥ 7, or the gate tags `explanation_review_required=true`.
 
+**Visibility tiers** ([ADR-0013](../adr/0013-role-based-data-and-explanation-visibility.md)), enforced by the API (E11), not only by the portals:
+
+| Role | Sees |
+|---|---|
+| Applicant, loan officer | Up to four reason texts. No score, thresholds or contributions |
+| Underwriter | Score, band, contributions, model and feature-set version, shown after the evidence on the review screen |
+| Risk manager | Global explanations and reason-code distributions |
+| Auditor | The explanation as recorded at decision time |
+
 **Out**
 - Counterfactual explanations ("what would change the decision"). Deferred.
 - Explanations for the hard rules of E10; rules explain themselves with `rule:<id>`.
