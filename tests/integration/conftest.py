@@ -123,6 +123,13 @@ async def test_app(db_session, mock_workflow):
         app.dependency_overrides[get_principal] = override_get_principal
         app.dependency_overrides[get_audit_writer] = override_get_audit_writer
 
+        from entrypoints.api.dependencies import get_audit_reader
+
+        async def override_get_audit_reader():
+            return audit_writer  # the in-memory writer also serves traces
+
+        app.dependency_overrides[get_audit_reader] = override_get_audit_reader
+
         yield app
 
         app.dependency_overrides.clear()

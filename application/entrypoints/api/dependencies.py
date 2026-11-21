@@ -9,7 +9,7 @@ from domain.interfaces.loan_repository import LoanRepository
 from domain.interfaces.scoring_gateway import ScoringGateway
 from functools import lru_cache
 
-from audit.writer import AuditWriter, LoggingAuditWriter, PostgresAuditWriter
+from audit.writer import AuditReader, AuditWriter, LoggingAuditWriter, PostgresAuditReader, PostgresAuditWriter
 
 async def get_loan_repository(db: AsyncSession = Depends(get_db)) -> LoanRepository:
     """Dependency for LoanRepository."""
@@ -43,3 +43,19 @@ def _audit_writer() -> AuditWriter:
 async def get_audit_writer() -> AuditWriter:
     """Dependency for the audit writer (E13)."""
     return _audit_writer()
+
+
+@lru_cache(maxsize=1)
+def _audit_reader() -> AuditReader | None:
+    from core import settings
+
+    if settings.audit_reader_database_url is None:
+        return None
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    return PostgresAuditReader(create_async_engine(settings.audit_reader_database_url.get_secret_value(), pool_size=2))
+
+
+async def get_audit_reader() -> AuditReader | None:
+    """Dependency for reading the audit trail (auditor role only, E13)."""
+    return _audit_reader()

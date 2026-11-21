@@ -159,3 +159,19 @@ async def test_underwriter_cannot_propose_policy(api_client, act_as):
     resp = await api_client.post("/api/v1/policy-changes", json={
         "approve_below": 0.2, "reject_above": 0.3, "rationale": "Looser bands please"})
     assert resp.status_code == 403
+
+
+async def test_auditor_traces_a_decision_and_the_search_is_audited(api_client, act_as, apps):
+    act_as("uw-1", "staff", {"underwriter"})
+    await api_client.post("/api/v1/reviews/B1/decision", json={
+        "outcome": "approved", "reason_code": "INCOME_VERIFIED", "reason": "Payslips confirm the income"})
+    act_as("au-1", "staff", {"auditor"})
+    body = (await api_client.get("/api/v1/audit", params={"resource": "application:B1"})).json()
+    actions = [e["action"] for e in body["events"]]
+    assert "review_decision" in actions
+    assert actions[-1] == "read_audit"
+
+
+async def test_only_auditors_read_the_audit_trail(api_client, act_as):
+    act_as("rm-1", "staff", {"risk_manager"})
+    assert (await api_client.get("/api/v1/audit", params={"resource": "application:B1"})).status_code == 403

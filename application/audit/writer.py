@@ -59,12 +59,49 @@ class InMemoryAuditWriter:
     def events(self) -> list[dict]:
         return [row[3] for row in self.rows]
 
+    async def trace(self, resource_type: str, resource_id: str) -> list[dict]:
+        return [
+            {"id": row_id, **record}
+            for row_id, _, _, record in self.rows
+            if record["resource_type"] == resource_type and record["resource_id"] == resource_id
+        ]
+
+    async def chain_intact(self) -> bool:
+        from .chain import verify_chain
+
+        return verify_chain(self.rows) is None
+
 
 class LoggingAuditWriter:
     async def record(self, event: AuditEvent) -> None:
         from loguru import logger
 
         logger.bind(event="audit").info(event.record())
+
+
+class AuditReader(Protocol):
+    async def trace(self, resource_type: str, resource_id: str) -> list[dict]: ...
+
+
+class PostgresAuditReader:
+    """Reads the audit_trace view with the audit_reader role (no access to hashes or writes)."""
+
+    def __init__(self, engine):
+        self._engine = engine
+
+    async def trace(self, resource_type: str, resource_id: str) -> list[dict]:
+        from sqlalchemy import text
+
+        async with self._engine.connect() as conn:
+            rows = await conn.execute(
+                text(
+                    "SELECT id, occurred_at, actor_sub, actor_realm, actor_roles, action, resource_type, "
+                    "resource_id, outcome, trace_id, details FROM audit_trace "
+                    "WHERE resource_type = :t AND resource_id = :i ORDER BY id"
+                ),
+                {"t": resource_type, "i": resource_id},
+            )
+            return [dict(r._mapping) for r in rows]
 
 
 class PostgresAuditWriter:

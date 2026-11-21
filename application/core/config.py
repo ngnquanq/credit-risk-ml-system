@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     audit_database_url: Optional[SecretStr] = Field(
         default=None, description="postgresql+asyncpg://audit_writer:...@host:5432/audit"
     )
+    audit_reader_database_url: Optional[SecretStr] = Field(
+        default=None, description="postgresql+asyncpg://audit_reader:...@host:5432/audit (auditor trace)"
+    )
 
     # MinIO / S3-compatible object storage
     minio_endpoint: str = Field(default="minio-server:9000", description="MinIO endpoint host:port", alias="MINIO_ENDPOINT")

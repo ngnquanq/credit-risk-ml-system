@@ -1024,6 +1024,63 @@
         ]
       }
     },
+    "/api/v1/audit": {
+      "get": {
+        "operationId": "audit_trace_api_v1_audit_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "resource",
+            "required": true,
+            "schema": {
+              "pattern": "^(application|policy|customer):[A-Za-z0-9_.:-]{1,64}$",
+              "title": "Resource",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Audit Trace",
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
     "/api/v1/policy-changes": {
       "get": {
         "operationId": "list_policy_changes_api_v1_policy_changes_get",

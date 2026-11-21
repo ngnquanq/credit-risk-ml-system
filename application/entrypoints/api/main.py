@@ -26,9 +26,9 @@ from infrastructure.persistence.models import (
     LoanApplicationResponse,
     HealthResponse,
 )
-from .dependencies import get_audit_writer, get_submit_loan_workflow
+from .dependencies import get_audit_reader, get_audit_writer, get_submit_loan_workflow
 from .security import get_principal
-from audit.writer import AuditEvent, AuditWriter
+from audit.writer import AuditEvent, AuditReader, AuditWriter
 from authz import Action, Principal, Resource, authorize
 from authz.policy import CUSTOMER_REALM
 from decisions.reasons import reason_texts
@@ -571,3 +571,22 @@ async def decide_policy_change(
     row.decided_at = now
     await db.commit()
     return _policy_out(row)
+
+
+# ---------------------------------------------------------------------------
+# Audit trace (E13): auditors reconstruct who did what to one resource.
+# ---------------------------------------------------------------------------
+@app.get("/api/v1/audit", tags=["Audit"])
+async def audit_trace(
+    resource: str = Query(..., pattern=r"^(application|policy|customer):[A-Za-z0-9_.:-]{1,64}$"),
+    principal: Principal = Depends(get_principal),
+    audit: AuditWriter = Depends(get_audit_writer),
+    reader: AuditReader | None = Depends(get_audit_reader),
+):
+    resource_type, resource_id = resource.split(":", 1)
+    # The auditor's own search is audited too.
+    await _require(principal, Action.READ_AUDIT, Resource(type=resource_type, id=resource_id), audit)
+    if reader is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Audit store is not configured")
+    return {"resource": resource, "events": await reader.trace(resource_type, resource_id)}
+
