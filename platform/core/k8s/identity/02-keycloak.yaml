@@ -1,0 +1,113 @@
+# Keycloak (E11, ADR-0012): 2 replicas, clustered cache via DNS discovery, realms imported at start.
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-headless
+  namespace: identity
+spec:
+  clusterIP: None
+  selector: {app: keycloak}
+  ports:
+    - {name: jgroups, port: 7800}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: identity
+spec:
+  selector: {app: keycloak}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: keycloak
+  namespace: identity
+spec:
+  serviceName: keycloak-headless
+  replicas: 2
+  selector:
+    matchLabels: {app: keycloak}
+  template:
+    metadata:
+      labels: {app: keycloak}
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.0.7
+          args: ["start", "--import-realm"]
+          env:
+            - {name: KC_DB, value: postgres}
+            - {name: KC_DB_URL, value: "jdbc:postgresql://keycloak-db-rw.identity.svc:5432/keycloak"}
+            - name: KC_DB_USERNAME
+              valueFrom: {secretKeyRef: {name: keycloak-db-credentials, key: username}}
+            - name: KC_DB_PASSWORD
+              valueFrom: {secretKeyRef: {name: keycloak-db-credentials, key: password}}
+            - {name: KC_HOSTNAME, value: "https://auth.credit.local"}
+            - {name: KC_HTTP_ENABLED, value: "true"}          # TLS terminates at the ingress
+            - {name: KC_PROXY_HEADERS, value: xforwarded}
+            - {name: KC_HEALTH_ENABLED, value: "true"}
+            - {name: KC_METRICS_ENABLED, value: "true"}
+            - {name: KC_CACHE, value: ispn}
+            - {name: KC_CACHE_STACK, value: kubernetes}
+            - {name: JAVA_OPTS_APPEND, value: "-Djgroups.dns.query=keycloak-headless.identity.svc.cluster.local"}
+            - {name: KC_SPI_EVENTS_LISTENER_JBOSS_LOGGING_SUCCESS_LEVEL, value: info}   # login events -> stdout -> ECK (E13)
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom: {secretKeyRef: {name: keycloak-admin, key: username}}
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom: {secretKeyRef: {name: keycloak-admin, key: password}}
+            # Client secrets substituted into the realm files at import (no secret in git)
+            - name: STAFF_PORTAL_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: keycloak-clients, key: staff-portal}}
+            - name: APPLICANT_PORTAL_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: keycloak-clients, key: applicant-portal}}
+            - name: DECISION_RECORDER_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: keycloak-clients, key: decision-recorder}}
+          ports:
+            - {name: http, containerPort: 8080}
+            - {name: jgroups, containerPort: 7800}
+          readinessProbe:
+            httpGet: {path: /health/ready, port: 9000}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health/live, port: 9000}
+            initialDelaySeconds: 60
+          resources:
+            requests: {cpu: 250m, memory: 768Mi}
+            limits: {memory: 1Gi}
+          volumeMounts:
+            - {name: realms, mountPath: /opt/keycloak/data/import, readOnly: true}
+      volumes:
+        - name: realms
+          configMap:
+            name: keycloak-realms   # make k8s-identity creates it from realms/*.json
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: keycloak
+  namespace: identity
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: keycloak}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+  namespace: identity
+  annotations:
+    nginx.ingress.kubernetes.io/limit-rps: "10"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: auth.credit.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: {name: keycloak, port: {number: 8080}}

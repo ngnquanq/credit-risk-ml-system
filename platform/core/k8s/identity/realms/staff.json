@@ -1,0 +1,135 @@
+{
+  "realm": "staff",
+  "enabled": true,
+  "displayName": "CRS Lending staff",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "bruteForceProtected": true,
+  "failureFactor": 5,
+  "maxFailureWaitSeconds": 900,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 28800,
+  "eventsEnabled": true,
+  "eventsListeners": [
+    "jboss-logging"
+  ],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true,
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "attributes": {
+    "acr.loa.map": "{\"mfa\":2}"
+  },
+  "passwordPolicy": "length(12) and notUsername and passwordHistory(5)",
+  "roles": {
+    "realm": [
+      {
+        "name": "loan_officer",
+        "description": "Enters applications for walk-in customers; branch-scoped"
+      },
+      {
+        "name": "underwriter",
+        "description": "Decides manual reviews; never on own submissions"
+      },
+      {
+        "name": "risk_manager",
+        "description": "Proposes and approves decision policy changes (four eyes)"
+      },
+      {
+        "name": "auditor",
+        "description": "Reads the audit trail; read-only"
+      },
+      {
+        "name": "admin",
+        "description": "Manages users in Keycloak; no access to application data"
+      }
+    ]
+  },
+  "requiredActions": [
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": true,
+      "defaultAction": true,
+      "priority": 10
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "staff-portal",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${STAFF_PORTAL_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://staff.credit.local/auth/callback"
+      ],
+      "webOrigins": [
+        "https://staff.credit.local"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://staff.credit.local/*",
+        "default.acr.values": "mfa",
+        "minimum.acr.value": "mfa"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-credit-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "credit-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "branch_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "branch_id",
+            "claim.name": "branch_id",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "decision-recorder",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${DECISION_RECORDER_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "protocolMappers": [
+        {
+          "name": "audience-credit-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "credit-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": []
+}

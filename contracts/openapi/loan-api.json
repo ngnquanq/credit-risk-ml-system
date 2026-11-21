@@ -1,0 +1,1405 @@
+{
+  "components": {
+    "schemas": {
+      "ContractType": {
+        "enum": [
+          "Cash loans",
+          "Revolving loans"
+        ],
+        "title": "ContractType",
+        "type": "string"
+      },
+      "EducationType": {
+        "enum": [
+          "Secondary / secondary special",
+          "Higher education",
+          "Incomplete higher",
+          "Lower secondary",
+          "Academic degree"
+        ],
+        "title": "EducationType",
+        "type": "string"
+      },
+      "FamilyStatus": {
+        "enum": [
+          "Single / not married",
+          "Married",
+          "Civil marriage",
+          "Widow",
+          "Separated"
+        ],
+        "title": "FamilyStatus",
+        "type": "string"
+      },
+      "GenderType": {
+        "enum": [
+          "M",
+          "F"
+        ],
+        "title": "GenderType",
+        "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "description": "Health check response.",
+        "properties": {
+          "status": {
+            "default": "healthy",
+            "title": "Status",
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timestamp"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "HousingType": {
+        "enum": [
+          "House / apartment",
+          "Renting",
+          "With parents",
+          "Municipal apartment",
+          "Office apartment",
+          "Co-op apartment"
+        ],
+        "title": "HousingType",
+        "type": "string"
+      },
+      "IncomeType": {
+        "enum": [
+          "Working",
+          "Commercial associate",
+          "Pensioner",
+          "State servant",
+          "Businessman"
+        ],
+        "title": "IncomeType",
+        "type": "string"
+      },
+      "LoanApplicationCreate": {
+        "description": "Customer loan application matching flattened database schema.",
+        "example": {
+          "age": 35,
+          "annual_income": 180000.0,
+          "car_age": 12,
+          "children_count": 2,
+          "contract_type": "Cash loans",
+          "credit_amount": 406597.5,
+          "documents": [
+            {
+              "document_type": 3,
+              "file_name": "passport.pdf",
+              "file_size": 2048576
+            },
+            {
+              "document_type": 6,
+              "file_name": "salary_certificate.pdf",
+              "file_size": 1024768
+            }
+          ],
+          "education_type": "Higher education",
+          "employment_years": 5,
+          "family_members_count": 4,
+          "family_status": "Married",
+          "gender": "M",
+          "goods_price": 351000.0,
+          "has_email": true,
+          "has_mobile_phone": true,
+          "has_phone": true,
+          "has_work_phone": false,
+          "housing_type": "House / apartment",
+          "income_type": "Working",
+          "loan_purpose": "Repairs",
+          "occupation_type": "Core staff",
+          "organization_type": "Business Entity Type 3",
+          "owns_car": true,
+          "owns_realty": true
+        },
+        "properties": {
+          "amt_annuity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Loan annuity",
+            "title": "Amt Annuity"
+          },
+          "amt_credit": {
+            "description": "Requested credit amount",
+            "exclusiveMinimum": 0.0,
+            "title": "Amt Credit",
+            "type": "number"
+          },
+          "amt_goods_price": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 0,
+            "description": "Price of goods",
+            "title": "Amt Goods Price"
+          },
+          "amt_income_total": {
+            "description": "Total annual income",
+            "exclusiveMinimum": 0.0,
+            "title": "Amt Income Total",
+            "type": "number"
+          },
+          "birth_date": {
+            "description": "Date of birth",
+            "format": "date",
+            "title": "Birth Date",
+            "type": "string"
+          },
+          "bureau_consent": {
+            "default": false,
+            "description": "Applicant consented to the credit bureau check",
+            "title": "Bureau Consent",
+            "type": "boolean"
+          },
+          "cnt_children": {
+            "default": 0,
+            "description": "Number of children",
+            "minimum": 0.0,
+            "title": "Cnt Children",
+            "type": "integer"
+          },
+          "code_gender": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GenderType"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Gender of the applicant (optional, audit only)"
+          },
+          "document_ids": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Document IDs from uploaded files",
+            "title": "Document Ids"
+          },
+          "employment_start_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employment start date",
+            "title": "Employment Start Date"
+          },
+          "flag_email": {
+            "default": 0,
+            "description": "Has email address",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Flag Email",
+            "type": "integer"
+          },
+          "flag_emp_phone": {
+            "default": 0,
+            "description": "Has work phone",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Flag Emp Phone",
+            "type": "integer"
+          },
+          "flag_mobil": {
+            "default": 0,
+            "description": "Has mobile phone",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Flag Mobil",
+            "type": "integer"
+          },
+          "flag_own_car": {
+            "default": 0,
+            "description": "Owns a car",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Flag Own Car",
+            "type": "integer"
+          },
+          "flag_own_realty": {
+            "default": 0,
+            "description": "Owns house or flat",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Flag Own Realty",
+            "type": "integer"
+          },
+          "flag_phone": {
+            "default": 0,
+            "description": "Has home phone",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Flag Phone",
+            "type": "integer"
+          },
+          "flag_work_phone": {
+            "default": 0,
+            "description": "Has work phone",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Flag Work Phone",
+            "type": "integer"
+          },
+          "name_contract_type": {
+            "$ref": "#/components/schemas/ContractType",
+            "default": "Cash loans",
+            "description": "Type of loan contract"
+          },
+          "name_education_type": {
+            "$ref": "#/components/schemas/EducationType",
+            "description": "Education level"
+          },
+          "name_family_status": {
+            "$ref": "#/components/schemas/FamilyStatus",
+            "description": "Family status"
+          },
+          "name_housing_type": {
+            "$ref": "#/components/schemas/HousingType",
+            "description": "Housing situation"
+          },
+          "name_income_type": {
+            "$ref": "#/components/schemas/IncomeType",
+            "description": "Type of income source"
+          },
+          "occupation_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Occupation/job type",
+            "title": "Occupation Type"
+          },
+          "organization_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Organization type",
+            "title": "Organization Type"
+          },
+          "own_car_age": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Age of car in years",
+            "title": "Own Car Age"
+          },
+          "sk_id_curr": {
+            "description": "Customer ID",
+            "title": "Sk Id Curr",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sk_id_curr",
+          "birth_date",
+          "amt_income_total",
+          "amt_credit",
+          "name_income_type",
+          "name_education_type",
+          "name_family_status",
+          "name_housing_type"
+        ],
+        "title": "LoanApplicationCreate",
+        "type": "object"
+      },
+      "LoanApplicationResponse": {
+        "description": "Response schema for loan applications.",
+        "properties": {
+          "amt_annuity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amt Annuity"
+          },
+          "amt_credit": {
+            "title": "Amt Credit",
+            "type": "number"
+          },
+          "amt_goods_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amt Goods Price"
+          },
+          "amt_income_total": {
+            "title": "Amt Income Total",
+            "type": "number"
+          },
+          "birth_date": {
+            "format": "date",
+            "title": "Birth Date",
+            "type": "string"
+          },
+          "cnt_children": {
+            "title": "Cnt Children",
+            "type": "integer"
+          },
+          "code_gender": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Gender"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "employment_start_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employment Start Date"
+          },
+          "flag_email": {
+            "title": "Flag Email",
+            "type": "integer"
+          },
+          "flag_emp_phone": {
+            "title": "Flag Emp Phone",
+            "type": "integer"
+          },
+          "flag_mobil": {
+            "title": "Flag Mobil",
+            "type": "integer"
+          },
+          "flag_own_car": {
+            "title": "Flag Own Car",
+            "type": "integer"
+          },
+          "flag_own_realty": {
+            "title": "Flag Own Realty",
+            "type": "integer"
+          },
+          "flag_phone": {
+            "title": "Flag Phone",
+            "type": "integer"
+          },
+          "flag_work_phone": {
+            "title": "Flag Work Phone",
+            "type": "integer"
+          },
+          "name_contract_type": {
+            "title": "Name Contract Type",
+            "type": "string"
+          },
+          "name_education_type": {
+            "title": "Name Education Type",
+            "type": "string"
+          },
+          "name_family_status": {
+            "title": "Name Family Status",
+            "type": "string"
+          },
+          "name_housing_type": {
+            "title": "Name Housing Type",
+            "type": "string"
+          },
+          "name_income_type": {
+            "title": "Name Income Type",
+            "type": "string"
+          },
+          "occupation_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occupation Type"
+          },
+          "organization_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Type"
+          },
+          "own_car_age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Own Car Age"
+          },
+          "sk_id_curr": {
+            "title": "Sk Id Curr",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sk_id_curr",
+          "birth_date",
+          "cnt_children",
+          "amt_income_total",
+          "amt_credit",
+          "amt_annuity",
+          "amt_goods_price",
+          "name_contract_type",
+          "name_income_type",
+          "name_education_type",
+          "name_family_status",
+          "name_housing_type",
+          "employment_start_date",
+          "occupation_type",
+          "organization_type",
+          "flag_mobil",
+          "flag_emp_phone",
+          "flag_work_phone",
+          "flag_phone",
+          "flag_email",
+          "flag_own_car",
+          "flag_own_realty",
+          "own_car_age",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "LoanApplicationResponse",
+        "type": "object"
+      },
+      "PolicyChangeRequest": {
+        "properties": {
+          "approve_below": {
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Approve Below",
+            "type": "number"
+          },
+          "rationale": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "title": "Rationale",
+            "type": "string"
+          },
+          "reject_above": {
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Reject Above",
+            "type": "number"
+          }
+        },
+        "required": [
+          "approve_below",
+          "reject_above",
+          "rationale"
+        ],
+        "title": "PolicyChangeRequest",
+        "type": "object"
+      },
+      "PolicyDecisionRequest": {
+        "properties": {
+          "approve": {
+            "title": "Approve",
+            "type": "boolean"
+          },
+          "comment": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Comment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approve"
+        ],
+        "title": "PolicyDecisionRequest",
+        "type": "object"
+      },
+      "PreSignedURLRequest": {
+        "properties": {
+          "document_type": {
+            "description": "Document type (2-21)",
+            "title": "Document Type",
+            "type": "integer"
+          },
+          "file_extension": {
+            "description": "File extension (pdf, jpg, png)",
+            "title": "File Extension",
+            "type": "string"
+          },
+          "sk_id_curr": {
+            "description": "Customer ID (sk_id_curr) used for folder organization",
+            "title": "Sk Id Curr",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sk_id_curr",
+          "document_type",
+          "file_extension"
+        ],
+        "title": "PreSignedURLRequest",
+        "type": "object"
+      },
+      "PreSignedURLResponse": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "upload_url": {
+            "title": "Upload Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_url",
+          "document_id"
+        ],
+        "title": "PreSignedURLResponse",
+        "type": "object"
+      },
+      "ReviewDecisionRequest": {
+        "properties": {
+          "outcome": {
+            "pattern": "^(approved|rejected)$",
+            "title": "Outcome",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "title": "Reason",
+            "type": "string"
+          },
+          "reason_code": {
+            "maxLength": 64,
+            "minLength": 3,
+            "title": "Reason Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome",
+          "reason_code",
+          "reason"
+        ],
+        "title": "ReviewDecisionRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "API for Home Credit loan applications with document upload support",
+    "title": "Home Credit Loan API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/applications": {
+      "post": {
+        "description": "Create a loan application. Ownership comes from the verified caller, never from the body.",
+        "operationId": "create_loan_application_api_v1_applications_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoanApplicationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoanApplicationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Loan Application",
+        "tags": [
+          "Applications"
+        ]
+      }
+    },
+    "/api/v1/applications/{customer_id}": {
+      "get": {
+        "description": "Get a loan application (personal data) by customer ID.",
+        "operationId": "get_loan_application_api_v1_applications__customer_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "customer_id",
+            "required": true,
+            "schema": {
+              "title": "Customer Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoanApplicationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Loan Application",
+        "tags": [
+          "Applications"
+        ]
+      }
+    },
+    "/api/v1/applications/{customer_id}/decision": {
+      "get": {
+        "description": "Decision with plain-language reasons. No score or contributions (ADR-0013).",
+        "operationId": "get_decision_api_v1_applications__customer_id__decision_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "customer_id",
+            "required": true,
+            "schema": {
+              "title": "Customer Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "locale",
+            "required": false,
+            "schema": {
+              "default": "vi",
+              "pattern": "^(vi|en)$",
+              "title": "Locale",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Decision",
+        "tags": [
+          "Decisions"
+        ]
+      }
+    },
+    "/api/v1/applications/{customer_id}/explanation": {
+      "get": {
+        "description": "Score, band, contributions and versions of the automated decision (underwriter, auditor).",
+        "operationId": "get_explanation_api_v1_applications__customer_id__explanation_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "customer_id",
+            "required": true,
+            "schema": {
+              "title": "Customer Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Explanation",
+        "tags": [
+          "Decisions"
+        ]
+      }
+    },
+    "/api/v1/applications/{customer_id}/status": {
+      "get": {
+        "description": "Latest status; ``submitted`` until a decision is recorded (E5).",
+        "operationId": "get_application_status_api_v1_applications__customer_id__status_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "customer_id",
+            "required": true,
+            "schema": {
+              "title": "Customer Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Application Status",
+        "tags": [
+          "Applications"
+        ]
+      }
+    },
+    "/api/v1/policy-changes": {
+      "get": {
+        "operationId": "list_policy_changes_api_v1_policy_changes_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Policy Changes",
+        "tags": [
+          "Policy"
+        ]
+      },
+      "post": {
+        "operationId": "propose_policy_change_api_v1_policy_changes_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Propose Policy Change",
+        "tags": [
+          "Policy"
+        ]
+      }
+    },
+    "/api/v1/policy-changes/{change_id}/decision": {
+      "post": {
+        "operationId": "decide_policy_change_api_v1_policy_changes__change_id__decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "change_id",
+            "required": true,
+            "schema": {
+              "title": "Change Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decide Policy Change",
+        "tags": [
+          "Policy"
+        ]
+      }
+    },
+    "/api/v1/presigned-url": {
+      "post": {
+        "description": "Generate pre-signed URL for document upload to MinIO with organized folder structure.",
+        "operationId": "get_presigned_url_api_v1_presigned_url_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreSignedURLRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreSignedURLResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Presigned Url",
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/v1/reviews": {
+      "get": {
+        "description": "Applications whose latest status is manual_review, oldest first.",
+        "operationId": "list_reviews_api_v1_reviews_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Reviews",
+        "tags": [
+          "Reviews"
+        ]
+      }
+    },
+    "/api/v1/reviews/{customer_id}/decision": {
+      "post": {
+        "description": "Record an underwriter's decision on an application in manual review.",
+        "operationId": "decide_review_api_v1_reviews__customer_id__decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "customer_id",
+            "required": true,
+            "schema": {
+              "title": "Customer Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decide Review",
+        "tags": [
+          "Reviews"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "Health check endpoint.",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Check",
+        "tags": [
+          "Health"
+        ]
+      }
+    }
+  }
+}

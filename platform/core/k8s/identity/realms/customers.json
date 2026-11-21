@@ -1,0 +1,81 @@
+{
+  "realm": "customers",
+  "enabled": true,
+  "displayName": "CRS Lending",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "verifyEmail": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "bruteForceProtected": true,
+  "failureFactor": 10,
+  "maxFailureWaitSeconds": 900,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 28800,
+  "eventsEnabled": true,
+  "eventsListeners": [
+    "jboss-logging"
+  ],
+  "passwordPolicy": "length(10) and notUsername and notEmail",
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "vi",
+    "en"
+  ],
+  "defaultLocale": "vi",
+  "roles": {
+    "realm": [
+      {
+        "name": "applicant",
+        "description": "Applies for loans and follows own applications"
+      }
+    ]
+  },
+  "defaultRoles": [
+    "applicant"
+  ],
+  "smtpServer": {
+    "host": "${SMTP_HOST}",
+    "port": "${SMTP_PORT}",
+    "from": "no-reply@credit.local",
+    "fromDisplayName": "CRS Lending"
+  },
+  "clients": [
+    {
+      "clientId": "applicant-portal",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${APPLICANT_PORTAL_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://apply.credit.local/auth/callback"
+      ],
+      "webOrigins": [
+        "https://apply.credit.local"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://apply.credit.local/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-credit-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "credit-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": []
+}

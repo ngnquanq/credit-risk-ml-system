@@ -1,0 +1,30 @@
+# Ownership by path (ADR-0011). Today one person holds every role; the handles below are
+# placeholders for the teams that would review each area once required reviews are enabled.
+
+# Data engineering: producers, transforms, warehouse
+/application/flink/                     @credit-risk/data-engineering
+/application/entrypoints/*consumer*.py  @credit-risk/data-engineering
+/platform/data/                         @credit-risk/data-engineering
+/ml_data_mart/                          @credit-risk/data-engineering
+
+# Data science: training, feature sets, notebooks
+/application/training/                  @credit-risk/data-science
+/notebook/                              @credit-risk/data-science
+
+# Feature definitions need both producers and consumers (E2 governance plan)
+/application/training/feature_catalog/definitions/  @credit-risk/data-engineering @credit-risk/data-science
+
+# Risk and compliance: who may do what, decisions, explanations, audit
+/application/authz/                     @credit-risk/risk @credit-risk/security
+/application/scoring/policy.py          @credit-risk/risk
+/application/training/feature_catalog/reasons.yaml  @credit-risk/risk
+/application/audit/                     @credit-risk/security
+/docs/security/                         @credit-risk/security
+/docs/release/                          @credit-risk/risk @credit-risk/platform
+
+# ML platform: serving, deployment, identity, portals
+/application/scoring/                   @credit-risk/platform
+/platform/                              @credit-risk/platform
+/portals/                               @credit-risk/platform
+/contracts/                             @credit-risk/platform
+/platform/core/k8s/identity/            @credit-risk/platform @credit-risk/security

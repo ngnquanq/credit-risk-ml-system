@@ -1,0 +1,21 @@
+# Keycloak's own PostgreSQL (E11), managed by CloudNativePG (E15): 1 primary + 1 replica.
+# Requires the CloudNativePG operator: make k8s-cnpg-operator
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: keycloak-db
+  namespace: identity
+spec:
+  instances: 2
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.4
+  storage:
+    size: 2Gi
+  bootstrap:
+    initdb:
+      database: keycloak
+      owner: keycloak
+      secret:
+        name: keycloak-db-credentials   # created by make k8s-identity-secrets (username/password)
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 512Mi}

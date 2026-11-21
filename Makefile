@@ -1,4 +1,4 @@
-.PHONY: help k8s-restart cleanup-load-test cleanup-load-test-soft k8s-secrets
+.PHONY: help k8s-restart cleanup-load-test cleanup-load-test-soft k8s-secrets k8s-cnpg-operator k8s-identity-secrets k8s-identity contracts check
 
 # Load environment variables from root .env file
 ifneq (,$(wildcard .env))
@@ -18,6 +18,17 @@ PYTHON := python
 
 # create-network: ## Create the platform network
 # 	docker network create $(NETWORK_NAME) || true
+
+# ─── Contracts and local quality gate (ADR-0011) ───────────────────────────────
+contracts: ## Regenerate cross-language contracts (OpenAPI for the portals, reason map)
+	$(PYTHON) scripts/export_openapi.py
+	$(PYTHON) application/training/feature_catalog/export.py reason-map contracts/reason_map.json
+
+check: ## Local gate: lint, tests, and contracts unchanged
+	ruff check --select F application tests jobs scripts
+	OTEL_SDK_DISABLED=true $(PYTHON) -m pytest tests/unit tests/integration -q
+	$(MAKE) contracts
+	git diff --exit-code contracts/
 
 # ─── Port-forward shortcuts ────────────────────────────────────────────────────
 pf-clickhouse: ## Port-forward ClickHouse HTTP API to localhost:8123 (for local notebooks)
@@ -109,6 +120,29 @@ k8s-secrets: ## Create runtime K8s Secrets from environment variables
 	kubectl create secret generic db-secrets -n data-services --from-literal=POSTGRES_PASSWORD="$(OPS_DB_PASSWORD)" --dry-run=client -o yaml | kubectl apply -f -
 	kubectl create secret generic minio-root-credentials -n data-services --from-literal=MINIO_ROOT_USER="$(MINIO_ACCESS_KEY)" --from-literal=MINIO_ROOT_PASSWORD="$(MINIO_SECRET_KEY)" --dry-run=client -o yaml | kubectl apply -f -
 	kubectl create secret generic api-secrets -n api-gateway --from-literal=OPS_DB_PASSWORD="$(OPS_DB_PASSWORD)" --from-literal=MINIO_ACCESS_KEY="$(MINIO_ACCESS_KEY)" --from-literal=MINIO_SECRET_KEY="$(MINIO_SECRET_KEY)" --dry-run=client -o yaml | kubectl apply -f -
+
+CNPG_VERSION ?= 1.24.1
+
+k8s-cnpg-operator: ## Install the CloudNativePG operator (E11/E15 databases)
+	kubectl apply --server-side -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.24/releases/cnpg-$(CNPG_VERSION).yaml
+	kubectl rollout status deployment/cnpg-controller-manager -n cnpg-system --timeout=180s
+
+k8s-identity-secrets: ## Create Keycloak secrets from environment variables (never from files in git)
+	@test -n "$(KEYCLOAK_ADMIN_PASSWORD)" || (echo "KEYCLOAK_ADMIN_PASSWORD is required (see .env.example)" && exit 2)
+	@test -n "$(KEYCLOAK_DB_PASSWORD)" || (echo "KEYCLOAK_DB_PASSWORD is required (see .env.example)" && exit 2)
+	@test -n "$(STAFF_PORTAL_CLIENT_SECRET)" || (echo "STAFF_PORTAL_CLIENT_SECRET is required (see .env.example)" && exit 2)
+	@test -n "$(APPLICANT_PORTAL_CLIENT_SECRET)" || (echo "APPLICANT_PORTAL_CLIENT_SECRET is required (see .env.example)" && exit 2)
+	@test -n "$(DECISION_RECORDER_CLIENT_SECRET)" || (echo "DECISION_RECORDER_CLIENT_SECRET is required (see .env.example)" && exit 2)
+	kubectl apply -f platform/core/k8s/identity/00-namespace.yaml
+	kubectl create secret generic keycloak-admin -n identity --from-literal=username=admin --from-literal=password="$(KEYCLOAK_ADMIN_PASSWORD)" --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create secret generic keycloak-db-credentials -n identity --type=kubernetes.io/basic-auth --from-literal=username=keycloak --from-literal=password="$(KEYCLOAK_DB_PASSWORD)" --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create secret generic keycloak-clients -n identity --from-literal=staff-portal="$(STAFF_PORTAL_CLIENT_SECRET)" --from-literal=applicant-portal="$(APPLICANT_PORTAL_CLIENT_SECRET)" --from-literal=decision-recorder="$(DECISION_RECORDER_CLIENT_SECRET)" --dry-run=client -o yaml | kubectl apply -f -
+
+k8s-identity: k8s-identity-secrets ## Deploy Keycloak with the staff and customers realms (E11)
+	kubectl apply -f platform/core/k8s/identity/01-keycloak-db.yaml
+	kubectl create configmap keycloak-realms -n identity --from-file=platform/core/k8s/identity/realms/ --dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -f platform/core/k8s/identity/02-keycloak.yaml
+	kubectl rollout status statefulset/keycloak -n identity --timeout=300s
 
 k8s-core: build-dbt ## Deploy Core Infrastructure (Postgres + API + Ingress) to K8s
 	@echo "Deploying Core Platform..."
