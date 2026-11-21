@@ -29,7 +29,7 @@ def _mock_bentoml_and_import():
     # 2. The bentoml.importing() block does bare imports:
     #    from config import settings
     #    from schemas import ScoreRequest, ...
-    #    from pipeline import postprocess
+    #    from policy import DecisionPolicy
     #    from logger import configure_logger
     #    These resolve to application/scoring/{config,schemas,pipeline,logger}.py
     #    when PYTHONPATH=application, "config" resolves to core.config. We need
@@ -51,12 +51,12 @@ def _mock_bentoml_and_import():
 
     # 3. Populate globals that bentoml.importing() would set
     import pandas as pd
-    from scoring.pipeline import postprocess as _postprocess
+    from scoring.policy import DecisionPolicy
     from scoring.schemas import ScoreRequest, ScoreResponse, ScoreByIdRequest
     from scoring.logger import configure_logger
 
     svc.pd = pd
-    svc.postprocess = _postprocess
+    svc.decision_policy = DecisionPolicy(approve_below=0.25, reject_above=0.35)
     svc.ScoreRequest = ScoreRequest
     svc.ScoreResponse = ScoreResponse
     svc.ScoreByIdRequest = ScoreByIdRequest
@@ -258,12 +258,13 @@ class TestPredictAndCreateResponse:
         mock_model = MagicMock()
         mock_model.predict_proba.return_value = np.array([[0.3, 0.7]])
         svc.model = mock_model
-        svc.settings = MagicMock(prediction_threshold=0.5)
+        result = svc._predict_and_create_response({"F": 1.0}, "100", event_id="ce-1")
 
-        result = svc._predict_and_create_response({"F": 1.0}, "100")
-
+        assert result["event_id"] == "ce-1"
         assert result["sk_id_curr"] == "100"
         assert result["probability"] == 0.7
-        assert result["decision"] == "reject"
+        assert result["band"] == "REJECT"
+        assert result["status"] == "rejected"
+        assert result["bands"] == {"approve_below": 0.25, "reject_above": 0.35}
         assert result["model"] == "test"
-        assert "ts" in result
+        assert "decided_at" in result

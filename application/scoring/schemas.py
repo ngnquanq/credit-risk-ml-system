@@ -1,7 +1,7 @@
 """Pydantic schemas for scoring I/O."""
 
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Dict, Optional, Any
+from typing import Any, Dict, List, Optional
 
 
 class ScoreRequest(BaseModel):
@@ -19,8 +19,10 @@ class ScoreByIdRequest(BaseModel):
 class ScoreResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, protected_namespaces=())
     probability: Optional[float] = None
-    decision: str
-    threshold: float
+    band: str
+    status: str
+    reasons: List[str] = Field(default_factory=list)
+    reason_codes: List[str] = Field(default_factory=list)
+    bands: Dict[str, float]
     model_name: str
     model_version: Optional[str] = None
-    reason: Optional[str] = None

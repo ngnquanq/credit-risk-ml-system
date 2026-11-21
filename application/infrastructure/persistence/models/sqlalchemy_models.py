@@ -90,6 +90,8 @@ class ApplicationStatusLog(Base):
     # Metadata
     created_at = Column(DateTime, server_default=func.current_timestamp(), nullable=False)
     created_by = Column(String(100), nullable=False)
+    # Idempotency key of the decision event that produced this row (E5, migration 003)
+    event_id = Column(String(64), nullable=True)
     # Map attribute 'event_metadata' to DB column named 'metadata' to avoid
     # clashing with SQLAlchemy's Base.metadata and match migration DDL.
     event_metadata = Column('metadata', JSONB)

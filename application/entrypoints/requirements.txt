@@ -6,6 +6,7 @@ pydantic==2.8.2
 pydantic-settings==2.4.0
 SQLAlchemy==2.0.43
 asyncpg==0.30.0
+psycopg[binary]==3.2.3
 
 # OpenTelemetry (Tracing)
 opentelemetry-api==1.22.0

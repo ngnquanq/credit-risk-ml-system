@@ -43,28 +43,24 @@ class TestScoreResponse:
     def test_full(self):
         resp = ScoreResponse(
             probability=0.75,
-            decision="reject",
-            threshold=0.5,
+            band="REJECT",
+            status="rejected",
+            reasons=["score_band"],
+            reason_codes=["EXT_SCORE_LOW"],
+            bands={"approve_below": 0.25, "reject_above": 0.35},
             model_name="credit_risk",
             model_version="3",
         )
         assert resp.probability == 0.75
-        assert resp.decision == "reject"
+        assert resp.status == "rejected"
 
-    def test_minimal(self):
+    def test_unavailable_has_no_probability(self):
         resp = ScoreResponse(
-            decision="approve",
-            threshold=0.5,
+            band="UNDER_REVIEW",
+            status="manual_review",
+            reasons=["feature_data_unavailable"],
+            bands={"approve_below": 0.25, "reject_above": 0.35},
             model_name="m",
         )
         assert resp.probability is None
-        assert resp.model_version is None
-
-    def test_with_reason(self):
-        resp = ScoreResponse(
-            decision="under-review",
-            threshold=0.5,
-            model_name="m",
-            reason="feature_data_unavailable",
-        )
-        assert resp.reason == "feature_data_unavailable"
+        assert resp.reason_codes == []

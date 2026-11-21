@@ -35,7 +35,10 @@ class ScoringSettings(BaseSettings):
     model_version: Optional[str] = Field(default=None, description="Override model version for responses")
 
     # Inference
-    prediction_threshold: float = Field(default=0.3, description="Probability that customer will default")
+    # Decision bands on P(default) (E5): below approve_below -> approve,
+    # above reject_above -> reject, otherwise manual review.
+    approve_below: float = Field(default=0.25, description="P(default) below this is approved")
+    reject_above: float = Field(default=0.35, description="P(default) above this is rejected")
     feature_names: Optional[str] = Field(
         default=None, description="Comma-separated feature order"
     )

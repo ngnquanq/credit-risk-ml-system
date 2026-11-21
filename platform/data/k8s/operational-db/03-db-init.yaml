@@ -16,6 +16,7 @@ data:
     -- Create core tables required by the application
     \i /schemas/001_create_loan_applications.sql
     \i /schemas/002_create_application_status_log.sql
+    \i /schemas/003_status_log_event_id.sql
 
     -- Create CDC publication for Debezium
     CREATE PUBLICATION debezium_pub FOR TABLE loan_applications;
@@ -139,3 +140,9 @@ data:
     ORDER BY sk_id_curr, created_at DESC;
 
     COMMENT ON TABLE application_status_log IS 'Event sourcing log for application status changes.';
+
+  003_status_log_event_id.sql: |
+    -- E5: idempotent decision recording. One row per decision event; replays insert nothing.
+    ALTER TABLE application_status_log ADD COLUMN IF NOT EXISTS event_id VARCHAR(64);
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_status_log_event_id
+        ON application_status_log(event_id) WHERE event_id IS NOT NULL;

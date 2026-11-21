@@ -34,7 +34,7 @@ settings = None  # type: ignore
 ScoreRequest = None  # type: ignore
 ScoreResponse = None  # type: ignore
 ScoreByIdRequest = None  # type: ignore
-postprocess = None  # type: ignore
+decision_policy = None  # type: ignore
 configure_logger = None  # type: ignore
 
 # Import ALL dependencies that might not be available during `bentoml build`
@@ -46,7 +46,7 @@ with bentoml.importing():
     import pandas as _pd
     from config import settings as _settings
     from schemas import ScoreRequest as _ScoreRequest, ScoreResponse as _ScoreResponse, ScoreByIdRequest as _ScoreByIdRequest
-    from pipeline import postprocess as _postprocess
+    from policy import DecisionPolicy as _DecisionPolicy
     from logger import configure_logger as _configure_logger
 
     try:
@@ -66,7 +66,7 @@ with bentoml.importing():
     ScoreRequest = _ScoreRequest
     ScoreResponse = _ScoreResponse
     ScoreByIdRequest = _ScoreByIdRequest
-    postprocess = _postprocess
+    decision_policy = _DecisionPolicy(approve_below=settings.approve_below, reject_above=settings.reject_above)
     configure_logger = _configure_logger
     trace = _trace
     extract_or_create_trace_context = _extract_or_create
@@ -108,17 +108,20 @@ with bentoml.importing():
         X_df = _as_dataframe_row(req.features)
         raw = _predict_proba_local(X_df)
         prob = float(raw[0]) if hasattr(raw, "__len__") else float(raw)
-        probability, decision = postprocess(prob, settings.prediction_threshold)
+        decision = decision_policy.decide(prob)
 
         resp = ScoreResponse(
-            probability=probability,
-            decision=decision,
-            threshold=settings.prediction_threshold,
+            probability=decision.score,
+            band=decision.band.value,
+            status=decision.status,
+            reasons=list(decision.reasons),
+            reason_codes=list(decision.reason_codes),
+            bands=decision_policy.bands,
             model_name=MODEL_NAME,
             model_version=MODEL_VERSION,
         )
         logger.bind(event="inference").info(
-            {"user_id": req.user_id, "probability": probability, "decision": decision}
+            {"user_id": req.user_id, "probability": decision.score, "band": decision.band.value}
         )
         return resp.model_dump()
 
@@ -211,7 +214,7 @@ with bentoml.importing():
         try:
             features = _fetch_features_from_feast(sk_id_curr)
             feast_fetched_at = time.perf_counter()
-            result = _predict_and_create_response(features, sk_id_curr)
+            result = _predict_and_create_response(features, sk_id_curr, request.headers.get("ce-id"))
             predicted_at = time.perf_counter()
             response = _cloudevent_response(result, sk_id_curr)
             response_built_at = time.perf_counter()
@@ -219,7 +222,7 @@ with bentoml.importing():
             logger.bind(event="inference").info({
                 "sk_id_curr": sk_id_curr,
                 "probability": result["probability"],
-                "decision": result["decision"]
+                "band": result["band"]
             })
             _log_score_by_id_timing(
                 sk_id_curr=sk_id_curr,
@@ -242,15 +245,16 @@ with bentoml.importing():
             # Feature not found - return "under-review" decision
             feast_failed_at = time.perf_counter()
             logger.warning(f"Feature fetch failed for {sk_id_curr}: {e}")
+            unavailable = decision_policy.decide_unavailable()
             response = _cloudevent_response({
+                "event_id": request.headers.get("ce-id") or str(uuid.uuid4()),
                 "sk_id_curr": sk_id_curr,
-                "probability": None,
-                "decision": "under-review",
-                "threshold": settings.prediction_threshold,
+                **unavailable.to_event_fields(),
+                "bands": decision_policy.bands,
                 "model": MODEL_NAME,
-                "version": MODEL_VERSION,
-                "ts": datetime.utcnow().isoformat() + "Z",
-                "reason": "feature_data_unavailable"
+                "model_version": MODEL_VERSION,
+                "feature_set_sha256": (MODEL_FEAST_METADATA or {}).get("feature_set_sha256"),
+                "decided_at": datetime.utcnow().isoformat() + "Z",
             }, sk_id_curr)
             response_built_at = time.perf_counter()
             _log_score_by_id_timing(
@@ -472,21 +476,25 @@ def _fetch_features_from_feast(sk_id_curr: str) -> Dict[str, Any]:
     return _map_feast_features(res, feature_refs)
 
 
-def _predict_and_create_response(features: Dict[str, Any], sk_id_curr: str) -> Dict[str, Any]:
-    """Shared prediction logic - creates response dict (not ScoreResponse object)."""
+def _predict_and_create_response(
+    features: Dict[str, Any], sk_id_curr: str, event_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """Shared prediction logic: the decision event published on hc.scoring (E5)."""
     X_df = _as_dataframe_row(features)
     raw = _predict_proba_local(X_df)
     prob = float(raw[0]) if hasattr(raw, "__len__") else float(raw)
-    probability, decision = postprocess(prob, settings.prediction_threshold)
+    decision = decision_policy.decide(prob)
 
     return {
+        "event_id": event_id or str(uuid.uuid4()),
         "sk_id_curr": sk_id_curr,
-        "probability": probability,
-        "decision": decision,
-        "threshold": settings.prediction_threshold,
+        **decision.to_event_fields(),
+        "probability": decision.score,
+        "bands": decision_policy.bands,
         "model": MODEL_NAME,
-        "version": MODEL_VERSION,
-        "ts": datetime.utcnow().isoformat() + "Z",
+        "model_version": MODEL_VERSION,
+        "feature_set_sha256": (MODEL_FEAST_METADATA or {}).get("feature_set_sha256"),
+        "decided_at": datetime.utcnow().isoformat() + "Z",
     }
 
 

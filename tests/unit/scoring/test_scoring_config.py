@@ -19,12 +19,12 @@ class TestScoringSettings:
     def test_defaults(self):
         s = self._make()
         assert s.model_source == "local"
-        assert s.prediction_threshold == 0.3
+        assert (s.approve_below, s.reject_above) == (0.25, 0.35)
         assert s.feast_enabled is True
 
-    def test_threshold_from_env(self):
-        s = self._make(SCORING_PREDICTION_THRESHOLD="0.7")
-        assert s.prediction_threshold == 0.7
+    def test_bands_from_env(self):
+        s = self._make(SCORING_APPROVE_BELOW="0.2", SCORING_REJECT_ABOVE="0.4")
+        assert (s.approve_below, s.reject_above) == (0.2, 0.4)
 
     def test_model_source_mlflow(self):
         s = self._make(SCORING_MODEL_SOURCE="mlflow", SCORING_MLFLOW_MODEL_URI="models:/m/1")
