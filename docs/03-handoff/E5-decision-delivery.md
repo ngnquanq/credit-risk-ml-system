@@ -10,6 +10,8 @@ The pipeline scores applications and publishes the result to `hc.scoring`, but n
 
 ## 2. Scope
 
+> **Extended by [E15](E15-resilience-failover.md):** the recorder also consumes `hc.scoring.dlq` and records `manual_review` with reason `scoring_unavailable`. Fallback paths never record `approved`. Overrides by underwriters ([E11](E11-identity-access.md), [E13](E13-audit-trail.md)) and reason codes ([E14](E14-explainability.md)) build on the record defined here.
+
 **In**
 - A **decision policy** module in the scoring service: three bands with configurable boundaries and reason codes. It replaces `pipeline.postprocess`.
 - A richer **decision event** on `hc.scoring` (band, reasons, versions, event id).
@@ -190,7 +192,7 @@ Constraint, checked at startup: `0 < approve_below ≤ reject_above < 1`. Both b
   "reasons": ["score_band"],
   "bands": {"approve_below": 0.25, "reject_above": 0.35},
   "model": "credit_risk_model", "model_version": "14",
-  "catalog_version": "2026.12.1",  // from E2; null until E2 ships
+  "feature_set_sha256": "9f2c…",  // digest of the model's feature set (E2)
   "decided_at": "2026-12-03T10:15:02.120Z"
 }
 ```
@@ -203,7 +205,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_status_log_event_id
     ON application_status_log(event_id) WHERE event_id IS NOT NULL;
 ```
 
-Row written: `status` (above), `created_by = 'decision-recorder'`, `metadata = {score, reasons, bands, model, model_version, catalog_version}`, `event_id`.
+Row written: `status` (above), `created_by = 'decision-recorder'`, `metadata = {score, reasons, bands, model, model_version, feature_set_sha256}`, `event_id`.
 
 **API responses**
 

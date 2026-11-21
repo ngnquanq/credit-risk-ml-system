@@ -24,7 +24,11 @@ workspace "Credit Risk Decisioning Platform" "Event-driven loan scoring: CDC -> 
         # ------------------------------------------------------------------
         # People
         # ------------------------------------------------------------------
-        applicant = person "Loan applicant / loan officer" "Fills in the loan application and uploads supporting documents through the web UI. Never sees the decision (no read-back path exists)."
+        applicant = person "Loan applicant" "Today: fills in the Streamlit form (also used by staff) and uploads documents; never sees the decision. Target (E12): registers and applies online in the applicant portal, follows the status and reads the principal reasons."
+        loanOfficer = person "Loan officer" "PLANNED (E12). Lender staff at a branch or point of sale. Enters applications for walk-in customers and follows their decisions; sees only their branch." "Planned"
+        underwriter = person "Underwriter" "PLANNED (E12). Credit operations. Works the manual-review queue; cannot review an application they submitted." "Planned"
+        riskManager = person "Credit risk manager" "PLANNED (E11). Owns the decision policy. Proposes threshold and review-band changes; a second risk manager must approve." "Planned"
+        auditor = person "Auditor" "PLANNED (E13). Compliance and internal audit. Reconstructs decisions from the audit trail; read-only." "Planned"
         scientist = person "Data scientist" "Explores data in notebooks, tunes and trains models, registers them in MLflow and promotes a version to the Production stage."
         engineer = person "Platform engineer" "Builds images, deploys the stack with the Makefile, port-forwards tools, runs load tests and reads dashboards."
 
@@ -67,7 +71,11 @@ workspace "Credit Risk Decisioning Platform" "Event-driven loan scoring: CDC -> 
                     docAdapter = component "Document storage adapter" "Validates type 2-21 and extension (pdf/jpg/jpeg/png), sanitises sk_id_curr, issues presigned PUT for {sk_id_curr}/{folder}/{doc_id}.{ext}." "minio-py (entrypoints/api/main.py)"
                     persistenceModels = component "Persistence models and session" "SQLAlchemy tables loan_applications and application_status_log; Pydantic request/response schemas; async engine + session factory." "SQLAlchemy, Pydantic v2 (infrastructure/persistence/models, core/database.py)"
                     apiTracing = component "Tracing setup" "OpenTelemetry tracer 'api-service', 10% sampling, FastAPI auto-instrumentation, OTLP gRPC exporter." "OpenTelemetry (core/tracing)"
-                    apiKeyGuard = component "API key guard" "PLANNED (E9). FastAPI dependency on every /api/v1 route: compares X-API-Key with keys from settings (SecretStr); 401 otherwise. /health stays open. CORS limited to configured origins." "FastAPI Depends" "Planned"
+                    apiKeyGuard = component "API key guard" "PLANNED (E9). Kept only for the load-test client once E11 ships. FastAPI dependency on /api/v1 routes: compares X-API-Key with keys from settings (SecretStr); 401 otherwise. /health stays open. CORS limited to configured origins." "FastAPI Depends" "Planned"
+                    authn = component "Token verification" "PLANNED (E11). Verifies the bearer JWT: issuer in {staff, customers} realms, aud credit-api, RS256 with cached JWKS, exp/nbf. Builds Principal(sub, realm, roles, branch_id); 401 otherwise." "FastAPI Depends (entrypoints/api/security.py)" "Planned"
+                    authz = component "Authorization policy" "PLANNED (E11). authorize(principal, action, resource) -> allowed + rule. Deny by default. Ownership (applicant), branch scope (loan officer), separation of duties (underwriter), four eyes (policy changes). The only place access is granted." "Python (application/authz/policy.py)" "Planned"
+                    auditWriter = component "Audit writer" "PLANNED (E13). Appends one audit_event per allowed or denied action: actor, action, resource, outcome, trace id; hash-chained; no raw PII in details." "Python, asyncpg (application/audit/)" "Planned"
+                    reviewRoutes = component "Review, policy and audit routes" "PLANNED (E5, E11, E13). GET /api/v1/reviews; POST /api/v1/reviews/{id}/claim and /decision; POST /api/v1/policy-changes and /{id}/approve; GET /api/v1/audit." "FastAPI router" "Planned"
                 }
             }
 
@@ -179,6 +187,7 @@ workspace "Credit Risk Decisioning Platform" "Event-driven loan scoring: CDC -> 
                     sEvent = component "CloudEvent responder" "Wraps the result with ce-specversion 1.0, ce-type dev.knative.scoring.response, ce-subject sk_id_curr so the Sequence forwards the reply. Feature miss -> decision under-review." "_cloudevent_response()"
                     sTiming = component "Timing and tracing" "One structured score_by_id_timing log per request (body, parse, validate, load, feast, predict, build ms); OTel tracer scoring-service at 10%." "loguru + OpenTelemetry"
                     sPolicy = component "Decision policy" "PLANNED (E5). decide(score) -> Decision{band, score, reasons}: approve below 0.25, under_review 0.25-0.35, reject above 0.35; bands from versioned config. Replaces pipeline.postprocess." "Python module" "Planned"
+                    sExplainer = component "Explainer" "PLANNED (E14). shap.TreeExplainer on the loaded booster; per request: contributions per input column, additivity check, top 4 risk-increasing features mapped to catalog reason codes (protected and proxy features dropped)." "Python, shap" "Planned"
                 }
 
                 servingWatcher = container "Serving watcher" "Every 30 s: list bentoml-bundles/bentos/credit_risk_model/v*; for the newest MAX_ACTIVE_MODELS=2 not yet deployed: download Bento, patch Dockerfile, docker build + push, create/patch InferenceService, then patch the Sequence step to the last version processed (set order). Deletes older ISVCs. Deployed versions kept in memory only." "Python, kubernetes client, boto3, Docker-in-Docker sidecar" "Controller,Risk"
@@ -208,8 +217,19 @@ workspace "Credit Risk Decisioning Platform" "Event-driven loan scoring: CDC -> 
                 decisionRecorder = container "Decision recorder" "PLANNED (E5). Consumes hc.scoring and hc.feature_timeout, writes one application_status_log row per decision (idempotent on event id), commits offsets after the write." "Python 3.10, confluent-kafka, SQLAlchemy async" "Planned"
             }
             group "11 Shared libraries (planned)" {
-                featureCatalog = container "Feature catalog" "PLANNED (E2). features.yaml + loader: name, dtype, group, training column, nullable, protected, valid range, transform. Generates Feast schemas and the Flink sink column list; validates model feature lists. Versioned with the code." "Python package (credit_features), YAML" "Library,Planned"
-                trainingRecipe = container "Training recipe" "PLANNED (E6). One fit/evaluate/register function used by the CLI, the notebook and the Kubeflow component: catalog features only, no protected inputs, metrics incl. dir_gender, model_card.md, MLflow tags git_commit / data_snapshot_id / catalog_version." "Python package" "Library,Planned"
+                featureCatalog = container "Feature catalog" "PARTIAL (E2). application/training/feature_catalog: ordered model feature sets (sets/legacy-v1.json, built; SHA-256 digest logged to MLflow) and feature definitions (definitions/*.yaml, planned: dtype, producer, range, sentinel, protected, reason code). Generates Feast schemas and the Flink sink column list." "Python, JSON + YAML" "Library,Planned"
+                trainingRecipe = container "Training recipe" "PLANNED (E6). One fit/evaluate/register function used by the CLI, the notebook and the Kubeflow component: catalog features only, no protected inputs, metrics incl. dir_gender, model_card.md, MLflow tags git_commit / data_snapshot_id / feature_set_sha256." "Python package" "Library,Planned"
+            }
+
+            group "12 Identity and portals (planned, ns: identity, portals)" {
+                staffIngress = container "Internal ingress" "PLANNED (E12). Separate ingress-nginx IngressClass for the staff host, reachable only from the staff network (source allow-list)." "ingress-nginx" "Infra,Planned"
+                keycloak = container "Identity provider" "PLANNED (E11). Keycloak, 2 replicas. Realm staff: no self-registration, TOTP required, roles loan_officer, underwriter, risk_manager, auditor, admin, user attribute branch_id. Realm customers: self-registration, verified email, role applicant. Realm exports in git, no secrets." "Keycloak, OIDC" "Planned"
+                keycloakDb = container "Identity database" "PLANNED (E11). Keycloak's own PostgreSQL cluster (CloudNativePG)." "PostgreSQL" "Database,Planned"
+                staffPortal = container "Staff portal" "PLANNED (E12). Backend-for-frontend: application entry (loan officer), review queue (underwriter), policy changes (risk manager), decision trace (auditor). Tokens stay on the server; the browser holds an httpOnly session cookie; CSRF on mutations; CSP." "TypeScript, Next.js" "Web,Planned"
+                applicantPortal = container "Applicant portal" "PLANNED (E12). Backend-for-frontend on the public host: register, apply, upload documents, follow status, read principal reasons. Rate-limited at the ingress." "TypeScript, Next.js" "Web,Planned"
+            }
+            group "13 Audit (planned, ns: api-gateway)" {
+                auditDb = container "Audit log" "PLANNED (E13). Separate database 'audit', table audit_event (append-only: the application role has INSERT only; hash chain prev_hash/hash verified daily). Auditors read through a view." "PostgreSQL" "Database,Planned"
             }
 
             # ============ Observability ============
@@ -412,12 +432,50 @@ workspace "Credit Risk Decisioning Platform" "Event-driven loan scoring: CDC -> 
         crs.decisionRecorder -> crs.tTimeout "Consumes timeouts" "Kafka, group decision-recorder" "Planned"
         crs.decisionRecorder -> crs.opsDb "INSERT application_status_log ON CONFLICT (event_id) DO NOTHING" "asyncpg" "Planned"
         crs.flink -> crs.featureCatalog "Sink column list generated from" "build-time" "Planned"
+        applicant -> crs.keycloak "Registers, verifies email, signs in (customers realm)" "HTTPS, browser redirect" "Planned"
+        loanOfficer -> crs.staffIngress "Uses the staff portal" "HTTPS, staff network" "Planned"
+        underwriter -> crs.staffIngress "Works the review queue" "HTTPS, staff network" "Planned"
+        riskManager -> crs.staffIngress "Proposes and approves policy changes" "HTTPS, staff network" "Planned"
+        auditor -> crs.staffIngress "Traces decisions, reads the audit trail" "HTTPS, staff network" "Planned"
+        loanOfficer -> crs.keycloak "Signs in with password + TOTP (staff realm)" "HTTPS, browser redirect" "Planned"
+        underwriter -> crs.keycloak "Signs in with password + TOTP (staff realm)" "HTTPS, browser redirect" "Planned"
+        riskManager -> crs.keycloak "Signs in with password + TOTP (staff realm)" "HTTPS, browser redirect" "Planned"
+        auditor -> crs.keycloak "Signs in with password + TOTP (staff realm)" "HTTPS, browser redirect" "Planned"
+        crs.ingress -> crs.applicantPortal "Routes the public host" "HTTP" "Planned"
+        crs.staffIngress -> crs.staffPortal "Routes the staff host" "HTTP" "Planned"
+        crs.staffPortal -> crs.keycloak "Authorization code + PKCE; token refresh (server side)" "HTTPS, OIDC" "Planned"
+        crs.applicantPortal -> crs.keycloak "Authorization code + PKCE; token refresh (server side)" "HTTPS, OIDC" "Planned"
+        crs.keycloak -> crs.keycloakDb "Stores realms, users, sessions" "JDBC" "Planned"
+        crs.staffPortal -> crs.api.routes "Calls /api/v1 with the user's access token (token relay)" "HTTP/JSON, Bearer" "Planned"
+        crs.applicantPortal -> crs.api.routes "Calls /api/v1 with the user's access token (token relay)" "HTTP/JSON, Bearer" "Planned"
+        crs.staffPortal -> crs.api.reviewRoutes "Review queue, policy changes, audit trace" "HTTP/JSON, Bearer" "Planned"
+        crs.staffPortal -> crs.docStore "Browser uploads document bytes to the presigned URL" "HTTPS PUT (S3 presigned)" "Planned"
+        crs.applicantPortal -> crs.docStore "Browser uploads document bytes to the presigned URL" "HTTPS PUT (S3 presigned)" "Planned"
+        crs.api.routes -> crs.api.authn "Every /api/v1 request: verify the bearer token" "FastAPI Depends" "Planned"
+        crs.api.reviewRoutes -> crs.api.authn "Every request: verify the bearer token" "FastAPI Depends" "Planned"
+        crs.api.authn -> crs.keycloak "Fetches and caches signing keys (JWKS)" "HTTPS" "Planned"
+        crs.api.routes -> crs.api.authz "authorize(principal, action, resource)" "In-process call" "Planned"
+        crs.api.reviewRoutes -> crs.api.authz "authorize(principal, action, resource)" "In-process call" "Planned"
+        crs.api.routes -> crs.api.auditWriter "Records every allowed and denied action" "In-process call" "Planned"
+        crs.api.reviewRoutes -> crs.api.auditWriter "Records claims, overrides, policy changes" "In-process call" "Planned"
+        crs.api.reviewRoutes -> crs.opsDb "Claims and resolves manual reviews; stores policy changes" "asyncpg" "Planned"
+        crs.api.reviewRoutes -> crs.auditDb "Reads the audit view (auditor role only)" "asyncpg, read-only role" "Planned"
+        crs.api.auditWriter -> crs.auditDb "INSERT audit_event (hash-chained)" "asyncpg, INSERT-only role" "Planned"
+        crs.decisionRecorder -> crs.auditDb "Records automated decisions (model version, feature-set digest, reasons)" "asyncpg, INSERT-only role" "Planned"
+        crs.decisionRecorder -> crs.tDlq "Consumes scoring failures -> manual_review (scoring_unavailable)" "Kafka, group decision-recorder" "Planned"
+        crs.mlflowWatcher -> crs.auditDb "Records model promotions" "asyncpg, INSERT-only role" "Planned"
+        crs.elastic -> crs.auditDb "Indexes audit_event for search" "Logstash JDBC input" "Planned"
+        crs.elastic -> crs.keycloak "Collects login and admin events" "Filebeat (JSON event log)" "Planned"
+        crs.scoring.sRoutes -> crs.scoring.sExplainer "explain(row) for every scored application" "In-process call" "Planned"
+        crs.scoring.sExplainer -> crs.scoring.sPredict "Uses the loaded booster (TreeExplainer)" "In-process call" "Planned"
+        crs.scoring.sExplainer -> crs.featureCatalog "Maps features to reason codes; drops protected and proxies" "build-time (catalog JSON in the Bento)" "Planned"
+        crs.scoring.sPolicy -> crs.scoring.sExplainer "Attaches reason codes to reject and under-review decisions" "In-process call" "Planned"
         crs.feastApply -> crs.featureCatalog "Feature view schemas generated from" "build-time" "Planned"
-        crs.scoring.sLoader -> crs.featureCatalog "Validates model features against" "import" "Planned"
-        crs.trainingRecipe -> crs.featureCatalog "Selects model features (excludes protected)" "import" "Planned"
+        crs.scoring.sLoader -> crs.featureCatalog "Checks the model's feature_set.json against" "build-time" "Planned"
+        crs.trainingRecipe -> crs.featureCatalog "Resolves ordered inputs via load_feature_set; new sets exclude protected" "import" "Planned"
         crs.workstationTraining -> crs.trainingRecipe "Calls fit/evaluate/register" "import" "Planned"
         crs.kfp.kTrain -> crs.trainingRecipe "Calls fit/evaluate/register" "import" "Planned"
-        crs.trainingRecipe -> crs.mlflow "Logs metrics, dir_gender, model_card.md, tags git_commit/data_snapshot_id/catalog_version" "MLflow REST" "Planned"
+        crs.trainingRecipe -> crs.mlflow "Logs metrics, dir_gender, model_card.md, tags git_commit/data_snapshot_id/feature_set_sha256" "MLflow REST" "Planned"
 
         # ==================================================================
         # Deployment — as run from the Makefile
@@ -598,6 +656,55 @@ workspace "Credit Risk Decisioning Platform" "Event-driven loan scoring: CDC -> 
             minikube.ws.mk.nsKserve.predictor.queueProxy -> minikube.ws.mk.nsKserve.predictor.scoringI "Enforces containerConcurrency 1, proxies to :3000" "HTTP"
             minikube.ws.mk.nsRay.kuberay -> minikube.ws.mk.nsRay.rayc.rayI "Manages head and workers" "KubeRay"
         }
+
+        # ==================================================================
+        # Deployment — TARGET (E11, E12, E15; planned, not deployed)
+        # ==================================================================
+        minikubeTarget = deploymentEnvironment "Minikube-Target" {
+            mkT = deploymentNode "Minikube profile mlops (target)" "Same single node. Replicas protect against pod failures, not node failures." "Minikube, Docker driver" {
+                deploymentNode "ns ingress-nginx" "Two IngressClasses" "Namespace" {
+                    deploymentNode "public ingress" "IngressClass nginx-public: applicant host, rate limits" "ingress-nginx" {
+                        containerInstance crs.ingress
+                    }
+                    deploymentNode "internal ingress" "IngressClass nginx-internal: staff host, source allow-list" "ingress-nginx" {
+                        containerInstance crs.staffIngress
+                    }
+                }
+                deploymentNode "ns identity" "Keycloak and its database" "Namespace" {
+                    deploymentNode "keycloak" "StatefulSet, 2 replicas, clustered cache" "Keycloak" "" 2 {
+                        containerInstance crs.keycloak
+                    }
+                    deploymentNode "keycloak-db" "CloudNativePG Cluster: 1 primary + 1 replica" "PostgreSQL" "" 2 {
+                        containerInstance crs.keycloakDb
+                    }
+                }
+                deploymentNode "ns portals" "Backends-for-frontend" "Namespace" {
+                    deploymentNode "staff-portal" "Deployment, 2 replicas" "Node.js" "" 2 {
+                        containerInstance crs.staffPortal
+                    }
+                    deploymentNode "applicant-portal" "Deployment, 2 replicas" "Node.js" "" 2 {
+                        containerInstance crs.applicantPortal
+                    }
+                }
+                deploymentNode "ns api-gateway (target)" "API and decision recorder" "Namespace" {
+                    deploymentNode "api-service" "Deployment, 2 replicas, PodDisruptionBudget minAvailable 1" "Deployment" "" 2 {
+                        containerInstance crs.api
+                    }
+                    deploymentNode "decision-recorder" "Deployment, 2 replicas in one consumer group" "Deployment" "" 2 {
+                        containerInstance crs.decisionRecorder
+                    }
+                }
+                deploymentNode "ns data-services (target)" "Replicated stateful services" "Namespace" {
+                    deploymentNode "ops-db" "CloudNativePG Cluster: 1 primary + 1 replica, WAL archive to MinIO (PITR)" "PostgreSQL" "" 2 {
+                        containerInstance crs.opsDb
+                        containerInstance crs.auditDb
+                    }
+                    deploymentNode "kafka" "3 brokers (KRaft), RF 3, min.insync.replicas 2" "StatefulSet" "" 3 {
+                        containerInstance crs.kafka
+                    }
+                }
+            }
+        }
     }
 
     views {
@@ -610,11 +717,13 @@ workspace "Credit Risk Decisioning Platform" "Event-driven loan scoring: CDC -> 
         # ------------------------------------------------------------------
         systemLandscape "L0-Landscape" "Everything the platform touches." {
             include *
+            exclude "element.tag==Planned"
             autoLayout tb
         }
 
         systemContext crs "L1-Context" "System context: who uses the platform and what it depends on." {
             include *
+            exclude "element.tag==Planned"
             autoLayout tb
         }
 
@@ -875,8 +984,8 @@ workspace "Credit Risk Decisioning Platform" "Event-driven loan scoring: CDC -> 
             include scientist crs.workstationTraining crs.kfp crs.trainingRecipe crs.featureCatalog crs.mlflow crs.mlflowArtifacts crs.mlflowWatcher crs.bentoBuilder crs.scoring github
             autoLayout tb
         }
-        component crs.api "T-E9-API-Security" "E9 target: API key guard on every versioned application route." {
-            include *
+        component crs.api "T-E9-API-Security" "E9 target: API key guard on versioned routes; kept for the load-test client once E11 ships." {
+            include crs.api.routes crs.api.apiKeyGuard crs.frontend crs.ingress
             autoLayout lr
         }
         dynamic crs "T-E5-Decision-Flow" "E5 target flow: from readiness to a status the applicant can read." {
@@ -889,6 +998,90 @@ workspace "Credit Risk Decisioning Platform" "Event-driven loan scoring: CDC -> 
             crs.frontend -> crs.api "GET /api/v1/applications/{id}/status"
             crs.api -> crs.opsDb "Read latest status row"
             autoLayout tb
+        }
+
+        systemContext crs "T-L1-Context" "Target context: two channels (staff and self-service), five human roles." {
+            include *
+            autoLayout tb
+        }
+        container crs "T-E11-Identity-Access" "E11 target: every person signs in through Keycloak; the API verifies tokens and audits access." {
+            include applicant loanOfficer underwriter riskManager auditor crs.ingress crs.staffIngress crs.staffPortal crs.applicantPortal crs.keycloak crs.keycloakDb crs.api crs.opsDb crs.auditDb
+            autoLayout lr
+        }
+        component crs.api "T-E11-API-Authz" "E11 target: token verification, one authorization policy, an audit write for every decision about access." {
+            include crs.api.routes crs.api.reviewRoutes crs.api.authn crs.api.authz crs.api.auditWriter crs.api.workflow crs.api.repo crs.staffPortal crs.applicantPortal crs.keycloak crs.opsDb crs.auditDb
+            autoLayout lr
+        }
+        container crs "T-E12-Portals" "E12 target: two Next.js backends-for-frontend replace the Streamlit form." {
+            include applicant loanOfficer underwriter riskManager auditor crs.ingress crs.staffIngress crs.staffPortal crs.applicantPortal crs.keycloak crs.api crs.docStore
+            autoLayout lr
+        }
+        container crs "T-E13-Audit-Trail" "E13 target: every access, decision, override, policy change and promotion lands in an append-only audit log." {
+            include auditor crs.staffIngress crs.staffPortal crs.api crs.decisionRecorder crs.mlflowWatcher crs.keycloak crs.auditDb crs.elastic
+            autoLayout lr
+        }
+        component crs.scoring "T-E14-Explainability" "E14 target: SHAP attributions become catalog reason codes on every adverse decision." {
+            include crs.scoring.sRoutes crs.scoring.sFeast crs.scoring.sPredict crs.scoring.sExplainer crs.scoring.sPolicy crs.scoring.sEvent crs.featureCatalog crs.sequence
+            autoLayout lr
+        }
+        container crs "T-E15-Failover" "E15 target: any scoring or feature failure ends in manual review, never in an automatic approval." {
+            include underwriter crs.staffIngress crs.staffPortal crs.api crs.opsDb crs.decisionRecorder crs.tTimeout crs.tScoring crs.tDlq crs.dlqSink crs.sequence crs.scoring crs.feastStream
+            autoLayout lr
+        }
+        dynamic crs "T-D11-Staff-Submit" "E11/E12 target flow: a loan officer signs in with MFA and submits an application for a walk-in customer." {
+            loanOfficer -> crs.staffIngress "Opens the staff portal"
+            crs.staffIngress -> crs.staffPortal "Routes the staff host"
+            crs.staffPortal -> crs.keycloak "Redirect: authorization code + PKCE (staff realm)"
+            loanOfficer -> crs.keycloak "Password + TOTP"
+            crs.staffPortal -> crs.keycloak "Exchange code for tokens (server side); set session cookie"
+            crs.staffPortal -> crs.api "POST /api/v1/applications, Bearer access token"
+            crs.api -> crs.keycloak "JWKS (cached)"
+            crs.api -> crs.opsDb "INSERT with channel=staff, created_by_sub, branch_id"
+            crs.api -> crs.auditDb "audit_event submit_application allowed"
+            autoLayout lr
+        }
+        dynamic crs "T-D12-Applicant-Self-Service" "E12/E14 target flow: an applicant registers, applies online and reads the decision with its reasons." {
+            applicant -> crs.ingress "Opens the applicant portal"
+            crs.ingress -> crs.applicantPortal "Routes the public host"
+            crs.applicantPortal -> crs.keycloak "Redirect: register or sign in (customers realm)"
+            applicant -> crs.keycloak "Verifies email, signs in"
+            crs.applicantPortal -> crs.api "POST /api/v1/presigned-url"
+            crs.applicantPortal -> crs.docStore "Browser PUTs the document"
+            crs.applicantPortal -> crs.api "POST /api/v1/applications (channel=self, applicant_sub from token)"
+            crs.api -> crs.opsDb "INSERT application"
+            crs.api -> crs.auditDb "audit_event submit_application allowed"
+            crs.applicantPortal -> crs.api "GET /api/v1/applications/{id}/decision"
+            crs.api -> crs.opsDb "Read decision, band and reason codes (owner only)"
+            autoLayout lr
+        }
+        dynamic crs "T-D13-Review-and-Audit" "E5/E13 target flow: an under-review decision is resolved by an underwriter and traced by an auditor." {
+            crs.decisionRecorder -> crs.opsDb "Insert manual_review decision with reasons"
+            crs.decisionRecorder -> crs.auditDb "audit_event decision (model version, feature-set digest)"
+            underwriter -> crs.staffIngress "Opens the review queue"
+            crs.staffIngress -> crs.staffPortal "Routes the staff host"
+            crs.staffPortal -> crs.api "POST /api/v1/reviews/{id}/claim"
+            crs.api -> crs.opsDb "Check reviewer is not the submitter; mark claimed"
+            crs.staffPortal -> crs.api "POST /api/v1/reviews/{id}/decision {approved, reason}"
+            crs.api -> crs.opsDb "Insert approved status row"
+            crs.api -> crs.auditDb "audit_event override (reviewer, from, to, reason)"
+            auditor -> crs.staffIngress "Opens the decision trace"
+            crs.staffPortal -> crs.api "GET /api/v1/audit?resource=application:{id}"
+            crs.api -> crs.auditDb "Read audit view and verify the hash chain"
+            autoLayout lr
+        }
+        dynamic crs "T-D15-Scoring-Outage" "E15 target flow: the scoring service is down; the application goes to manual review, not to approval." {
+            crs.sequence -> crs.scoring "POST /v1/score-by-id fails (pod down or timeout)"
+            crs.sequence -> crs.dlqSink "After 3 retries: dead letter"
+            crs.dlqSink -> crs.tDlq "Produce failed event"
+            crs.decisionRecorder -> crs.tDlq "Consume"
+            crs.decisionRecorder -> crs.opsDb "manual_review, reason scoring_unavailable"
+            crs.decisionRecorder -> crs.auditDb "audit_event decision (fallback)"
+            underwriter -> crs.staffIngress "Sees the application in the queue"
+            autoLayout lr
+        }
+        deployment crs minikubeTarget "T-Deploy-Target" "E11, E12, E15 target: identity, portals, two ingresses and replicated stateful services." {
+            include *
+            autoLayout lr
         }
 
         # ------------------------------------------------------------------

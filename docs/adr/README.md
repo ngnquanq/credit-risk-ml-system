@@ -11,7 +11,7 @@ Records of significant architectural decisions. Each ADR captures **why** a deci
 | [0003](0003-feast-as-feature-store.md) | Feast as Feature Store | Accepted |
 | [0004](0004-kserve-and-bentoml-for-model-serving.md) | KServe + BentoML for Model Serving | Accepted |
 | [0005](0005-migrate-to-kubernetes.md) | Migrate to Kubernetes | Accepted |
-| [0006](0006-clean-architecture-for-application-layer.md) | Clean Architecture | Accepted |
+| 0006 | Clean Architecture (never written; see [history](../history/clean-architecture-migration-guide.md)) | Accepted |
 | [0007](0007-flink-for-stream-processing.md) | Flink for Stream Processing | Accepted |
 | [0008](0008-load-test-pipeline-bottleneck-fixes.md) | Load Test Pipeline Bottleneck Fixes | Accepted |
 | [0009](0009-model-training-and-promotion-pipeline.md) | Automated Model Training and Promotion Pipeline | Accepted |

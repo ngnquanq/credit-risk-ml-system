@@ -14,6 +14,14 @@ A handoff package is what a developer receives to build one epic. It links the w
 | E3 | [Exactly-once readiness](E3-exactly-once-readiness.md) | O1, O5 | M | none |
 | E6 | [Fair, governed model](E6-fair-governed-model.md) | O3, O4, O6 | M | E2 |
 | E5 | [Decision delivery](E5-decision-delivery.md) | O1, O2 | M | E3 |
+| E11 | [Identity and access](E11-identity-access.md) | O7, O8 | M | E9, E5 |
+| E13 | [Audit trail](E13-audit-trail.md) | O8 | M | E11, E5 |
+| E14 | [Explainability](E14-explainability.md) | O2, O8 | M | E6, E5, E2 |
+| E12 | [Staff and applicant portals](E12-portals.md) | O1, O7, O8 | L | E11, E5, E14, E13 |
+| E15 | [Resilience and failover](E15-resilience-failover.md) | O5 | L | E3, E5, E8, E11 |
+| E16 | [UAT and release readiness](E16-uat-release.md) | O6, O7 | M | E11–E15 |
+
+Cross-cutting: [feature governance plan](feature-governance-plan.md) (E2, E6), [threat model](../security/threat-model.md), [release checklist](../release/checklist.md), [UAT sign-off template](../release/uat-signoff-template.md).
 
 ## Definition of Ready (a package can be picked up when…)
 

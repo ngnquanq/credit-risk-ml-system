@@ -10,15 +10,27 @@ The vocabulary and the core objects of the credit decisioning domain. Use these 
 | **Applicant data** | Fields the applicant types in (income, credit, dates, flags) | the application row |
 | **Feature** | One model input with a name, type, source group and transform | **Feature catalog** (target); today scattered (F-07) |
 | **Feature group** | Features produced together: `application`, `external` (bureau), `dwh` (history) | Kafka topic + Feast view per group |
-| **Feature catalog** | The single declaration of all features and their properties, versioned | `features.yaml` (target, E2) |
+| **Feature definition** | What one feature means, its type, producer, valid range and sentinel | `training/feature_catalog/definitions/*.yaml` (target, E2) |
+| **Feature set** | An immutable, ordered list of definitions that one model uses, with a SHA-256 digest | `training/feature_catalog/sets/<version>.json` (`legacy-v1` built) |
 | **Protected attribute** | A feature that must not be a model input (for example gender) | catalog tag `protected` (target) |
 | **Readiness** | All three feature groups for an application are in the online store | Redis DB 1 (E3) |
 | **Score** | Model output P(default) in [0, 1]. Higher means riskier | decision event |
 | **Decision band** | `approve` (p < 0.25), `under_review` (0.25 ≤ p ≤ 0.35), `reject` (p > 0.35) | decision policy config (E5) |
-| **Decision** | Band + score + reasons + model and catalog versions, for one application | `application_status_log` (E5) |
-| **Reason code** | Machine-readable cause: `score_band`, `features_incomplete`, `feature_data_unavailable`, `rule:<id>` | decision record |
+| **Decision** | Band + score + reasons + model version and feature-set digest, for one application | `application_status_log` (E5) |
+| **Decision reason** | Why the system routed an application: `score_band`, `features_incomplete`, `feature_data_unavailable`, `rule:<id>` | decision record |
+| **Model reason code** | A feature-level cause of a high score, from SHAP attributions, mapped through the catalog (for example `EXT_SCORE_LOW`) | decision record `reason_codes` (E14) |
+| **Explanation** | The ordered model reason codes plus their contributions for one decision | decision record (E14) |
 | **Model version** | A registered MLflow version with its `feast_metadata.yaml`, git commit and data snapshot | MLflow |
 | **Review queue** | Applications in `under_review` waiting for a human | query on `application_status_log` |
+| **Channel** | How an application arrived: `staff` (entered by a loan officer) or `self` (applicant online) | `loan_applications.channel` (E1/E11) |
+| **Branch** | The lender branch or point of sale a staff member and a staff-channel application belong to | Keycloak user attribute `branch_id`; `loan_applications.branch_id` |
+| **Principal** | The verified caller of one request: subject, realm, roles, branch | built from the JWT by the API (E11) |
+| **Realm** | Keycloak identity domain: `staff` or `customers`. A principal belongs to exactly one | Keycloak |
+| **Role** | `applicant`, `loan_officer`, `underwriter`, `risk_manager`, `auditor`, `admin` | Keycloak realm roles |
+| **Permission** | An action on a resource type, granted to roles under conditions (own, same branch, not own submission) | policy table in `application/authz/policy.py` (E11) |
+| **Override** | A reviewer's decision on an `under_review` application, with a mandatory reason | decision record + audit event (E5, E13) |
+| **Policy change** | A proposed new threshold or review band; active only after a second risk manager approves | `policy_change` table (E11) |
+| **Audit event** | One immutable record of who did what to which resource, when, and the outcome | `audit_event` table, append-only, hash-chained (E13) |
 
 ## 2. Class diagram: as built
 
@@ -99,11 +111,14 @@ classDiagram
     }
     class FeatureCatalog {
         <<module, E2>>
+        +definitions: list~FeatureSpec~
+        +check_set(feature_set) CatalogCheck
+    }
+    class FeatureSet {
+        <<built: feature_preprocessing.py>>
         +version: str
-        +specs: list~FeatureSpec~
-        +model_features() list
-        +columns(group) list
-        +check_model(feature_names) CatalogCheck
+        +digest: str
+        +columns() list
     }
     class ReadinessCoordinator {
         <<module, E3>>
@@ -144,7 +159,7 @@ classDiagram
         +score: float
         +reasons: json
         +model_version: str
-        +catalog_version: str
+        +feature_set_sha256: str
         +created_at: timestamp
     }
     class ModelVersion {
@@ -152,15 +167,16 @@ classDiagram
         +version: int
         +git_commit: str
         +data_snapshot_id: str
-        +catalog_version: str
+        +feature_set_sha256: str
         +dir_gender: float
     }
     FeatureCatalog "1" *-- "many" FeatureSpec
+    FeatureSet ..> FeatureSpec : references in order
     ReadinessCoordinator ..> ReadinessStatus : returns
     DecisionPolicy ..> Decision : creates
     Decision --> DecisionBand
     DecisionRecord ..> Decision : persists
-    ModelVersion ..> FeatureCatalog : validated against
+    ModelVersion --> FeatureSet : trained on (version, digest)
     DecisionRecord --> ModelVersion : produced by
 ```
 
@@ -211,4 +227,136 @@ stateDiagram-v2
 | Readiness | | `hc.feature_ready`, `hc.feature_timeout` (E3) | DB 1 `feature_coordination:*`, `dispatched:*` | |
 | Decision | `application_status_log` (E5) | `hc.scoring` | | |
 | Model version | | | | registry + artifacts (`feast_metadata.yaml`, `model_card.md`) |
-| Feature catalog | | | | versioned in git; version stamped into model metadata |
+| Feature catalog | | | | versioned in git; set version and digest stamped into model metadata |
+| Identity, role, branch | Keycloak database (separate instance) | | | |
+| Application ownership | `loan_applications.channel`, `created_by_sub`, `applicant_sub`, `branch_id` (E11) | CDC event carries them | | |
+| Explanation | `application_status_log.metadata.reason_codes` (E14) | `hc.scoring` payload | | |
+| Audit event | `audit_event` (append-only, E13) | | | searchable copy in Elasticsearch (ECK) |
+| Policy change | `policy_change` (E11) | | | |
+
+## 7. Class diagram: identity, access and audit (target)
+
+```mermaid
+classDiagram
+    direction LR
+    class Principal {
+        <<value object, per request, E11>>
+        +sub: str
+        +realm: staff or customers
+        +roles: set~Role~
+        +branch_id: str or None
+    }
+    class Role {
+        <<enum>>
+        applicant
+        loan_officer
+        underwriter
+        risk_manager
+        auditor
+        admin
+    }
+    class Action {
+        <<enum>>
+        submit_application
+        read_application
+        read_decision
+        review_decision
+        propose_policy_change
+        approve_policy_change
+        read_audit
+    }
+    class Resource {
+        <<value object>>
+        +type: application or decision or policy or audit
+        +id: str
+        +channel: staff or self
+        +owner_sub: str or None
+        +created_by_sub: str or None
+        +branch_id: str or None
+    }
+    class Policy {
+        <<module: application/authz/policy.py>>
+        +authorize(principal, action, resource) AuthzDecision
+    }
+    class AuthzDecision {
+        <<value object>>
+        +allowed: bool
+        +rule: str
+        +reason: str
+    }
+    class AuditEvent {
+        <<append-only row, E13>>
+        +id: bigint
+        +occurred_at: timestamp
+        +actor_sub: str
+        +actor_realm: str
+        +actor_roles: list
+        +action: Action
+        +resource_type: str
+        +resource_id: str
+        +outcome: allowed or denied or error
+        +trace_id: str
+        +details: json, no raw PII
+        +prev_hash: bytes
+        +hash: bytes
+    }
+    class Explanation {
+        <<value object, E14>>
+        +base_value: float
+        +contributions: dict
+        +reason_codes: list~str~
+    }
+    class Override {
+        <<E5 + E13>>
+        +reviewer_sub: str
+        +from_band: DecisionBand
+        +to_status: approved or rejected
+        +reason: str
+    }
+    class PolicyChange {
+        <<E11>>
+        +proposed_by: str
+        +approved_by: str or None
+        +review_band: tuple
+        +state: proposed or active or rejected
+    }
+    Principal --> Role
+    Policy ..> Principal : reads
+    Policy ..> Resource : reads
+    Policy ..> AuthzDecision : returns
+    AuditEvent ..> AuthzDecision : records outcome of
+    Decision --> Explanation : carries
+    Override --> Decision : resolves under_review
+    PolicyChange ..> DecisionPolicy : configures once approved
+```
+
+`Policy.authorize` is the only place that grants access. Routes call it and audit the result; they never check roles themselves. Its rules are the [permission matrix in E11](../03-handoff/E11-identity-access.md#5-data-contracts).
+
+## 8. State machine: manual review of one application
+
+```mermaid
+stateDiagram-v2
+    [*] --> Queued: decision band under_review<br/>or features timeout or scoring unavailable
+    Queued --> Claimed: underwriter claims (not the submitter)
+    Claimed --> Queued: released, or claim older than 30 min
+    Claimed --> Approved: approve with reason
+    Claimed --> Rejected: reject with reason
+    Approved --> [*]
+    Rejected --> [*]
+```
+
+Every transition writes an audit event. Claiming fails with `separation_of_duties` when the underwriter's `sub` equals the application's `created_by_sub`.
+
+## 9. State machine: decision policy change (four eyes)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Proposed: risk manager proposes band or threshold
+    Proposed --> Active: a different risk manager approves
+    Proposed --> Rejected: a different risk manager rejects
+    Proposed --> Expired: no decision within 7 days
+    Active --> Superseded: a later change becomes active
+    Rejected --> [*]
+    Expired --> [*]
+    Superseded --> [*]
+```

@@ -69,6 +69,8 @@ AUC was chosen over accuracy due to the class imbalance (91.9% repay / 8.1% defa
 
 See [`docs/architecture/system-overview.md`](docs/architecture/system-overview.md) for the component table and [`docs/adr/`](docs/adr/) for the reasoning behind each technology choice.
 
+**Full documentation** follows one chain: [business outcomes](docs/01-business/business-outcomes.md) → [epics](docs/02-product/epics.md) → [C4 architecture](docs/architecture/c4/README.md) and [domain model](docs/architecture/domain-model.md) → [handoff packages](docs/03-handoff/README.md). Start at [`docs/README.md`](docs/README.md).
+
 ## Quick Start (ML-only)
 
 If you just want to explore the model and notebooks without deploying the full K8s stack:

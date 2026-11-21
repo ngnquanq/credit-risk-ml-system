@@ -55,4 +55,4 @@ graph TB
 | Training | Kubeflow + Ray | — |
 | Observability | Prometheus + Grafana + ECK | — |
 | Infrastructure | Kubernetes | [ADR-0005](../adr/0005-migrate-to-kubernetes.md) |
-| App Architecture | Clean Architecture | [ADR-0006](../adr/0006-clean-architecture-for-application-layer.md) |
+| App Architecture | Clean Architecture | ADR-0006 (never written; see [history](../history/clean-architecture-migration-guide.md)) |

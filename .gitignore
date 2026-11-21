@@ -306,3 +306,6 @@ tests/test_load/reports/*
 **/.planning/
 .aider*
 progress.txt
+
+# Browser automation logs (may contain page snapshots)
+.playwright-mcp/
