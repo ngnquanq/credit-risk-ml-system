@@ -217,11 +217,13 @@ deploymentSpec:
           \ Ray cluster (e.g., KubeRay);\n      otherwise starts a local Ray runtime\
           \ inside the pod and parallelizes across CPUs.\n    Returns best params\
           \ as JSON.\n    \"\"\"\n    import json\n    import os\n    import ray\n\
-          \    from ray.tune.schedulers import ASHAScheduler\n\n    # Connect/start\
-          \ Ray\n    if ray_address:\n        ray.init(address=ray_address, ignore_reinit_error=True,\
-          \ namespace=os.getenv(\"RAY_NAMESPACE\", \"kfp\"))\n    else:\n        ray.init(ignore_reinit_error=True)\n\
-          \n    cfg = json.loads(config_json) if config_json else {}\n    base = cfg.get(\"\
-          base_params\", dict(\n        subsample=0.8,\n        colsample_bytree=0.8,\n\
+          \    from ray.tune.schedulers import ASHAScheduler\n    from feature_preprocessing\
+          \ import load_feature_set\n\n    cfg = json.loads(config_json) if config_json\
+          \ else {}\n    feature_set = load_feature_set(cfg.get(\"feature_set_version\"\
+          ))\n\n    # Connect/start Ray\n    if ray_address:\n        ray.init(address=ray_address,\
+          \ ignore_reinit_error=True, namespace=os.getenv(\"RAY_NAMESPACE\", \"kfp\"\
+          ))\n    else:\n        ray.init(ignore_reinit_error=True)\n\n    base =\
+          \ cfg.get(\"base_params\", dict(\n        subsample=0.8,\n        colsample_bytree=0.8,\n\
           \        eval_metric=\"logloss\",\n        n_jobs=-1,\n        random_state=42,\n\
           \    ))\n\n    # Define search space\n    from ray import tune\n\n    #\
           \ Objective function for Ray Tune\n    def train_eval(config):\n       \
@@ -230,15 +232,16 @@ deploymentSpec:
           \ import train_test_split\n        from sklearn.metrics import roc_auc_score\n\
           \        from sklearn.pipeline import Pipeline\n        from xgboost import\
           \ XGBClassifier\n        from ray.air import session\n\n        from feature_preprocessing\
-          \ import build_preprocessor, select_training_data\n\n        X, y = select_training_data(pd.read_csv(data.path,\
-          \ low_memory=False))\n        X_train, X_val, y_train, y_val = train_test_split(\n\
-          \            X, y, test_size=0.2, stratify=y, random_state=42\n        )\n\
-          \        pre = build_preprocessor()\n\n        # Build model with current\
-          \ config\n        params = {\n            **base,\n            \"n_estimators\"\
-          : int(config.get(\"n_estimators\", 300)),\n            \"max_depth\": int(config.get(\"\
-          max_depth\", 4)),\n            \"learning_rate\": float(config.get(\"learning_rate\"\
-          , 0.05)),\n            \"min_child_weight\": int(config.get(\"min_child_weight\"\
-          , 1)),\n            \"gamma\": float(config.get(\"gamma\", 0.0)),\n    \
+          \ import build_preprocessor, select_training_data\n        X, y = select_training_data(pd.read_csv(data.path,\
+          \ low_memory=False), feature_set)\n        X_train, X_val, y_train, y_val\
+          \ = train_test_split(\n            X, y, test_size=0.2, stratify=y, random_state=42\n\
+          \        )\n        pre = build_preprocessor(feature_set=feature_set)\n\n\
+          \        # Build model with current config\n        params = {\n       \
+          \     **base,\n            \"n_estimators\": int(config.get(\"n_estimators\"\
+          , 300)),\n            \"max_depth\": int(config.get(\"max_depth\", 4)),\n\
+          \            \"learning_rate\": float(config.get(\"learning_rate\", 0.05)),\n\
+          \            \"min_child_weight\": int(config.get(\"min_child_weight\",\
+          \ 1)),\n            \"gamma\": float(config.get(\"gamma\", 0.0)),\n    \
           \    }\n        model = Pipeline([(\"pre\", pre), (\"clf\", XGBClassifier(**params))])\n\
           \        model.fit(X_train, y_train)\n        proba = model.predict_proba(X_val)[:,\
           \ 1]\n        auc = float(roc_auc_score(y_val, proba))\n        session.report({\"\
@@ -264,8 +267,9 @@ deploymentSpec:
           \       \"max_depth\": int(best_cfg.get(\"max_depth\", 4)),\n        \"\
           learning_rate\": float(best_cfg.get(\"learning_rate\", 0.05)),\n       \
           \ \"min_child_weight\": int(best_cfg.get(\"min_child_weight\", 1)),\n  \
-          \      \"gamma\": float(best_cfg.get(\"gamma\", 0.0)),\n    }\n    return\
-          \ json.dumps(mapped)\n\n"
+          \      \"gamma\": float(best_cfg.get(\"gamma\", 0.0)),\n    }\n    mapped[\"\
+          feature_set_sha256\"] = feature_set.digest\n    return json.dumps(mapped)\n\
+          \n"
         image: credit-risk-kfp-ray:dev
     exec-train-and-register:
       container:
@@ -311,8 +315,8 @@ deploymentSpec:
           \ import Pipeline\n    from sklearn.metrics import roc_auc_score, precision_score,\
           \ recall_score\n    from xgboost import XGBClassifier\n    import mlflow\n\
           \    import mlflow.sklearn\n    import feature_preprocessing\n    from feature_preprocessing\
-          \ import CAT_COLS, FEATURES, NUM_COLS, build_preprocessor, select_training_data\n\
-          \n    def bootstrap_evaluate(y_true, y_proba, n_bootstrap, ci_level, threshold):\n\
+          \ import build_preprocessor, load_feature_set, select_training_data\n\n\
+          \    def bootstrap_evaluate(y_true, y_proba, n_bootstrap, ci_level, threshold):\n\
           \        \"\"\"Compute metrics with bootstrap confidence intervals.\n\n\
           \        Resamples the test set predictions with replacement ``n_bootstrap``\n\
           \        times and computes AUC, accuracy, precision, and recall on each\n\
@@ -340,26 +344,31 @@ deploymentSpec:
           MLFLOW_TRACKING_URI\"] = mlflow_tracking_uri\n    os.environ[\"MLFLOW_S3_ENDPOINT_URL\"\
           ] = mlflow_s3_endpoint_url\n    os.environ[\"AWS_ACCESS_KEY_ID\"] = aws_access_key_id\n\
           \    os.environ[\"AWS_SECRET_ACCESS_KEY\"] = aws_secret_access_key\n\n \
-          \   X, y = select_training_data(pd.read_csv(data.path, low_memory=False))\n\
-          \    X_train, X_test, y_train, y_test = train_test_split(\n        X, y,\
-          \ test_size=0.2, random_state=42, stratify=y\n    )\n    pre = build_preprocessor()\n\
-          \n    cfg = json.loads(config_json) if config_json else {}\n    base = cfg.get(\"\
-          base_params\", dict(\n        subsample=0.8,\n        colsample_bytree=0.8,\n\
+          \   cfg = json.loads(config_json) if config_json else {}\n    feature_set\
+          \ = load_feature_set(cfg.get(\"feature_set_version\"))\n    features = feature_set.columns\n\
+          \    cat_cols = feature_set.group(\"cat\")\n    num_cols = [column for column\
+          \ in features if column not in cat_cols]\n    X, y = select_training_data(pd.read_csv(data.path,\
+          \ low_memory=False), feature_set)\n    X_train, X_test, y_train, y_test\
+          \ = train_test_split(\n        X, y, test_size=0.2, random_state=42, stratify=y\n\
+          \    )\n    pre = build_preprocessor(feature_set=feature_set)\n\n    base\
+          \ = cfg.get(\"base_params\", dict(\n        subsample=0.8,\n        colsample_bytree=0.8,\n\
           \        eval_metric=\"logloss\",\n        n_jobs=-1,\n        random_state=42,\n\
           \    ))\n\n    params = json.loads(best_params_json) if best_params_json\
-          \ else {}\n    base.update(params)\n    clf = XGBClassifier(**base)\n  \
-          \  pipe = Pipeline([(\"pre\", pre), (\"clf\", clf)])\n\n    pipe.fit(X_train,\
-          \ y_train)\n    proba = pipe.predict_proba(X_test)[:, 1]\n\n    # Point\
-          \ estimates\n    auc = float(roc_auc_score(y_test, proba))\n    preds =\
-          \ (proba >= decision_threshold).astype(int)\n    accuracy = float((preds\
-          \ == y_test.to_numpy()).mean())\n\n    # Bootstrap confidence intervals\n\
-          \    print(f\"Running {n_bootstrap} bootstrap iterations for {ci_level*100:.0f}%\
-          \ CI...\")\n    boot = bootstrap_evaluate(y_test.to_numpy(), proba, n_bootstrap,\
-          \ ci_level, decision_threshold)\n    print(f\"  AUC: {auc:.4f} [{boot['auc']['lower']:.4f},\
-          \ {boot['auc']['upper']:.4f}]\")\n    print(f\"  Accuracy@{decision_threshold}:\
-          \ {accuracy:.4f} [{boot['accuracy']['lower']:.4f}, {boot['accuracy']['upper']:.4f}]\"\
-          )\n    print(f\"  Precision@{decision_threshold}: {boot['precision']['mean']:.4f}\
-          \ [{boot['precision']['lower']:.4f}, {boot['precision']['upper']:.4f}]\"\
+          \ else {}\n    tuned_digest = params.pop(\"feature_set_sha256\", None)\n\
+          \    if tuned_digest is not None and tuned_digest != feature_set.digest:\n\
+          \        raise ValueError(\"Feature set changed between tuning and registration\"\
+          )\n    base.update(params)\n    clf = XGBClassifier(**base)\n    pipe =\
+          \ Pipeline([(\"pre\", pre), (\"clf\", clf)])\n\n    pipe.fit(X_train, y_train)\n\
+          \    proba = pipe.predict_proba(X_test)[:, 1]\n\n    # Point estimates\n\
+          \    auc = float(roc_auc_score(y_test, proba))\n    preds = (proba >= decision_threshold).astype(int)\n\
+          \    accuracy = float((preds == y_test.to_numpy()).mean())\n\n    # Bootstrap\
+          \ confidence intervals\n    print(f\"Running {n_bootstrap} bootstrap iterations\
+          \ for {ci_level*100:.0f}% CI...\")\n    boot = bootstrap_evaluate(y_test.to_numpy(),\
+          \ proba, n_bootstrap, ci_level, decision_threshold)\n    print(f\"  AUC:\
+          \ {auc:.4f} [{boot['auc']['lower']:.4f}, {boot['auc']['upper']:.4f}]\")\n\
+          \    print(f\"  Accuracy@{decision_threshold}: {accuracy:.4f} [{boot['accuracy']['lower']:.4f},\
+          \ {boot['accuracy']['upper']:.4f}]\")\n    print(f\"  Precision@{decision_threshold}:\
+          \ {boot['precision']['mean']:.4f} [{boot['precision']['lower']:.4f}, {boot['precision']['upper']:.4f}]\"\
           )\n    print(f\"  Recall@{decision_threshold}: {boot['recall']['mean']:.4f}\
           \ [{boot['recall']['lower']:.4f}, {boot['recall']['upper']:.4f}]\")\n\n\
           \    mlflow.set_experiment(experiment)\n    with mlflow.start_run() as run:\n\
@@ -375,32 +384,38 @@ deploymentSpec:
           ])\n            mlflow.log_metric(f\"{metric_name}_ci_upper\", stats[\"\
           upper\"])\n\n        input_example = X_train.iloc[:1]\n        mlflow.sklearn.log_model(\n\
           \            sk_model=pipe,\n            artifact_path=\"model\",\n    \
-          \        input_example=input_example,\n            code_paths=[feature_preprocessing.__file__],\n\
-          \            registered_model_name=register_name,\n        )\n        feast_metadata\
-          \ = {\n            \"selected_features\": [f.lower() for f in FEATURES],\
-          \  # Features the model needs (serving discovers which views have them)\n\
-          \            \"entity_key\": entity_key.lower(),  # Entity key for Feast\
-          \ queries\n            \"num_features\": len(FEATURES),\n            \"\
-          categorical_features\": [c.lower() for c in CAT_COLS],\n            \"numerical_features\"\
-          : [c.lower() for c in NUM_COLS],\n            \"model_signature\": {\n \
-          \               \"inputs\": list(X_train.columns),\n                \"output\"\
-          : \"binary_classification\",\n            },\n            \"training_date\"\
-          : pd.Timestamp.now().isoformat(),\n        }\n        # Log as YAML artifact\n\
-          \        with open(\"feast_metadata.yaml\", \"w\") as f:\n            yaml.dump(feast_metadata,\
-          \ f, default_flow_style=False)\n        mlflow.log_artifact(\"feast_metadata.yaml\"\
-          )\n\n        # Log bootstrap summary as artifact for detailed review\n \
-          \       boot_summary = {\n            \"n_bootstrap\": n_bootstrap,\n  \
-          \          \"ci_level\": ci_level,\n            \"decision_threshold\":\
-          \ decision_threshold,\n            \"metrics\": boot,\n        }\n     \
-          \   with open(\"bootstrap_metrics.yaml\", \"w\") as f:\n            yaml.dump(boot_summary,\
-          \ f, default_flow_style=False)\n        mlflow.log_artifact(\"bootstrap_metrics.yaml\"\
-          )\n\n        print(f\"Logged feast_metadata.yaml with {len(FEATURES)} features\"\
-          )\n        print(f\"Logged bootstrap_metrics.yaml ({n_bootstrap} iterations,\
-          \ {ci_level*100:.0f}% CI)\")\n\n        # Promote to stage via tag (MLflow\
-          \ 3.x compatible)\n        # Setting tag stage=Production triggers the MLflow\
-          \ Watcher \u2192 Bento build \u2192 KServe deploy\n        if stage:\n \
-          \           client = mlflow.tracking.MlflowClient()\n            version\
-          \ = None\n            for v in client.search_model_versions(f\"name='{register_name}'\"\
+          \        input_example=input_example,\n            # Ship the catalog with\
+          \ the module so load_feature_set() works wherever the model is loaded.\n\
+          \            code_paths=[\n                feature_preprocessing.__file__,\n\
+          \                os.path.join(os.path.dirname(feature_preprocessing.__file__),\
+          \ \"feature_catalog\"),\n            ],\n            registered_model_name=register_name,\n\
+          \        )\n        mlflow.log_dict(feature_set.manifest(), \"model/feature_set.json\"\
+          )\n        feast_metadata = {\n            \"feature_set_version\": feature_set.version,\n\
+          \            \"feature_set_sha256\": feature_set.digest,\n            \"\
+          selected_features\": [f.lower() for f in features],  # Features the model\
+          \ needs (serving discovers which views have them)\n            \"entity_key\"\
+          : entity_key.lower(),  # Entity key for Feast queries\n            \"num_features\"\
+          : len(features),\n            \"categorical_features\": [c.lower() for c\
+          \ in cat_cols],\n            \"numerical_features\": [c.lower() for c in\
+          \ num_cols],\n            \"model_signature\": {\n                \"inputs\"\
+          : list(X_train.columns),\n                \"output\": \"binary_classification\"\
+          ,\n            },\n            \"training_date\": pd.Timestamp.now().isoformat(),\n\
+          \        }\n        # Log as YAML artifact\n        with open(\"feast_metadata.yaml\"\
+          , \"w\") as f:\n            yaml.dump(feast_metadata, f, default_flow_style=False)\n\
+          \        mlflow.log_artifact(\"feast_metadata.yaml\")\n\n        # Log bootstrap\
+          \ summary as artifact for detailed review\n        boot_summary = {\n  \
+          \          \"n_bootstrap\": n_bootstrap,\n            \"ci_level\": ci_level,\n\
+          \            \"decision_threshold\": decision_threshold,\n            \"\
+          metrics\": boot,\n        }\n        with open(\"bootstrap_metrics.yaml\"\
+          , \"w\") as f:\n            yaml.dump(boot_summary, f, default_flow_style=False)\n\
+          \        mlflow.log_artifact(\"bootstrap_metrics.yaml\")\n\n        print(f\"\
+          Logged feast_metadata.yaml with {len(features)} features\")\n        print(f\"\
+          Logged bootstrap_metrics.yaml ({n_bootstrap} iterations, {ci_level*100:.0f}%\
+          \ CI)\")\n\n        # Promote to stage via tag (MLflow 3.x compatible)\n\
+          \        # Setting tag stage=Production triggers the MLflow Watcher \u2192\
+          \ Bento build \u2192 KServe deploy\n        if stage:\n            client\
+          \ = mlflow.tracking.MlflowClient()\n            version = None\n       \
+          \     for v in client.search_model_versions(f\"name='{register_name}'\"\
           ):\n                if v.run_id == run.info.run_id:\n                  \
           \  version = v.version\n                    break\n            if version\
           \ is not None:\n                client.set_model_version_tag(register_name,\

@@ -1,6 +1,13 @@
 """Feature selection, preprocessing and calibration shared by training entry points."""
 
-from typing import List
+from __future__ import annotations
+
+from dataclasses import dataclass
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
 
 import numpy as np
 import pandas as pd
@@ -11,20 +18,69 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder
 
 
-FEATURES: List[str] = [
-    "EXT_SOURCE_3", "EXT_SOURCE_2", "EXT_SOURCE_1",
-    "DAYS_BIRTH", "AMT_GOODS_PRICE", "AMT_CREDIT", "AMT_ANNUITY", "DAYS_EMPLOYED",
-    "CODE_GENDER", "BUREAU_DEBT_TO_CREDIT_RATIO", "BUREAU_ACTIVE_CREDIT_SUM",
-    "NAME_EDUCATION_TYPE", "POS_MEAN_CONTRACT_LENGTH", "PREV_ANNUITY_MEAN",
-    "PREV_GOODS_TO_CREDIT_RATIO", "NAME_FAMILY_STATUS", "POS_LATEST_MONTH",
-    "ORGANIZATION_TYPE", "BUREAU_AMT_MAX_OVERDUE_EVER", "POS_TOTAL_MONTHS_OBSERVED",
-    "AMT_INCOME_TOTAL", "PREV_REFUSAL_RATE", "NAME_INCOME_TYPE", "CNT_CHILDREN",
-]
-CAT_COLS: List[str] = [
-    "CODE_GENDER", "NAME_EDUCATION_TYPE", "NAME_FAMILY_STATUS",
-    "ORGANIZATION_TYPE", "NAME_INCOME_TYPE",
-]
-NUM_COLS: List[str] = [c for c in FEATURES if c not in CAT_COLS]
+_GROUPS = ("num_other", "num_prev_ratio", "num_prev_other", "cat")
+
+
+@dataclass(frozen=True)
+class FeatureSet:
+    version: str
+    entries: tuple[tuple[str, str], ...]
+    digest: str
+
+    @property
+    def columns(self) -> list[str]:
+        return [name for name, _ in self.entries]
+
+    def group(self, name: str) -> list[str]:
+        return [column for column, group in self.entries if group == name]
+
+    def manifest(self) -> dict:
+        return {
+            "version": self.version,
+            "features": [
+                {"name": name, "preprocessing_group": group}
+                for name, group in self.entries
+            ],
+        }
+
+
+def load_feature_set(version: str | None = None) -> FeatureSet:
+    """Resolve a versioned, ordered training contract from the packaged catalog."""
+    if version is None:
+        version = os.environ.get("CRQ_FEATURE_SET", "legacy-v1")
+    if not isinstance(version, str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", version):
+        raise ValueError(f"Invalid feature set version: {version!r}")
+    path = Path(__file__).with_name("feature_catalog") / "sets" / f"{version}.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError(f"Unknown feature set: {version}") from exc
+    if not isinstance(data, dict) or data.get("version") != version:
+        raise ValueError(f"Feature set version does not match {version}")
+    features = data.get("features")
+    if not isinstance(features, list) or not features:
+        raise ValueError(f"Feature set {version} must contain at least one feature")
+    entries = []
+    seen = set()
+    for feature in features:
+        if not isinstance(feature, dict):
+            raise ValueError(f"Invalid feature entry in {version}: {feature!r}")
+        name, group = feature.get("name"), feature.get("preprocessing_group")
+        if (
+            not isinstance(name, str)
+            or not re.fullmatch(r"[A-Z][A-Z0-9_]*", name)
+            or name in {"TARGET", "SK_ID_CURR"}
+            or name in seen
+            or group not in _GROUPS
+        ):
+            raise ValueError(f"Invalid or duplicate feature entry in {version}: {feature!r}")
+        seen.add(name)
+        entries.append((name, group))
+    canonical = {"version": version, "features": [
+        {"name": name, "preprocessing_group": group} for name, group in entries
+    ]}
+    digest = hashlib.sha256(json.dumps(canonical, sort_keys=True).encode()).hexdigest()
+    return FeatureSet(version, tuple(entries), digest)
 
 
 class ClipQuantiles(BaseEstimator, TransformerMixin):
@@ -44,20 +100,18 @@ class ClipQuantiles(BaseEstimator, TransformerMixin):
         return pd.DataFrame(X).clip(self.lower_, self.upper_, axis=1).values
 
 
-def build_preprocessor(clip_quantiles: type = ClipQuantiles) -> ColumnTransformer:
+def build_preprocessor(clip_quantiles: type = ClipQuantiles, *, feature_set: FeatureSet | None = None) -> ColumnTransformer:
     """
     Build a fresh preprocessor for the ordered training features.
 
     Call this function fresh for every CV fold and Optuna trial to prevent
     leakage — the ColumnTransformer must be refit on each training partition.
     """
-    prev_ratio_cols = [
-        c for c in NUM_COLS if c.startswith("PREV_") and ("RATIO" in c or "RATE" in c)
-    ]
-    prev_other_cols = [
-        c for c in NUM_COLS if c.startswith("PREV_") and c not in prev_ratio_cols
-    ]
-    other_num_cols = [c for c in NUM_COLS if not c.startswith("PREV_")]
+    feature_set = feature_set if feature_set is not None else load_feature_set()
+    other_num_cols = feature_set.group("num_other")
+    prev_ratio_cols = feature_set.group("num_prev_ratio")
+    prev_other_cols = feature_set.group("num_prev_other")
+    categorical_cols = feature_set.group("cat")
 
     transformers = []
     if other_num_cols:
@@ -83,14 +137,14 @@ def build_preprocessor(clip_quantiles: type = ClipQuantiles) -> ColumnTransforme
             ]),
             prev_other_cols,
         ))
-    if CAT_COLS:
+    if categorical_cols:
         transformers.append((
             "cat",
             Pipeline([
                 ("impute", SimpleImputer(strategy="most_frequent")),
                 ("ord", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)),
             ]),
-            CAT_COLS,
+            categorical_cols,
         ))
     return ColumnTransformer(transformers, remainder="drop")
 
@@ -114,11 +168,12 @@ def ece_score(y_true: np.ndarray, y_prob: np.ndarray, n_bins: int = 10) -> float
     return float(ece)
 
 
-def select_training_data(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+def select_training_data(frame: pd.DataFrame, feature_set: FeatureSet | None = None) -> tuple[pd.DataFrame, pd.Series]:
     """Select ordered model inputs and the target, rejecting incomplete snapshots."""
     if "TARGET" not in frame:
         raise ValueError("TARGET column not found in data")
-    missing = [name for name in FEATURES if name not in frame]
+    columns = (feature_set if feature_set is not None else load_feature_set()).columns
+    missing = [name for name in columns if name not in frame]
     if missing:
         raise ValueError(f"Missing expected feature columns: {missing}")
-    return frame[FEATURES], frame["TARGET"].astype(int)
+    return frame[columns], frame["TARGET"].astype(int)

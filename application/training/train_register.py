@@ -45,9 +45,9 @@ from xgboost import XGBClassifier
 from loguru import logger
 
 if __package__ in (None, ""):
-    from feature_preprocessing import CAT_COLS, FEATURES, NUM_COLS, build_preprocessor, ece_score, select_training_data
+    from feature_preprocessing import build_preprocessor, ece_score, load_feature_set, select_training_data
 else:
-    from .feature_preprocessing import CAT_COLS, FEATURES, NUM_COLS, build_preprocessor, ece_score, select_training_data
+    from .feature_preprocessing import build_preprocessor, ece_score, load_feature_set, select_training_data
 
 
 try:
@@ -61,6 +61,7 @@ except ImportError:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Train + register model to MLflow")
     p.add_argument("--data", required=True, help="Path to complete_feature_dataset.csv")
+    p.add_argument("--feature-set", help="Packaged feature-set version (default: legacy-v1)")
     p.add_argument("--config", default=None,
                    help="Path to best_model_config.json from notebook/model_pipeline.py. "
                         "When provided, overrides hardcoded hyperparameters.")
@@ -77,6 +78,7 @@ def main() -> int:
     logger.add(lambda msg: print(msg, end=""), level="INFO")
     args = build_parser().parse_args()
 
+    model_config = {}
     # ── Load model config (from notebook/model_pipeline.py output) ──────────
     if args.config:
         model_config = json.loads(Path(args.config).read_text())
@@ -105,12 +107,18 @@ def main() -> int:
 
     logger.info(f"📥 Loading data from: {args.data}\n")
     df = pd.read_csv(args.data)
+    feature_set = load_feature_set(args.feature_set or model_config.get("feature_set_version"))
+    expected_digest = model_config.get("feature_set_sha256")
+    if expected_digest and feature_set.digest != expected_digest:
+        raise ValueError("Feature set differs from the one used to tune the model")
+    features = feature_set.columns
     logger.info("🔎 Validating columns present and splitting features/target\n")
     try:
-        X, y = select_training_data(df)
+        X, y = select_training_data(df, feature_set)
     except ValueError as exc:
         raise ValueError(f"{exc} ({args.data})") from exc
-    cat_cols, num_cols = CAT_COLS, NUM_COLS
+    cat_cols = feature_set.group("cat")
+    num_cols = [column for column in features if column not in cat_cols]
 
     logger.info("✂️  Train/test split (stratified)")
     X_train, X_test, y_train, y_test = train_test_split(
@@ -132,7 +140,7 @@ def main() -> int:
             return Xdf.values
 
     logger.info("🧹 Building preprocessing pipelines (clip + impute + encode)")
-    pre = build_preprocessor(ClipQuantiles)
+    pre = build_preprocessor(ClipQuantiles, feature_set=feature_set)
 
     # ── Construct classifier ─────────────────────────────────────────────────
     if MODEL_TYPE == "catboost":
@@ -231,6 +239,8 @@ def main() -> int:
         logger.info(f"   Artifact URI: {run.info.artifact_uri}")
         logger.info(f"   Logged model URI: {getattr(model_info, 'model_uri', 'n/a')}\n")
 
+        mlflow.log_dict(feature_set.manifest(), "model/feature_set.json")
+
         # Generate feast_metadata.yaml — consumed by the scoring service at startup to:
         #   1. Validate that all required features are present in the Feast registry
         #   2. Build the feature_refs list for online store lookup
@@ -238,25 +248,27 @@ def main() -> int:
         # This artifact is the contract between training and serving; without it the
         # scoring service raises RuntimeError on startup.
         feast_metadata = {
-            "selected_features": FEATURES,
-            "num_features": len(FEATURES),
+            "feature_set_version": feature_set.version,
+            "feature_set_sha256": feature_set.digest,
+            "selected_features": features,
+            "num_features": len(features),
             "cat_features": cat_cols,
             "num_features_list": num_cols,
             "threshold": THRESHOLD,
             "training_date": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "model_signature": {
-                "inputs": FEATURES,  # uppercase column names expected by the sklearn pipeline
+                "inputs": features,  # uppercase column names expected by the sklearn pipeline
             },
             # feature_mapping and feast_feature_refs are resolved dynamically at serving
             # startup by querying the live Feast registry — no hardcoding needed here.
-            "feature_mapping": {f.lower(): f for f in FEATURES},
+            "feature_mapping": {f.lower(): f for f in features},
         }
         feast_metadata_path = "/tmp/feast_metadata.yaml"
         import yaml
         with open(feast_metadata_path, "w") as f:
             yaml.dump(feast_metadata, f, default_flow_style=False, sort_keys=False)
         mlflow.log_artifact(feast_metadata_path, artifact_path="model")
-        logger.info(f"   Logged feast_metadata.yaml ({len(FEATURES)} features)\n")
+        logger.info(f"   Logged feast_metadata.yaml ({len(features)} features)\n")
 
         # Log the config JSON for full reproducibility traceability
         if args.config and Path(args.config).exists():

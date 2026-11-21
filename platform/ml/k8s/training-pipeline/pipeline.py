@@ -96,6 +96,10 @@ def ray_tune_hyperparams(
     import os
     import ray
     from ray.tune.schedulers import ASHAScheduler
+    from feature_preprocessing import load_feature_set
+
+    cfg = json.loads(config_json) if config_json else {}
+    feature_set = load_feature_set(cfg.get("feature_set_version"))
 
     # Connect/start Ray
     if ray_address:
@@ -103,7 +107,6 @@ def ray_tune_hyperparams(
     else:
         ray.init(ignore_reinit_error=True)
 
-    cfg = json.loads(config_json) if config_json else {}
     base = cfg.get("base_params", dict(
         subsample=0.8,
         colsample_bytree=0.8,
@@ -126,12 +129,11 @@ def ray_tune_hyperparams(
         from ray.air import session
 
         from feature_preprocessing import build_preprocessor, select_training_data
-
-        X, y = select_training_data(pd.read_csv(data.path, low_memory=False))
+        X, y = select_training_data(pd.read_csv(data.path, low_memory=False), feature_set)
         X_train, X_val, y_train, y_val = train_test_split(
             X, y, test_size=0.2, stratify=y, random_state=42
         )
-        pre = build_preprocessor()
+        pre = build_preprocessor(feature_set=feature_set)
 
         # Build model with current config
         params = {
@@ -186,6 +188,7 @@ def ray_tune_hyperparams(
         "min_child_weight": int(best_cfg.get("min_child_weight", 1)),
         "gamma": float(best_cfg.get("gamma", 0.0)),
     }
+    mapped["feature_set_sha256"] = feature_set.digest
     return json.dumps(mapped)
 
 
@@ -235,7 +238,7 @@ def train_and_register(
     import mlflow
     import mlflow.sklearn
     import feature_preprocessing
-    from feature_preprocessing import CAT_COLS, FEATURES, NUM_COLS, build_preprocessor, select_training_data
+    from feature_preprocessing import build_preprocessor, load_feature_set, select_training_data
 
     def bootstrap_evaluate(y_true, y_proba, n_bootstrap, ci_level, threshold):
         """Compute metrics with bootstrap confidence intervals.
@@ -292,13 +295,17 @@ def train_and_register(
     os.environ["AWS_ACCESS_KEY_ID"] = aws_access_key_id
     os.environ["AWS_SECRET_ACCESS_KEY"] = aws_secret_access_key
 
-    X, y = select_training_data(pd.read_csv(data.path, low_memory=False))
+    cfg = json.loads(config_json) if config_json else {}
+    feature_set = load_feature_set(cfg.get("feature_set_version"))
+    features = feature_set.columns
+    cat_cols = feature_set.group("cat")
+    num_cols = [column for column in features if column not in cat_cols]
+    X, y = select_training_data(pd.read_csv(data.path, low_memory=False), feature_set)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
-    pre = build_preprocessor()
+    pre = build_preprocessor(feature_set=feature_set)
 
-    cfg = json.loads(config_json) if config_json else {}
     base = cfg.get("base_params", dict(
         subsample=0.8,
         colsample_bytree=0.8,
@@ -308,6 +315,9 @@ def train_and_register(
     ))
 
     params = json.loads(best_params_json) if best_params_json else {}
+    tuned_digest = params.pop("feature_set_sha256", None)
+    if tuned_digest is not None and tuned_digest != feature_set.digest:
+        raise ValueError("Feature set changed between tuning and registration")
     base.update(params)
     clf = XGBClassifier(**base)
     pipe = Pipeline([("pre", pre), ("clf", clf)])
@@ -353,15 +363,22 @@ def train_and_register(
             sk_model=pipe,
             artifact_path="model",
             input_example=input_example,
-            code_paths=[feature_preprocessing.__file__],
+            # Ship the catalog with the module so load_feature_set() works wherever the model is loaded.
+            code_paths=[
+                feature_preprocessing.__file__,
+                os.path.join(os.path.dirname(feature_preprocessing.__file__), "feature_catalog"),
+            ],
             registered_model_name=register_name,
         )
+        mlflow.log_dict(feature_set.manifest(), "model/feature_set.json")
         feast_metadata = {
-            "selected_features": [f.lower() for f in FEATURES],  # Features the model needs (serving discovers which views have them)
+            "feature_set_version": feature_set.version,
+            "feature_set_sha256": feature_set.digest,
+            "selected_features": [f.lower() for f in features],  # Features the model needs (serving discovers which views have them)
             "entity_key": entity_key.lower(),  # Entity key for Feast queries
-            "num_features": len(FEATURES),
-            "categorical_features": [c.lower() for c in CAT_COLS],
-            "numerical_features": [c.lower() for c in NUM_COLS],
+            "num_features": len(features),
+            "categorical_features": [c.lower() for c in cat_cols],
+            "numerical_features": [c.lower() for c in num_cols],
             "model_signature": {
                 "inputs": list(X_train.columns),
                 "output": "binary_classification",
@@ -384,7 +401,7 @@ def train_and_register(
             yaml.dump(boot_summary, f, default_flow_style=False)
         mlflow.log_artifact("bootstrap_metrics.yaml")
 
-        print(f"Logged feast_metadata.yaml with {len(FEATURES)} features")
+        print(f"Logged feast_metadata.yaml with {len(features)} features")
         print(f"Logged bootstrap_metrics.yaml ({n_bootstrap} iterations, {ci_level*100:.0f}% CI)")
 
         # Promote to stage via tag (MLflow 3.x compatible)

@@ -55,6 +55,9 @@ test = [
 [tool.setuptools.packages.find]
 where = ["application"]
 
+[tool.setuptools.package-data]
+training = ["feature_catalog/sets/*.json"]
+
 # --- Formatting & Linting ---
 
 [tool.black]

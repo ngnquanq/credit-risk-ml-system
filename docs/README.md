@@ -11,4 +11,5 @@ Read top-down: why → what → how it is built → what to build next.
 | 4. Build next | [`03-handoff/`](03-handoff/README.md) | Handoff packages per epic (C4 target view, UML, sequences, contracts, tests) |
 | Decisions | [`adr/`](adr/README.md) | Architecture Decision Records |
 | Reference | [`01-business/business-constraints.md`](01-business/business-constraints.md), [`01-business/data-definition.md`](01-business/data-definition.md) | Pre-screening rules (E10), feature sources |
+| Modeling | [Credit risk modeling references](01-business/credit-risk-modeling-references.md) | Datasets, calibration, selection bias, AutoML smoke test |
 | History | [`history/`](history/README.md) | Superseded status logs (not maintained) |

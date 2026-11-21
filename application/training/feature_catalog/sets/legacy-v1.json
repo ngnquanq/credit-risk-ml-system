@@ -1,0 +1,101 @@
+{
+  "version": "legacy-v1",
+  "features": [
+    {
+      "name": "EXT_SOURCE_3",
+      "preprocessing_group": "num_other"
+    },
+    {
+      "name": "EXT_SOURCE_2",
+      "preprocessing_group": "num_other"
+    },
+    {
+      "name": "EXT_SOURCE_1",
+      "preprocessing_group": "num_other"
+    },
+    {
+      "name": "DAYS_BIRTH",
+      "preprocessing_group": "num_other"
+    },
+    {
+      "name": "AMT_GOODS_PRICE",
+      "preprocessing_group": "num_other"
+    },
+    {
+      "name": "AMT_CREDIT",
+      "preprocessing_group": "num_other"
+    },
+    {
+      "name": "AMT_ANNUITY",
+      "preprocessing_group": "num_other"
+    },
+    {
+      "name": "DAYS_EMPLOYED",
+      "preprocessing_group": "num_other"
+    },
+    {
+      "name": "CODE_GENDER",
+      "preprocessing_group": "cat"
+    },
+    {
+      "name": "BUREAU_DEBT_TO_CREDIT_RATIO",
+      "preprocessing_group": "num_other"
+    },
+    {
+      "name": "BUREAU_ACTIVE_CREDIT_SUM",
+      "preprocessing_group": "num_other"
+    },
+    {
+      "name": "NAME_EDUCATION_TYPE",
+      "preprocessing_group": "cat"
+    },
+    {
+      "name": "POS_MEAN_CONTRACT_LENGTH",
+      "preprocessing_group": "num_other"
+    },
+    {
+      "name": "PREV_ANNUITY_MEAN",
+      "preprocessing_group": "num_prev_other"
+    },
+    {
+      "name": "PREV_GOODS_TO_CREDIT_RATIO",
+      "preprocessing_group": "num_prev_ratio"
+    },
+    {
+      "name": "NAME_FAMILY_STATUS",
+      "preprocessing_group": "cat"
+    },
+    {
+      "name": "POS_LATEST_MONTH",
+      "preprocessing_group": "num_other"
+    },
+    {
+      "name": "ORGANIZATION_TYPE",
+      "preprocessing_group": "cat"
+    },
+    {
+      "name": "BUREAU_AMT_MAX_OVERDUE_EVER",
+      "preprocessing_group": "num_other"
+    },
+    {
+      "name": "POS_TOTAL_MONTHS_OBSERVED",
+      "preprocessing_group": "num_other"
+    },
+    {
+      "name": "AMT_INCOME_TOTAL",
+      "preprocessing_group": "num_other"
+    },
+    {
+      "name": "PREV_REFUSAL_RATE",
+      "preprocessing_group": "num_prev_ratio"
+    },
+    {
+      "name": "NAME_INCOME_TYPE",
+      "preprocessing_group": "cat"
+    },
+    {
+      "name": "CNT_CHILDREN",
+      "preprocessing_group": "num_other"
+    }
+  ]
+}

@@ -80,16 +80,19 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from application.training.feature_preprocessing import (
-    CAT_COLS,
-    FEATURES,
-    NUM_COLS,
     build_preprocessor as _build_preprocessor,
     ece_score,
+    load_feature_set,
 )
 
 import optuna
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
+
+FEATURE_SET = load_feature_set()
+FEATURES = FEATURE_SET.columns
+CAT_COLS = FEATURE_SET.group("cat")
+NUM_COLS = [column for column in FEATURES if column not in CAT_COLS]
 
 # Business decision threshold — prioritises recall over precision.
 # Missing a real default (FN) is costlier than declining a good applicant (FP).
@@ -118,7 +121,7 @@ class ClipQuantiles(BaseEstimator, TransformerMixin):
 
 
 def build_preprocessor() -> ColumnTransformer:
-    return _build_preprocessor(ClipQuantiles)
+    return _build_preprocessor(ClipQuantiles, feature_set=FEATURE_SET)
 
 
 def _metrics_dict(
@@ -222,6 +225,8 @@ def _run_optuna_study(
     """Run (or reload cached) Optuna study for one model type."""
     if skip_if_cached and cache_path.exists():
         best = json.loads(cache_path.read_text())
+        if best.get("feature_set_sha256") != FEATURE_SET.digest:
+            raise ValueError(f"Feature set differs from {cache_path}; rerun without --skip-tuning")
         logger.info(
             f"  {model_type.upper():<12}  loaded from cache — "
             f"CV AUC = {best['cv_auc']:.4f}"
@@ -298,6 +303,7 @@ def _run_optuna_study(
     best_params["scale_pos_weight"] = round(float(scale_pos_weight), 4)
 
     best = {"model_type": model_type, "params": best_params, "cv_auc": float(study.best_value)}
+    best["feature_set_sha256"] = FEATURE_SET.digest
     cache_path.write_text(json.dumps(best, indent=2))
     logger.info(
         f"  {model_type.upper():<12}  best CV AUC = {study.best_value:.4f}  "
@@ -730,6 +736,8 @@ def export_config(
         "test_aucpr":         round(final_metrics["AUC-PR"], 6),
         "test_brier":         round(final_metrics["Brier Score"], 6),
         "test_ece":           round(final_metrics["ECE"], 6),
+        "feature_set_version": FEATURE_SET.version,
+        "feature_set_sha256": FEATURE_SET.digest,
         "features":           FEATURES,
         "cat_features":       CAT_COLS,
         "num_features":       NUM_COLS,

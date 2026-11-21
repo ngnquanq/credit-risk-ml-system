@@ -26,6 +26,9 @@ Quick Start
    image references. Both images must contain the recipe from the same source revision.
    The pipeline expects the same 24 input columns as the local CLI plus `TARGET`.
    Extra snapshot columns, including `SK_ID_CURR`, are excluded from model inputs.
+   Set `feature_set_version` in `config_json` to choose another packaged set.
+   Use the same catalog revision in both images. Registration checks the digest
+   returned by tuning and logs the resolved feature set with the MLflow run.
 
 
 2) (Optional) Deploy Ray for distributed tuning
