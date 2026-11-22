@@ -30,6 +30,19 @@ check: ## Local gate: lint, tests, and contracts unchanged
 	$(MAKE) contracts
 	git diff --exit-code contracts/
 
+# ─── Local UI stack (scripts/local/README.md) ──────────────────────────────────
+local-ui-up: ## Keycloak + PostgreSQL (demo data) + Redis in Docker; then run the API and portals (see README)
+	$(PYTHON) scripts/local/generate.py
+	docker compose -f scripts/local/docker-compose.yml up -d
+	@echo "Next: make local-api   |   cd portals && pnpm dev:staff   |   cd portals && pnpm dev:applicant"
+	@echo "Demo users and passwords: scripts/local/.generated/credentials.txt"
+
+local-api: ## Run the Loan API against the local stack on :8000
+	cd application && set -a && . ../scripts/local/.generated/api.env && set +a && $(PYTHON) -m uvicorn entrypoints.api.main:app --port 8000 --reload
+
+local-ui-down: ## Stop the local stack and delete its data (demo data is re-seeded on the next up)
+	docker compose -f scripts/local/docker-compose.yml down -v
+
 # ─── Release readiness: portals, decisions, high availability, drills (E5, E12, E15) ──
 k8s-decision-recorder: ## Deploy the decision recorder and the daily audit verification job
 	kubectl apply -f platform/core/k8s/09-decision-recorder.yaml

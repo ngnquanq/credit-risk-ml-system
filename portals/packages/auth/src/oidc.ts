@@ -6,7 +6,15 @@ const REFRESH_MARGIN_SECONDS = 30;
 let configuration: Promise<client.Configuration> | null = null;
 
 function oidc(config: PortalConfig): Promise<client.Configuration> {
-  configuration ??= client.discovery(new URL(config.issuer), config.clientId, config.clientSecret);
+  // Plain-http issuers are refused unless explicitly allowed; only the local stack (scripts/local) sets this.
+  const insecure = config.allowInsecureHttp && config.issuer.startsWith("http://");
+  configuration ??= client.discovery(
+    new URL(config.issuer),
+    config.clientId,
+    config.clientSecret,
+    undefined,
+    insecure ? { execute: [client.allowInsecureRequests] } : undefined,
+  );
   return configuration;
 }
 

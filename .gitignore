@@ -309,3 +309,9 @@ progress.txt
 
 # Browser automation logs (may contain page snapshots)
 .playwright-mcp/
+
+# Local UI stack: generated secrets and demo passwords (scripts/local/generate.py)
+scripts/local/.generated/
+
+# The portals workspace needs its package.json files (the rule above targets an old JS tool)
+!portals/**/package.json

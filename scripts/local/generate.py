@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""Generate the git-ignored config for the local UI stack (scripts/local/.generated).
+
+- Local realm files derived from platform/core/k8s/identity/realms/*.json:
+  localhost redirect URIs, real generated client secrets, demo users with fixed ids
+  (matching initdb/03-demo-data.sql) and generated passwords.
+  LOCAL ONLY relaxation: staff TOTP is not forced, so the API does not require acr=mfa locally.
+- Env files for Keycloak, PostgreSQL, the API and both portals.
+- .generated/credentials.txt with the demo users' passwords (never printed, never committed).
+
+Run again with --force to rotate everything.
+"""
+
+from __future__ import annotations
+
+import copy
+import json
+import secrets
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+HERE = Path(__file__).resolve().parent
+OUT = HERE / ".generated"
+REALMS = ROOT / "platform" / "core" / "k8s" / "identity" / "realms"
+
+STAFF_PORTAL = "http://localhost:3002"
+APPLICANT_PORTAL = "http://localhost:3001"
+KEYCLOAK = "http://localhost:8180"
+
+STAFF_USERS = [
+    ("officer.hn01", "11111111-1111-4111-8111-000000000001", "loan_officer", "HN01", "Trần Thị Bình"),
+    ("officer.hcm02", "11111111-1111-4111-8111-000000000002", "loan_officer", "HCM02", "Võ Thanh Hà"),
+    ("underwriter", "11111111-1111-4111-8111-000000000003", "underwriter", None, "Lê Minh Châu"),
+    ("risk.manager1", "11111111-1111-4111-8111-000000000004", "risk_manager", None, "Đỗ Quang Minh"),
+    ("risk.manager2", "11111111-1111-4111-8111-000000000005", "risk_manager", None, "Hoàng Lan Anh"),
+    ("auditor", "11111111-1111-4111-8111-000000000006", "auditor", None, "Phạm Quốc Dũng"),
+]
+CUSTOMERS = [
+    ("applicant.a@demo.local", "22222222-2222-4222-8222-000000000001", "Nguyễn Văn An"),
+    ("applicant.b@demo.local", "22222222-2222-4222-8222-000000000002", "Bùi Thị Hoa"),
+]
+
+
+def password() -> str:
+    return secrets.token_urlsafe(12)
+
+
+def user(username, uid, role, password_, full_name, branch=None, email=None):
+    first, _, last = full_name.partition(" ")
+    entry = {
+        "id": uid,
+        "username": username,
+        "email": email or f"{username}@demo.local",
+        "emailVerified": True,
+        "enabled": True,
+        "firstName": first,
+        "lastName": last or first,
+        "realmRoles": [role],
+        "credentials": [{"type": "password", "value": password_, "temporary": False}],
+    }
+    if branch:
+        entry["attributes"] = {"branch_id": [branch]}
+    return entry
+
+
+def localize_client(client: dict, origin: str, secret: str) -> None:
+    client["secret"] = secret
+    client["redirectUris"] = [f"{origin}/auth/callback"]
+    client["webOrigins"] = [origin]
+    attrs = client.setdefault("attributes", {})
+    attrs["post.logout.redirect.uris"] = f"{origin}/*"
+    attrs.pop("default.acr.values", None)   # LOCAL ONLY: no step-up to MFA
+    attrs.pop("minimum.acr.value", None)
+
+
+def generate(out: Path, portals_dir: Path) -> None:
+    """Write every generated file under ``out`` and the portals' .env.local files under ``portals_dir``."""
+    (out / "realms").mkdir(parents=True, exist_ok=True)
+
+    staff_secret, applicant_secret = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
+    db_password, admin_password = secrets.token_urlsafe(16), secrets.token_urlsafe(16)
+    creds = [f"Keycloak admin console {KEYCLOAK}/admin  user: admin  password: {admin_password}", ""]
+
+    staff = copy.deepcopy(json.loads((REALMS / "staff.json").read_text()))
+    for action in staff.get("requiredActions", []):
+        if action.get("alias") == "CONFIGURE_TOTP":
+            action["defaultAction"] = False  # LOCAL ONLY
+    for client in staff["clients"]:
+        if client["clientId"] == "staff-portal":
+            localize_client(client, STAFF_PORTAL, staff_secret)
+        elif "secret" in client:
+            client["secret"] = secrets.token_urlsafe(24)
+    staff["users"] = []
+    creds.append(f"Staff portal {STAFF_PORTAL}")
+    for username, uid, role, branch, name in STAFF_USERS:
+        pw = password()
+        staff["users"].append(user(username, uid, role, pw, name, branch))
+        creds.append(f"  {username:<16} {pw}   ({role}{', branch ' + branch if branch else ''})")
+
+    customers = copy.deepcopy(json.loads((REALMS / "customers.json").read_text()))
+    customers.pop("smtpServer", None)
+    customers["verifyEmail"] = False  # no mail server locally; demo users are pre-verified
+    for client in customers["clients"]:
+        localize_client(client, APPLICANT_PORTAL, applicant_secret)
+    customers["users"] = []
+    creds += ["", f"Applicant portal {APPLICANT_PORTAL}"]
+    for email, uid, name in CUSTOMERS:
+        pw = password()
+        customers["users"].append(user(email, uid, "applicant", pw, name, email=email))
+        creds.append(f"  {email:<24} {pw}")
+
+    (out / "realms" / "staff.json").write_text(json.dumps(staff, indent=2, ensure_ascii=False))
+    (out / "realms" / "customers.json").write_text(json.dumps(customers, indent=2, ensure_ascii=False))
+    (out / "keycloak.env").write_text(f"KC_BOOTSTRAP_ADMIN_USERNAME=admin\nKC_BOOTSTRAP_ADMIN_PASSWORD={admin_password}\n")
+    (out / "postgres.env").write_text(f"POSTGRES_PASSWORD={db_password}\n")
+
+    db = f"ops_admin:{db_password}@localhost:5433"
+    (out / "api.env").write_text("\n".join([
+        "OPS_DB_HOST=localhost", "OPS_DB_PORT=5433", "OPS_DB_USER=ops_admin",
+        f"OPS_DB_PASSWORD={db_password}", "OPS_DB_NAME=operations",
+        f"APP_OIDC_ISSUERS={KEYCLOAK}/realms/staff,{KEYCLOAK}/realms/customers",
+        "APP_OIDC_STAFF_REQUIRED_ACR=",  # LOCAL ONLY: staff TOTP is not forced locally
+        f"APP_AUDIT_DATABASE_URL=postgresql+asyncpg://{db}/audit",
+        f"APP_AUDIT_READER_DATABASE_URL=postgresql+asyncpg://{db}/audit",
+        "MINIO_ENDPOINT=localhost:9999", "APP_KAFKA_BOOTSTRAP_SERVERS=localhost:9999",
+        "APP_LOG_FORMAT=text", "OTEL_SDK_DISABLED=true", "",
+    ]))
+
+    for app, realm, port, client_id, secret, db_index in [
+        ("staff-portal", "staff", 3002, "staff-portal", staff_secret, 1),
+        ("applicant-portal", "customers", 3001, "applicant-portal", applicant_secret, 2),
+    ]:
+        (portals_dir / app).mkdir(parents=True, exist_ok=True)
+        (portals_dir / app / ".env.local").write_text("\n".join([
+            f"OIDC_ISSUER={KEYCLOAK}/realms/{realm}", f"OIDC_CLIENT_ID={client_id}", f"OIDC_CLIENT_SECRET={secret}",
+            "OIDC_ALLOW_INSECURE_HTTP=true", f"PORTAL_BASE_URL=http://localhost:{port}",
+            f"SESSION_REDIS_URL=redis://localhost:6380/{db_index}", "API_BASE_URL=http://localhost:8000", "",
+        ]))
+
+    (out / "credentials.txt").write_text("\n".join(creds) + "\n")
+
+
+def main() -> int:
+    if (OUT / "credentials.txt").exists() and "--force" not in sys.argv:
+        print(f"{OUT} exists; keeping it (use --force to regenerate)")
+        return 0
+    generate(OUT, ROOT / "portals" / "apps")
+    print(f"Wrote {OUT} and portals/apps/*/.env.local. Demo passwords: {OUT / 'credentials.txt'}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

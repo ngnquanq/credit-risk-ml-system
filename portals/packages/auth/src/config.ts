@@ -13,6 +13,8 @@ export interface PortalConfig {
   /** Idle and absolute session lifetimes (seconds). */
   idleTimeout: number;
   absoluteTimeout: number;
+  /** Local development only: accept an http:// issuer (Keycloak on localhost). */
+  allowInsecureHttp: boolean;
 }
 
 function required(name: string): string {
@@ -32,5 +34,6 @@ export function loadConfig(realm: Realm): PortalConfig {
     apiBaseUrl: required("API_BASE_URL").replace(/\/$/, ""),
     idleTimeout: Number(process.env.SESSION_IDLE_SECONDS ?? 1800),
     absoluteTimeout: Number(process.env.SESSION_ABSOLUTE_SECONDS ?? 28800),
+    allowInsecureHttp: process.env.OIDC_ALLOW_INSECURE_HTTP === "true" && process.env.NODE_ENV !== "production",
   };
 }

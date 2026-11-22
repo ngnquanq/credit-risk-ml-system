@@ -129,5 +129,13 @@ class PostgresAuditWriter:
                     "(CAST(:occurred_at AS timestamptz), :actor_sub, :actor_realm, :actor_roles, :action, "
                     ":resource_type, :resource_id, :outcome, :trace_id, CAST(:details AS jsonb), :prev_hash, :hash)"
                 ),
-                {**data, "details": json.dumps(data["details"]), "prev_hash": prev, "hash": chain_hash(prev, data)},
+                {
+                    **data,
+                    # The hash covers the ISO string; the column gets the same instant as a datetime (asyncpg
+                    # rejects strings for timestamptz parameters). audit.verify_job re-renders it in UTC ISO.
+                    "occurred_at": datetime.fromisoformat(data["occurred_at"]),
+                    "details": json.dumps(data["details"]),
+                    "prev_hash": prev,
+                    "hash": chain_hash(prev, data),
+                },
             )

@@ -11,7 +11,8 @@ export function securityMiddleware(request: NextRequest, publicPaths: string[]):
   const nonce = btoa(crypto.randomUUID());
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    // Next's dev server needs eval for hot reload; production builds never get it.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data:",

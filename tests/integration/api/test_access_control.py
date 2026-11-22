@@ -221,3 +221,31 @@ async def test_lookup_needs_a_purpose_and_is_audited(api_client, act_as, apps, a
     body = (await api_client.get("/api/v1/customers/B2/summary", params={"purpose": "co_applicant"})).json()
     assert body == {"customer_id": "B2", "applications": 1, "statuses": ["submitted"], "same_branch": False}
     assert audit.events[-1]["details"]["purpose"] == "co_applicant"
+
+
+@pytest.mark.parametrize("failure", ["hang", "down"])
+async def test_profile_degrades_fast_when_the_warehouse_is_slow_or_down(test_app, api_client, act_as, apps, failure,
+                                                                        monkeypatch):
+    """Regression: a hanging warehouse call held a DB transaction open and hung the case view (E15)."""
+    import asyncio
+
+    from core import settings
+    from entrypoints.api.dependencies import get_profile_provider
+
+    monkeypatch.setattr(settings, "profile_timeout_seconds", 0.2)
+
+    class Broken:
+        async def profile(self, sk_id_curr):
+            if failure == "hang":
+                await asyncio.sleep(30)
+            raise ConnectionError("warehouse down")
+
+    async def override():
+        return Broken()
+
+    test_app.dependency_overrides[get_profile_provider] = override
+    act_as("off-1", "staff", {"loan_officer"}, "HN01")
+    started = asyncio.get_running_loop().time()
+    resp = await api_client.get("/api/v1/applications/B1/customer-profile")
+    assert resp.status_code == 503
+    assert asyncio.get_running_loop().time() - started < 5

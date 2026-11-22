@@ -13,6 +13,7 @@ except Exception:  # pragma: no cover
 
     def async_sessionmaker(*args, **kwargs):  # type: ignore
         return _sessionmaker(*args, **kwargs)
+import asyncio
 from typing import AsyncGenerator
 from loguru import logger
 from .config import settings
@@ -27,6 +28,10 @@ engine = create_async_engine(
     max_overflow=settings.database_max_overflow,
     echo=settings.debug,  # Log SQL queries in debug mode
     future=True,
+    pool_pre_ping=True,
+    # Safety net: PostgreSQL ends any transaction left idle for 60 s, so a request that dies mid-way
+    # can never hold locks indefinitely (seen locally: TRUNCATE blocked behind an idle transaction).
+    connect_args={"server_settings": {"idle_in_transaction_session_timeout": "60000"}},
 )
 
 # Create async session factory
@@ -50,12 +55,15 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
             await session.commit()
-        except Exception as e:
-            await session.rollback()
-            logger.error(f"Database error occurred: {e}")
+        except BaseException as e:
+            # BaseException: a cancelled request (client gone) raises CancelledError, which is not an
+            # Exception; it must still roll back. shield() keeps the cleanup from being cancelled too.
+            await asyncio.shield(session.rollback())
+            if isinstance(e, Exception) and not getattr(e, "status_code", None):
+                logger.error(f"Database error occurred: {e}")
             raise
         finally:
-            await session.close()
+            await asyncio.shield(session.close())
 
 
 async def init_db() -> None:

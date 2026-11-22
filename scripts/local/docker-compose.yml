@@ -1,0 +1,36 @@
+# Local UI stack: Keycloak (both realms), PostgreSQL (operations + audit, with demo data), Redis (portal sessions).
+# Generated secrets come from scripts/local/.generated (git-ignored). Start with `make local-ui-up`.
+name: crs-local
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.7
+    command: ["start-dev", "--import-realm"]
+    env_file: .generated/keycloak.env
+    environment:
+      KC_HOSTNAME: http://localhost:8180
+      KC_HTTP_PORT: "8080"
+      KC_HEALTH_ENABLED: "true"
+    ports: ["8180:8080"]
+    volumes:
+      - ./.generated/realms:/opt/keycloak/data/import:ro
+
+  postgres:
+    image: postgres:16.4
+    env_file: .generated/postgres.env
+    environment:
+      POSTGRES_USER: ops_admin
+      POSTGRES_DB: operations
+    ports: ["5433:5432"]
+    volumes:
+      - ../../platform/core/schemas:/schemas:ro
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ops_admin -d operations"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7.4.1-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports: ["6380:6379"]

@@ -89,6 +89,9 @@ class Settings(BaseSettings):
         default=None, description="postgresql+asyncpg://audit_reader:...@host:5432/audit (auditor trace)"
     )
 
+    # External calls made while serving a request (E15): fail fast instead of hanging
+    profile_timeout_seconds: float = Field(default=3.0, description="Timeout for the warehouse customer profile")
+
     # MinIO / S3-compatible object storage
     minio_endpoint: str = Field(default="minio-server:9000", description="MinIO endpoint host:port", alias="MINIO_ENDPOINT")
     minio_access_key: Optional[SecretStr] = Field(default=None, description="MinIO access key")

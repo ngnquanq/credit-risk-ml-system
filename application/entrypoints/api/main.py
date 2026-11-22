@@ -3,6 +3,7 @@ Main FastAPI application entry point.
 Home Credit Loan Application API.
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, Query, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -642,10 +643,16 @@ async def customer_profile(
 ):
     """Internal factors, only for the application being handled and after consent (ADR-0013)."""
     await _require_application(db, customer_id, principal, Action.READ_CUSTOMER_PROFILE, audit)
+    # End the read transaction before calling the warehouse: a slow external call must never
+    # hold database locks (seen locally: an idle transaction blocked TRUNCATE for minutes).
+    await db.commit()
     try:
-        return await provider.profile(customer_id)
+        return await asyncio.wait_for(provider.profile(customer_id), timeout=settings.profile_timeout_seconds)
     except ValueError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No history for this customer")
+    except Exception as exc:  # timeout or warehouse down: degrade, never hang the case view (E15)
+        logger.warning(f"Customer profile unavailable for {customer_id}: {type(exc).__name__}")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Customer history is unavailable")
 
 
 @app.get("/api/v1/customers/{customer_id}/summary", tags=["Cases"])

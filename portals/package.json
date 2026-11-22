@@ -1,0 +1,21 @@
+{
+  "name": "crs-portals",
+  "private": true,
+  "packageManager": "pnpm@9.12.3",
+  "scripts": {
+    "dev:applicant": "pnpm --filter applicant-portal dev",
+    "dev:staff": "pnpm --filter staff-portal dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "e2e": "pnpm -r e2e",
+    "generate:api": "pnpm --filter @crs/api generate",
+    "e2e:local": "playwright test --config e2e-local/playwright.config.ts"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "@playwright/test": "1.49.0",
+    "@types/node": "20.17.6"
+  }
+}
