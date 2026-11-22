@@ -69,7 +69,7 @@ export default async function CaseView({ params }: { params: { id: string } }) {
               </div>
             </>
           ) : (
-            <p className="muted" style={{ margin: 0 }}>Available only for applications you entered, after the customer's consent.</p>
+            <p className="muted" style={{ margin: 0 }}>Available only for applications you entered, after the customer&apos;s consent.</p>
           )}
           <p className="muted" style={{ margin: 0, fontSize: 12 }}>Every view is logged with its purpose.</p>
         </Card>

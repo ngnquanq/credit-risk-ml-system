@@ -69,7 +69,7 @@ export default async function ReviewCase({ params }: { params: { id: string } })
               {explanation.contributions ? <ContributionBars contributions={explanation.contributions} /> : null}
               <p className="muted" style={{ margin: 0, fontSize: 12 }}>
                 Model {explanation.model_version ?? "?"} · feature set {explanation.feature_set_sha256?.slice(0, 8) ?? "?"}. Contributions
-                explain the model, not the applicant's situation.
+                explain the model, not the applicant&apos;s situation.
               </p>
             </>
           ) : (

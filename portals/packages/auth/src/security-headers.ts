@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE } from "./session";
+import { SESSION_COOKIE } from "./cookies"; // edge-safe: never import ./session here (node:crypto, ioredis)
 
 /**
  * Edge middleware shared by both portals:
