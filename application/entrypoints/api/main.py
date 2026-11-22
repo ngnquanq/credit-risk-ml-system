@@ -9,13 +9,12 @@ carry masked values, and the unmasked ones only come from ``identity:reveal`` wi
 """
 
 import asyncio
-import re
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Literal
 
-from audit.writer import AuditEvent, AuditReader, AuditWriter
+from audit.writer import AuditReader, AuditWriter
 from authz import Action, Principal, Resource, authorize
 from authz.policy import CUSTOMER_REALM
 from core import close_db, get_db, init_db, settings
@@ -23,7 +22,7 @@ from core.tracing import setup_tracing
 from decisions.reasons import reason_texts
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from identity import PiiCipher, mask_citizen_id
+from identity import mask_citizen_id
 from identity.repository import IdentityRepository
 from infrastructure.persistence.models import (
     ApplicationSubmission,
@@ -39,10 +38,6 @@ from infrastructure.persistence.models.sqlalchemy_models import (
 from infrastructure.persistence.models.sqlalchemy_models import (
     LoanApplication as DbLoanApplication,
 )
-from infrastructure.persistence.models.sqlalchemy_models import (
-    PolicyChange as DbPolicyChange,
-)
-from infrastructure.storage.documents import DocumentStore
 from loguru import logger
 
 # Tracing
@@ -52,16 +47,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from workflows.submit_loan import SubmitLoanWorkflow
 
+from .access import require_action
 from .dependencies import (
     _document_store,
     get_audit_reader,
     get_audit_writer,
-    get_document_store,
+    get_document_uploads,
     get_identity_repository,
-    get_pii_cipher,
     get_profile_provider,
     get_submit_loan_workflow,
 )
+from .documents import DocumentUploads
+from .policy_changes import router as policy_changes_router
 from .security import get_principal
 
 # Initialize tracing
@@ -108,35 +105,6 @@ app.add_middleware(
 
 # Auto-instrument FastAPI with tracing
 FastAPIInstrumentor.instrument_app(app)
-
-# Document slot -> folder. The portals use 2 (citizen ID card, front), 15 (back) and 3 (income proof).
-DOCUMENT_FOLDERS = {
-    2: "identity",           # Citizen ID card, front
-    3: "financial/income",   # Income proof (payslips, salary statement)
-    4: "employment",         # Employment certificate
-    5: "financial/banking",  # Bank statement
-    6: "personal",           # Utility bills
-    7: "personal",           # Property ownership
-    8: "personal",           # Vehicle registration
-    9: "financial/insurance",  # Insurance policy
-    10: "financial/tax",     # Tax returns
-    11: "personal",          # Medical certificate
-    12: "personal",          # Education certificate
-    13: "personal",          # Marriage certificate
-    14: "personal",          # Divorce certificate
-    15: "identity",          # Citizen ID card, back
-    16: "financial/pension",  # Pension certificate
-    17: "personal",          # Military service
-    18: "employment",        # Business license
-    19: "financial/credit",  # Credit report
-    20: "employment",        # Reference letter
-    21: "other",             # Other document
-}
-CONTENT_TYPES = {"application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png"}
-# Self-service applicants must send both sides of the citizen ID card; at a branch the officer
-# checks the physical card and records it in a case note.
-REQUIRED_SELF_SERVICE_DOCUMENTS = ("document_id_2", "document_id_15")
-_DOCUMENT_ID = re.compile(r"^(?P<owner>[0-9a-f]{24})/[a-z/]+/doc_[0-9a-f]{32}\.(pdf|jpg|png)$")
 
 NOT_FOUND = "Application not found"
 NO_STORE = {"Cache-Control": "no-store"}
@@ -238,23 +206,6 @@ def _new_application_resource(principal: Principal, public_id: str) -> Resource:
                     branch_id=principal.branch_id)
 
 
-async def _require(principal: Principal, action: Action, resource: Resource, audit: AuditWriter,
-                   details: dict | None = None) -> None:
-    decision = authorize(principal, action, resource)
-    await audit.record(AuditEvent(
-        actor_sub=principal.sub,
-        actor_realm=principal.realm,
-        actor_roles=tuple(principal.roles),
-        action=action.value,
-        resource_type=resource.type,
-        resource_id=resource.id or "-",
-        outcome="allowed" if decision.allowed else "denied",
-        details={"rule": decision.rule, **(details or {})},
-    ))
-    if not decision.allowed:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": "forbidden", "rule": decision.rule})
-
-
 async def _require_application(db: AsyncSession, application_id: str, principal: Principal, action: Action,
                                audit: AuditWriter, details: dict | None = None
                                ) -> tuple[DbLoanApplication, Resource]:
@@ -263,31 +214,8 @@ async def _require_application(db: AsyncSession, application_id: str, principal:
         # Same answer for malformed, unknown and other people's guesses: ids are not an oracle.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
     resource = await _resource(db, row)
-    await _require(principal, action, resource, audit, details)
+    await require_action(principal, action, resource, audit, details)
     return row, resource
-
-
-async def _check_documents(document_ids: dict[str, str] | None, channel: str, principal: Principal,
-                           cipher: PiiCipher, store: DocumentStore) -> None:
-    """Only documents this caller uploaded, that really exist; both ID card sides for self-service."""
-    document_ids = document_ids or {}
-    if channel == "self":
-        missing = [slot for slot in REQUIRED_SELF_SERVICE_DOCUMENTS if not document_ids.get(slot)]
-        if missing:
-            raise HTTPException(status_code=422, detail={"error": "documents_required", "slots": missing})
-    owner = cipher.owner_tag(principal.sub)
-    for slot, document_id in document_ids.items():
-        match = _DOCUMENT_ID.fullmatch(document_id or "")
-        if match is None or match["owner"] != owner:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail={"error": "document_not_owned", "slot": slot})
-        try:
-            uploaded = await store.exists(document_id)
-        except Exception as exc:
-            logger.warning(f"Document storage unavailable: {type(exc).__name__}")
-            raise HTTPException(status_code=503, detail="Document storage is unavailable")
-        if not uploaded:
-            raise HTTPException(status_code=422, detail={"error": "document_not_uploaded", "slot": slot})
 
 
 # ---------------------------------------------------------------------------
@@ -298,24 +226,14 @@ async def get_presigned_url(
     request: PreSignedURLRequest,
     principal: Principal = Depends(get_principal),
     audit: AuditWriter = Depends(get_audit_writer),
-    cipher: PiiCipher = Depends(get_pii_cipher),
-    store: DocumentStore = Depends(get_document_store),
+    uploads: DocumentUploads = Depends(get_document_uploads),
 ):
     """One-object upload policy: key, content type and size are fixed by the API."""
     # Uploading is part of submitting: the same rules decide who may do it (E11).
-    await _require(principal, Action.SUBMIT_APPLICATION, _new_application_resource(principal, "upload"), audit,
+    await require_action(principal, Action.SUBMIT_APPLICATION, _new_application_resource(principal, "upload"), audit,
                    {"document_type": request.document_type})
-    folder = DOCUMENT_FOLDERS.get(request.document_type)
-    if folder is None:
-        raise HTTPException(status_code=400, detail=f"Invalid document type: {request.document_type}")
-    # The owner tag is an HMAC of the caller's subject: object keys never contain who uploaded them.
-    key = f"{cipher.owner_tag(principal.sub)}/{folder}/doc_{uuid.uuid4().hex}.{CONTENT_TYPES[request.content_type]}"
-    try:
-        url, fields = store.upload_policy(key, request.content_type, settings.upload_max_bytes)
-    except Exception as exc:
-        logger.error(f"Could not sign an upload policy: {type(exc).__name__}")
-        raise HTTPException(status_code=503, detail="Document storage is unavailable")
-    return PreSignedURLResponse(upload_url=url, fields=fields, document_id=key, max_bytes=settings.upload_max_bytes)
+    key, url, fields = uploads.presign(request.document_type, request.content_type)
+    return PreSignedURLResponse(upload_url=url, fields=fields, document_id=key, max_bytes=uploads.max_bytes)
 
 
 # ---------------------------------------------------------------------------
@@ -330,16 +248,17 @@ async def create_loan_application(
     db: AsyncSession = Depends(get_db),
     audit: AuditWriter = Depends(get_audit_writer),
     identities: IdentityRepository = Depends(get_identity_repository),
-    cipher: PiiCipher = Depends(get_pii_cipher),
-    store: DocumentStore = Depends(get_document_store),
+    uploads: DocumentUploads = Depends(get_document_uploads),
 ):
     """Create a loan application. Ownership comes from the verified caller, never from the body."""
     public_id = str(uuid.uuid4())
     resource = _new_application_resource(principal, public_id)
-    await _require(principal, Action.SUBMIT_APPLICATION, resource, audit,
+    await require_action(principal, Action.SUBMIT_APPLICATION, resource, audit,
                    {"channel": resource.channel, "branch_id": resource.branch_id,
                     "consent": submission.bureau_consent, "documents": sorted(submission.document_ids or {})})
-    await _check_documents(submission.document_ids, resource.channel, principal, cipher, store)
+    await uploads.validate(
+        submission.document_ids, require_identity=resource.channel == "self"
+    )
 
     applicant = submission.applicant
     customer_ref = await identities.resolve_or_create(applicant.full_name, applicant.citizen_id, applicant.phone)
@@ -376,7 +295,7 @@ async def my_applications(
     audit: AuditWriter = Depends(get_audit_writer),
 ):
     """The signed-in applicant's own applications, newest first."""
-    await _require(principal, Action.READ_APPLICATION,
+    await require_action(principal, Action.READ_APPLICATION,
                    Resource(type="application", id="me", channel="self", applicant_sub=principal.sub), audit)
     rows = (await db.execute(
         select(DbLoanApplication).where(DbLoanApplication.applicant_sub == principal.sub)
@@ -446,14 +365,13 @@ async def attach_document(
     principal: Principal = Depends(get_principal),
     db: AsyncSession = Depends(get_db),
     audit: AuditWriter = Depends(get_audit_writer),
-    cipher: PiiCipher = Depends(get_pii_cipher),
-    store: DocumentStore = Depends(get_document_store),
+    uploads: DocumentUploads = Depends(get_document_uploads),
 ):
     """Add a document the caller uploaded to an open application (e.g. payslips during review)."""
     slot = f"document_id_{body.slot}"
     row, resource = await _require_application(db, application_id, principal, Action.ATTACH_DOCUMENT, audit,
                                                {"slot": slot})
-    await _check_documents({slot: body.document_id}, "staff", principal, cipher, store)
+    await uploads.validate({slot: body.document_id})
     setattr(row, slot, body.document_id)
     row.updated_at = datetime.utcnow()
     await db.commit()
@@ -553,7 +471,7 @@ async def list_reviews(
 ):
     """Applications whose latest status is manual_review, oldest first."""
     if "underwriter" not in principal.roles:
-        await _require(principal, Action.CLAIM_REVIEW, Resource(type="review_queue", id="-"), audit)
+        await require_action(principal, Action.CLAIM_REVIEW, Resource(type="review_queue", id="-"), audit)
     latest: dict[str, DbApplicationStatusLog] = {}
     for row in (await db.execute(select(DbApplicationStatusLog).order_by(DbApplicationStatusLog.id))).scalars():
         latest[row.sk_id_curr] = row
@@ -591,7 +509,7 @@ async def decide_review(
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
     resource = await _resource(db, row)
-    await _require(principal, Action.REVIEW_DECISION, resource, audit, {
+    await require_action(principal, Action.REVIEW_DECISION, resource, audit, {
         "from_status": resource.status, "to_status": body.outcome,
         "reason_code": body.reason_code, "reason": body.reason,
     })
@@ -607,83 +525,7 @@ async def decide_review(
     return {"application_id": resource.id, "status": body.outcome}
 
 
-# ---------------------------------------------------------------------------
-# Decision policy changes (E11): proposed by one risk manager, approved by another.
-# The scoring service picks up the active bands at its next rollout (SCORING_APPROVE_BELOW,
-# SCORING_REJECT_ABOVE); pushing them automatically is a follow-up.
-# ---------------------------------------------------------------------------
-class PolicyChangeRequest(BaseModel):
-    approve_below: float = Field(..., gt=0, lt=1)
-    reject_above: float = Field(..., gt=0, lt=1)
-    rationale: str = Field(..., min_length=10, max_length=1000)
-
-
-class PolicyDecisionRequest(BaseModel):
-    approve: bool
-    comment: str = Field("", max_length=1000)
-
-
-def _policy_out(row: DbPolicyChange) -> dict:
-    return {"id": row.id, "state": row.state, "payload": row.payload, "proposed_by": row.proposed_by,
-            "approved_by": row.approved_by, "created_at": row.created_at, "decided_at": row.decided_at}
-
-
-@app.get("/api/v1/policy-changes", tags=["Policy"])
-async def list_policy_changes(
-    principal: Principal = Depends(get_principal),
-    db: AsyncSession = Depends(get_db),
-    audit: AuditWriter = Depends(get_audit_writer),
-):
-    await _require(principal, Action.PROPOSE_POLICY_CHANGE, Resource(type="policy", id="-"), audit)
-    rows = (await db.execute(select(DbPolicyChange).order_by(DbPolicyChange.id.desc()).limit(50))).scalars().all()
-    return [_policy_out(r) for r in rows]
-
-
-@app.post("/api/v1/policy-changes", status_code=status.HTTP_201_CREATED, tags=["Policy"])
-async def propose_policy_change(
-    body: PolicyChangeRequest,
-    principal: Principal = Depends(get_principal),
-    db: AsyncSession = Depends(get_db),
-    audit: AuditWriter = Depends(get_audit_writer),
-):
-    if not body.approve_below <= body.reject_above:
-        raise HTTPException(status_code=422, detail="approve_below must not exceed reject_above")
-    payload = {"approve_below": body.approve_below, "reject_above": body.reject_above, "rationale": body.rationale}
-    await _require(principal, Action.PROPOSE_POLICY_CHANGE, Resource(type="policy", id="new"), audit,
-                   {"payload": payload})
-    row = DbPolicyChange(proposed_by=principal.sub, payload=payload, state="proposed")
-    db.add(row)
-    await db.commit()
-    await db.refresh(row)
-    return _policy_out(row)
-
-
-@app.post("/api/v1/policy-changes/{change_id}/decision", tags=["Policy"])
-async def decide_policy_change(
-    change_id: int,
-    body: PolicyDecisionRequest,
-    principal: Principal = Depends(get_principal),
-    db: AsyncSession = Depends(get_db),
-    audit: AuditWriter = Depends(get_audit_writer),
-):
-    row = (await db.execute(select(DbPolicyChange).where(DbPolicyChange.id == change_id))).scalar_one_or_none()
-    if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy change not found")
-    if row.state != "proposed":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Policy change is {row.state}")
-    await _require(principal, Action.APPROVE_POLICY_CHANGE,
-                   Resource(type="policy", id=str(change_id), proposed_by=row.proposed_by), audit,
-                   {"payload": row.payload, "proposed_by": row.proposed_by})
-    now = datetime.utcnow()
-    if body.approve:
-        for active in (await db.execute(select(DbPolicyChange).where(DbPolicyChange.state == "active"))).scalars():
-            active.state = "superseded"
-        row.state, row.approved_by = "active", principal.sub
-    else:
-        row.state = "rejected"
-    row.decided_at = now
-    await db.commit()
-    return _policy_out(row)
+app.include_router(policy_changes_router)
 
 
 # ---------------------------------------------------------------------------
@@ -698,7 +540,7 @@ async def audit_trace(
 ):
     resource_type, resource_id = resource.split(":", 1)
     # The auditor's own search is audited too.
-    await _require(principal, Action.READ_AUDIT, Resource(type=resource_type, id=resource_id), audit)
+    await require_action(principal, Action.READ_AUDIT, Resource(type=resource_type, id=resource_id), audit)
     if reader is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Audit store is not configured")
     return {"resource": resource, "events": await reader.trace(resource_type, resource_id)}
@@ -793,7 +635,7 @@ async def lookup_customer(
         select(DbLoanApplication).where(DbLoanApplication.sk_id_curr == customer_ref)
     )).scalars().all() if customer_ref else []
     same_branch = bool(principal.branch_id) and any(r.branch_id == principal.branch_id for r in rows)
-    await _require(principal, Action.LOOKUP_CUSTOMER,
+    await require_action(principal, Action.LOOKUP_CUSTOMER,
                    Resource(type="customer", id=customer_ref or "unknown", purpose=body.purpose), audit,
                    {"purpose": body.purpose, "result_count": len(rows), "same_branch": same_branch})
     statuses = []

@@ -203,7 +203,7 @@ def upload(test_app):
     """upload(sub, slot=2) -> a document id that ``sub`` uploaded (as the API would have keyed it)."""
     import uuid
 
-    from entrypoints.api.main import DOCUMENT_FOLDERS
+    from entrypoints.api.documents import DOCUMENT_FOLDERS
 
     def _upload(sub, slot=2):
         key = f"{test_app.state.cipher.owner_tag(sub)}/{DOCUMENT_FOLDERS[slot]}/doc_{uuid.uuid4().hex}.jpg"

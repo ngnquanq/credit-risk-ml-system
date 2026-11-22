@@ -5,6 +5,8 @@ from core.database import get_db
 from infrastructure.persistence.postgres_loan_repo import PostgresLoanRepository
 from infrastructure.external.kafka_scoring import KafkaScoringGateway
 from workflows.submit_loan import SubmitLoanWorkflow
+
+from .security import get_principal
 from domain.interfaces.loan_repository import LoanRepository
 from domain.interfaces.scoring_gateway import ScoringGateway
 from functools import lru_cache
@@ -105,3 +107,14 @@ def _document_store():
 async def get_document_store():
     """Presigned uploads and existence checks for applicant documents."""
     return _document_store()
+
+
+async def get_document_uploads(
+    principal=Depends(get_principal),
+    cipher=Depends(get_pii_cipher),
+    store=Depends(get_document_store),
+):
+    from core import settings
+    from .documents import DocumentUploads
+
+    return DocumentUploads(cipher, store, settings.upload_max_bytes, principal.sub)
