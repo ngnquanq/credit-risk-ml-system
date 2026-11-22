@@ -33,12 +33,12 @@
 | staff | auditor | Decision trace (by application id): timeline of audit events with hash-chain status |
 
 - **Layouts and look:** every applicant screen exists at phone width (390 px, the primary channel) and desktop width (≥1280 px); staff screens are desktop-first and still usable on a tablet. Palette: red `#C8102E` for primary actions and risk-raising contributions, black `#111111` text, greys `#3F3F46`/`#52525B` for secondary text, `#E4E4E7`/`#F4F4F5` for borders and grounds, white surfaces. All text pairs meet 4.5:1. Fonts: Be Vietnam Pro (applicant, Vietnamese copy), Inter (staff, English).
-- **Removal:** `application/frontend` (Streamlit), its Deployment, Service and Ingress, once both portals pass UAT.
+- **Removal:** The Streamlit source and manifests have been removed from the repository.
 
 **Out**
 - Native mobile apps, notifications (email or SMS), internationalisation beyond English and Vietnamese labels.
 
-## 3. Today
+## 3. Original baseline
 
 As-built view: [`L2-1-Intake`](../architecture/c4/docs/images/L2-1-Intake.svg). Streamlit calls the API from its pod; no sign-in; no read-back.
 
@@ -180,7 +180,7 @@ Applicants never see the raw score, band thresholds or contributions. Staff deta
 | `contracts/openapi/loan-api.json`, `portals/packages/api-client` | schema exported by `make contracts`; client generated from it (`openapi-typescript`); both checked in, CI regenerates and diffs ([ADR-0011](../adr/0011-monorepo-layout-for-portals-contracts-and-environments.md)) |
 | `platform/core/k8s/portals/` | **new**: Deployments (2 replicas each), Services, Ingresses (public with `limit-rps`, internal with source allow-list), Redis for sessions, NetworkPolicies |
 | `application/entrypoints/api/main.py` | `GET /api/v1/applications/{id}/decision`; CORS no longer needed (calls come from the BFF server) |
-| `application/frontend/`, `platform/core/k8s/07-frontend.yaml`, `08-frontend-ingress.yaml` | delete after UAT |
+| Legacy Streamlit source, Deployment, Service and Ingress | Removed from the repository |
 | `Makefile` | `portals-build`, `k8s-portals`; `check` runs `pnpm -r lint test` |
 
 ## 7. Acceptance criteria → tests
@@ -209,12 +209,11 @@ Applicants never see the raw score, band thresholds or contributions. Staff deta
 
 ## 9. Rollout, rollback, observability
 
-1. Deploy both portals next to Streamlit.
+1. Deploy both portals.
 2. Run UAT (E16).
-3. Switch the public host to the applicant portal.
-4. Delete Streamlit.
+3. Route the public host to the applicant portal.
 
-**Rollback:** point the public ingress back to Streamlit until it is deleted. After deletion, roll back by redeploying the previous portal image.
+**Rollback:** Redeploy the previous portal image. Clusters that still have the retired Streamlit Deployment, Service or Ingress need a separate cleanup.
 
 **Signals:** portal request latency and error rate; sign-in failures; CSP violation reports (`report-to` endpoint logged to ECK).
 

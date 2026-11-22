@@ -118,7 +118,7 @@ E10 follows once credit policy confirms the rules.
 
 **Goal.** An application and its documents are captured once, either by a loan officer for a walk-in customer or by the applicant online, and the platform has everything it needs to decide.
 
-**Built.** Streamlit form, `POST /api/v1/applications`, presigned upload to MinIO, PostgreSQL storage, CDC to Kafka.
+**Built.** Applicant and staff portals, `POST /api/v1/applications`, presigned upload to MinIO, PostgreSQL storage, CDC to Kafka.
 
 **Gaps.** The API also publishes onto the CDC topic (dual write, F-03), with a new producer per request (F-05). No authentication (E11). The application does not record its channel, who entered it, or which branch it belongs to.
 

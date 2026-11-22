@@ -4,6 +4,8 @@ This is the C4 description of the Credit Risk Decisioning Platform **as it is bu
 
 The model lives in [`workspace.dsl`](../workspace.dsl). Every diagram here is generated from it, so change the DSL rather than the pictures.
 
+> The original Minikube views describe the baseline before the Streamlit retirement. For the current web entry points, see [the applicant and staff portals](../../../../portals/README.md).
+
 ## What the system does
 
 1. A loan application is submitted through a Streamlit UI and stored in PostgreSQL by a FastAPI service.

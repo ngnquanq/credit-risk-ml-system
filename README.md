@@ -168,7 +168,6 @@ Build Docker images directly into Minikube's Docker daemon (no registry push nee
 ```bash
 make build-api          # API service image
 make build-consumers    # Bureau + feature consumer image
-make build-frontend     # Streamlit dashboard image
 ```
 
 > **Note:** `build-flink` and `build-dbt` are called automatically by later targets. `build-feast-repo` pushes to Docker Hub — run it only if you've modified the Feast code.
@@ -196,8 +195,9 @@ kubectl get pods -n data-services
 
 kubectl get pods -n api-gateway
 # api-service-...        1/1     Running   (2 replicas)
-# frontend-service-...   1/1     Running
 ```
+
+For the applicant and staff web interfaces, follow the [portal setup](portals/README.md) or the [local demo stack](scripts/local/README.md).
 
 ### Phase 4 — Stream Processing (~5 min)
 
@@ -411,11 +411,11 @@ The application flows through: **API → PostgreSQL → Debezium CDC → Kafka �
 │   ├── scoring/                  #   BentoML scoring service                    (Bento → KServe)
 │   ├── feast_repo/               #   Feast definitions + stream materialiser     (image: feast-repo)
 │   ├── flink/                    #   PyFlink CDC and bureau aggregation jobs    (image: flink-pyflink)
-│   ├── training/                 #   XGBoost training + MLflow registration
-│   └── frontend/                 #   Streamlit UI                               (image: credit-risk-frontend)
+│   └── training/                 #   XGBoost training + MLflow registration
+├── portals/                      # Next.js applicant and staff portals
 ├── ml_data_mart/                 # dbt project for the ClickHouse marts           (image: dbt-clickhouse)
 ├── platform/                     # Kubernetes manifests and Helm values, by plane
-│   ├── core/                     #   API, frontend, ingress; DB schemas and PgBouncer config
+│   ├── core/                     #   API, identity, portals, ingress, DB schemas and PgBouncer
 │   ├── data/                     #   Postgres, Kafka, Debezium, ClickHouse, Flink, consumers
 │   ├── ml/                       #   MLflow, KServe/Knative, Feast, Kubeflow, Ray, watchers
 │   └── ops/                      #   Prometheus/Grafana, ECK logging, tracing, cert-manager
@@ -465,7 +465,7 @@ Feast stream processor needs `serving-minio.model-serving.svc.cluster.local:9000
 These are resource-intensive. On smaller machines, they may not schedule. **Fix**: Skip `make k8s-logging` and `make k8s-monitoring` — the core platform works without them.
 
 ### API pods ImagePullBackOff
-Images like `ngnquanq/credit-risk-api:latest` must be built into Minikube's Docker, not pulled from Docker Hub. **Fix**: Run `make build-api`, `make build-consumers`, `make build-frontend` before `make k8s-core`.
+Images like `ngnquanq/credit-risk-api:latest` must be built into Minikube's Docker, not pulled from Docker Hub. **Fix**: Run `make build-api` and `make build-consumers` before `make k8s-core`.
 
 ### Minikube IP change after restart
 If Minikube IP changes between sessions, some services may fail to connect. **Fix**: `minikube -p mlops stop && make k8s-up`.

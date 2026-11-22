@@ -131,7 +131,7 @@ sequenceDiagram
 | `application/entrypoints/api/security.py` | **new**: `ApiKeyGuard` |
 | `application/entrypoints/api/main.py` | router for `/api/v1` with the guard; CORS settings above |
 | `application/core/config.py` | `api_keys`, validator for CORS and keys |
-| `application/frontend/utils.py`, `platform/core/k8s/07-frontend.yaml` | send the header; env from Secret |
+| Portal BFF API client and deployment configuration | Review the planned gateway controls against the OIDC token relay in [E11](E11-identity-access.md) and [E12](E12-portals.md) |
 | `Makefile` (`k8s-secrets`, new `check`), `.env.example` | key provisioning; local gate |
 | `.pre-commit-config.yaml` | **new**: gitleaks (and `check-added-large-files`) |
 | `application/training/train_register.py:230`, `platform/ml/k8s/training-pipeline/pipeline.py:361` | `input_example = synthetic_example(X_train)` |

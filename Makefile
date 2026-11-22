@@ -120,12 +120,6 @@ build-api: ## Build the API Docker image for K8s (loads into Minikube if driver=
 	docker build -t ngnquanq/credit-risk-api:latest -f application/Dockerfile .
 	@echo "✅ API image built and loaded into Minikube"
 
-build-frontend:
-	@echo "Building Frontend image for System..."
-	@eval $$(minikube -p $(MINIKUBE_PROFILE) docker-env) && \
-	docker build -t ngnquanq/credit-risk-frontend:latest -f application/frontend/Dockerfile application
-	@echo "✅ Frontend image built and loaded into Minikube"
-
 build-consumers: ## Build Consumer Services image for K8s
 	@echo "Building Consumers image for System..."
 	@eval $$(minikube -p $(MINIKUBE_PROFILE) docker-env) && \

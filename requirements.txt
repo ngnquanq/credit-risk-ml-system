@@ -36,7 +36,6 @@ fastavro==1.9.5
 fissix==24.4.24
 fsspec==2024.6.1
 greenlet==3.0.3
-streamlit==1.49.1
 grpcio==1.66.0
 grpcio-health-checking==1.62.3
 mlflow==3.3.2

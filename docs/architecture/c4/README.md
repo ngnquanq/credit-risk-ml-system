@@ -1,6 +1,6 @@
 # C4 architecture model
 
-The architecture of the Credit Risk Decisioning Platform as built, in [Structurizr DSL](https://docs.structurizr.com/dsl). The model was checked against the code on 2026-11-21 (commit `7605340`).
+The architecture of the Credit Risk Decisioning Platform in [Structurizr DSL](https://docs.structurizr.com/dsl). The original Minikube views record the baseline checked on 2026-11-21 (commit `7605340)), before Streamlit was retired. The portal views document the replacement design.
 
 | Path | What it is |
 |---|---|
