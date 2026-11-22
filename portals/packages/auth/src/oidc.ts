@@ -55,10 +55,12 @@ export async function completeLogin(
     expectedState: state,
     expectedNonce: pending.nonce,
   });
-  const claims = tokens.claims() ?? {};
+  // scope includes "openid", so a valid response always carries an ID token.
+  const claims = tokens.claims();
+  if (!claims) throw new Error("Token response has no ID token");
   const access = decodePayload(tokens.access_token);
   const { id } = await store.create({
-    sub: String(claims.sub),
+    sub: claims.sub,
     name: typeof claims.name === "string" ? claims.name : undefined,
     roles: rolesFrom(access),
     branchId: typeof access["branch_id"] === "string" ? (access["branch_id"] as string) : null,
