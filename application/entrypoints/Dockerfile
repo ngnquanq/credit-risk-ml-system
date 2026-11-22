@@ -24,7 +24,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 ENV PATH="/opt/venv/bin:$PATH"
 
 COPY --from=builder /opt/venv /opt/venv
-COPY application/ /app/
+# Used by the enrichment consumers, decision recorder and audit verification job.
+COPY application/entrypoints/bureau_consumer.py application/entrypoints/feature_consumer.py application/entrypoints/decision_recorder.py /app/entrypoints/
+COPY application/audit /app/audit
+COPY application/core /app/core
+COPY application/decisions /app/decisions
+COPY application/infrastructure /app/infrastructure
 ENV PYTHONPATH=/app
 
 CMD ["python", "entrypoints/bureau_consumer.py"]

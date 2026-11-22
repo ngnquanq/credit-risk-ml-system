@@ -33,8 +33,18 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy the venv from builder
 COPY --from=builder /opt/venv /opt/venv
 
-# Copy application code
-COPY application /app
+# Loan API runtime and the catalog text it uses to render decision reasons.
+COPY application/run.py /app/run.py
+COPY application/entrypoints/api /app/entrypoints/api
+COPY application/audit /app/audit
+COPY application/authz /app/authz
+COPY application/core /app/core
+COPY application/decisions /app/decisions
+COPY application/domain /app/domain
+COPY application/identity /app/identity
+COPY application/infrastructure /app/infrastructure
+COPY application/workflows /app/workflows
+COPY application/training/feature_catalog/reasons.yaml /app/training/feature_catalog/reasons.yaml
 
 # Create non-root user and set permissions
 RUN useradd --create-home --shell /bin/bash app && \
