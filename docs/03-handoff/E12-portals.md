@@ -138,15 +138,27 @@ Applicant status polling: the detail page polls `GET /api/v1/applications/{id}/d
 
 ```json
 {
-  "sk_id_curr": "100002",
+  "application_id": "f0155e69-6681-49e9-86c0-6c92e99d27c9",
   "status": "manual_review",
+  "amt_credit": 40000000,
+  "submitted_at": "2026-12-02T09:12:40Z",
   "decided_at": "2026-12-02T09:14:03Z",
   "reasons": [
-    {"code": "EXT_SCORE_LOW", "text": "External credit scores are low"},
-    {"code": "CREDIT_TO_GOODS_HIGH", "text": "Requested credit is high relative to the goods price"}
-  ]
+    {"code": "EXT_SCORE_LOW", "text": "Điểm tín dụng từ nguồn bên ngoài thấp"},
+    {"code": "CREDIT_TO_GOODS_HIGH", "text": "Số tiền vay cao so với giá trị hàng hoá hoặc thu nhập"}
+  ],
+  "history": [{"status": "submitted", "at": "2026-12-02T09:12:40Z"}, {"status": "manual_review", "at": "2026-12-02T09:14:03Z"}]
 }
 ```
+
+The language of the reasons follows `Accept-Language` (the BFF sends `vi` for applicants, `en` for staff).
+
+**URLs and money** ([ADR-0014](../adr/0014-applicant-personal-data-and-opaque-ids.md))
+- Page URLs carry only the opaque application id: `/applications/{public_id}`, `/cases/{public_id}`, `/reviews/{public_id}`.
+- People see a short reference, `HS-F0155E69`.
+- The estimator posts to a server action that keeps amount and term in a server-side draft (`__Host-draft`, httpOnly, 30 minutes); `/apply` has no query string.
+- Amounts are shown and typed as `40,000,000 ₫` (comma every three digits). Money inputs are `type="text" inputMode="numeric"` with live grouping, never `type="number"`.
+- Documents go browser → storage with the presigned POST policy from `POST /api/v1/presigned-url`. The CSP `connect-src` lists only `STORAGE_PUBLIC_ORIGIN`.
 
 Applicants never see the raw score, band thresholds or contributions. Staff detail views include score, band, contributions and model version.
 
@@ -158,6 +170,7 @@ Applicants never see the raw score, band thresholds or contributions. Staff deta
 | `OIDC_CLIENT_SECRET`, `SESSION_SECRET` | Secret, created by `make k8s-secrets` |
 | `API_BASE_URL` | ConfigMap: `http://api-service.api-gateway.svc` |
 | `SESSION_REDIS_URL` | ConfigMap |
+| `STORAGE_PUBLIC_ORIGIN` | ConfigMap: origin browsers upload documents to (added to CSP `connect-src`) |
 
 ## 6. Change list
 
@@ -181,6 +194,10 @@ Applicants never see the raw score, band thresholds or contributions. Staff deta
 | AC5 | Given response headers, then CSP, HSTS, `frame-ancestors 'none'` and `Referrer-Policy` are present | Playwright `headers.spec.ts`; ZAP baseline (E16) |
 | AC6 | Given 30 minutes idle, then the next request redirects to sign-in | unit test of `SessionStore` with a fake clock |
 | AC7 | Given axe-core, then no serious or critical accessibility violations on the five main screens | Playwright + `@axe-core/playwright` |
+| AC8 | Given the estimator → apply → submit journey, then no request URL contains the amount, term, citizen ID or phone | `e2e-local/applicant.spec.ts` |
+| AC9 | Given any amount on either portal, then it is grouped with commas; typing `15000000` shows `15,000,000` | `packages/ui/src/format.test.ts`, E2E |
+| AC10 | Given an iPhone-sized screen (390 px), then the header stays on one line and no page scrolls sideways, signed in or not | `e2e-local/applicant.spec.ts` (iPhone 14 profile) |
+| AC11 | Given a self-service submission without both ID card sides, then the browser stops it, and the API returns `422` if it gets through | E2E; `tests/integration/api/test_personal_data.py` |
 
 ## 8. Test plan by layer
 

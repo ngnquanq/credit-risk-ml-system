@@ -1,4 +1,4 @@
-from pydantic import Field, ConfigDict, computed_field, SecretStr
+from pydantic import AliasChoices, Field, ConfigDict, computed_field, SecretStr
 from pydantic_settings import BaseSettings
 from typing import Optional
 
@@ -94,13 +94,32 @@ class Settings(BaseSettings):
 
     # MinIO / S3-compatible object storage
     minio_endpoint: str = Field(default="minio-server:9000", description="MinIO endpoint host:port", alias="MINIO_ENDPOINT")
-    minio_access_key: Optional[SecretStr] = Field(default=None, description="MinIO access key")
-    minio_secret_key: Optional[SecretStr] = Field(default=None, description="MinIO secret key")
+    # `make k8s-secrets` writes MINIO_*; .env.example uses APP_MINIO_*. Both are read.
+    minio_access_key: Optional[SecretStr] = Field(
+        default=None, description="MinIO access key",
+        validation_alias=AliasChoices("MINIO_ACCESS_KEY", "APP_MINIO_ACCESS_KEY"),
+    )
+    minio_secret_key: Optional[SecretStr] = Field(
+        default=None, description="MinIO secret key",
+        validation_alias=AliasChoices("MINIO_SECRET_KEY", "APP_MINIO_SECRET_KEY"),
+    )
     minio_secure: bool = Field(default=False, description="Use HTTPS for MinIO")
     minio_bucket: str = Field(default="loan-documents", description="MinIO bucket for documents")
     minio_presigned_expiry_minutes: int = Field(
-        default=60, description="Expiry for presigned URLs in minutes"
+        default=10, description="Expiry for presigned upload policies in minutes"
     )
+    minio_region: str = Field(default="us-east-1", description="Bucket region (avoids a lookup call when signing)")
+    minio_public_url: Optional[str] = Field(
+        default=None,
+        description="Origin browsers upload to, e.g. https://docs.credit.local (default: the endpoint). "
+        "POST policies do not sign the host, so the internal endpoint can sign for the public one.",
+    )
+    upload_max_bytes: int = Field(default=10 * 1024 * 1024, description="Largest document a browser may upload")
+
+    # Applicant personal data (ADR-0014): field encryption keyring and the lookup HMAC key.
+    # Keyring format: "k2:<base64 32 bytes>,k1:<...>" (first = active). Required outside debug mode.
+    pii_keks: Optional[SecretStr] = Field(default=None, description="Key-encryption keys for applicant data")
+    pii_hmac_key: Optional[SecretStr] = Field(default=None, description="Base64 key (>= 32 bytes) for citizen-id lookup")
 
 # Global settings instance
 settings = Settings()

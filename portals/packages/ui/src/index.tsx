@@ -1,4 +1,9 @@
 import type { ReactNode } from "react";
+import { formatDateTimeVi } from "./format";
+
+export * from "./format";
+export { MoneyInput } from "./MoneyInput";
+export { DocumentUpload, type RequestUpload, type UploadTicket } from "./DocumentUpload";
 
 export type Status = "submitted" | "approved" | "rejected" | "manual_review";
 
@@ -72,4 +77,44 @@ export function ContributionBars({ contributions, limit = 8 }: { contributions: 
 /** Hidden CSRF field for server-action forms (E12). */
 export function CsrfField({ token }: { token: string }) {
   return <input type="hidden" name="csrf_token" value={token} />;
+}
+
+/** Progress through the applicant journey (estimate -> apply -> result). */
+export function Stepper({ steps, current }: { steps: string[]; current: number }) {
+  return (
+    <ol className="stepper" aria-label={`Bước ${current + 1} / ${steps.length}`}>
+      {steps.map((label, i) => (
+        <li key={label} className={i < current ? "done" : i === current ? "current" : ""}
+          aria-current={i === current ? "step" : undefined}>
+          <span className="stepper-dot" aria-hidden="true">{i < current ? "✓" : i + 1}</span>
+          <span className="stepper-label">{label}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+export interface TimelineItem {
+  label: string;
+  at?: string | null;
+  state: "done" | "current" | "todo";
+}
+
+/** Vertical progress of an application; times only, never scores or internal notes. */
+export function Timeline({ items }: { items: TimelineItem[] }) {
+  return (
+    <ol className="timeline">
+      {items.map((item, i) => (
+        <li key={`${item.label}-${i}`} className={`timeline-${item.state}`}>
+          <span className="timeline-dot" aria-hidden="true" />
+          <div>
+            <div style={{ fontWeight: 600 }}>{item.label}</div>
+            <div className="muted" style={{ fontSize: 13 }}>
+              {item.at ? formatDateTimeVi(item.at) : item.state === "current" ? "Đang chờ" : ""}
+            </div>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
 }

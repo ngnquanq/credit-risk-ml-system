@@ -50,6 +50,21 @@ def allowed(principal, action, resource):
         (OFFICER, Action.READ_CUSTOMER_PROFILE, Resource(created_by_sub="off-9", consent_recorded=True), False),
         (UNDERWRITER, Action.READ_CUSTOMER_PROFILE, STAFF_APP, True),
         (APPLICANT, Action.READ_CUSTOMER_PROFILE, SELF_APP, False),
+        # unmasked citizen ID and phone (ADR-0014)
+        (OFFICER, Action.REVEAL_IDENTITY, STAFF_APP, True),
+        (OFFICER, Action.REVEAL_IDENTITY, Resource(created_by_sub="off-9", branch_id="HN01"), False),
+        (OFFICER_OTHER_BRANCH, Action.REVEAL_IDENTITY, STAFF_APP, False),
+        (UNDERWRITER, Action.REVEAL_IDENTITY, STAFF_APP, True),
+        (UNDERWRITER, Action.REVEAL_IDENTITY, Resource(status="approved"), False),
+        (AUDITOR, Action.REVEAL_IDENTITY, STAFF_APP, False),
+        (APPLICANT, Action.REVEAL_IDENTITY, SELF_APP, False),
+        (RISK, Action.REVEAL_IDENTITY, STAFF_APP, False),
+        # extra documents while the file is open
+        (APPLICANT, Action.ATTACH_DOCUMENT, SELF_APP, True),
+        (APPLICANT, Action.ATTACH_DOCUMENT, Resource(channel="self", applicant_sub="cust-a", status="rejected"), False),
+        (OTHER_APPLICANT, Action.ATTACH_DOCUMENT, SELF_APP, False),
+        (OFFICER, Action.ATTACH_DOCUMENT, STAFF_APP, True),
+        (UNDERWRITER, Action.ATTACH_DOCUMENT, STAFF_APP, False),
         # lookups by exact ID with a purpose
         (OFFICER, Action.LOOKUP_CUSTOMER, Resource(type="customer", purpose="co_applicant"), True),
         (OFFICER, Action.LOOKUP_CUSTOMER, Resource(type="customer", purpose="curiosity"), False),

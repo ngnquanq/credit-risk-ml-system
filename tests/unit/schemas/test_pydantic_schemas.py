@@ -2,7 +2,6 @@
 
 import pytest
 from pydantic import ValidationError
-from datetime import datetime
 
 from infrastructure.persistence.models.pydantic_schemas import (
     LoanApplicationCreate,
@@ -60,9 +59,14 @@ class TestLoanApplicationCreateValid:
         assert obj.amt_goods_price == 0
 
     def test_document_ids_dict(self, valid_create_payload):
-        payload = {**valid_create_payload, "document_ids": {"doc_2": "id1", "doc_3": "id2"}}
+        payload = {**valid_create_payload, "document_ids": {"document_id_2": "id1", "document_id_15": "id2"}}
         obj = LoanApplicationCreate(**payload)
-        assert obj.document_ids == {"doc_2": "id1", "doc_3": "id2"}
+        assert obj.document_ids == {"document_id_2": "id1", "document_id_15": "id2"}
+
+    @pytest.mark.parametrize("slot", ["doc_2", "document_id_1", "document_id_22", "passport"])
+    def test_unknown_document_slots_are_rejected(self, valid_create_payload, slot):
+        with pytest.raises(ValidationError, match="document slot"):
+            LoanApplicationCreate(**{**valid_create_payload, "document_ids": {slot: "id"}})
 
 
 class TestLoanApplicationCreateInvalid:
@@ -113,17 +117,12 @@ class TestLoanApplicationCreateInvalid:
             LoanApplicationCreate(**payload)
 
 
-class TestLoanApplicationResponseBugs:
-    def test_response_silently_ignores_status_kwarg(self):
-        """
-        BUG DOC: LoanApplicationResponse has no `status` field.
-        main.py passes status=output.status via **kwargs, but Pydantic's default
-        extra handling silently ignores unknown fields. The real failure is that
-        the response object has no `status` attribute despite main.py expecting it.
-        """
+class TestLoanApplicationResponse:
+    def test_exposes_the_opaque_id_never_the_internal_key(self):
+        """ADR-0014: responses carry ``id`` (public id); ``sk_id_curr`` stays inside the API."""
         resp = LoanApplicationResponse(
-            sk_id_curr="1",
-            code_gender="M",
+            id="7c1e0c8e-8d0e-4c3a-9a51-1f1f1f1f1f1f",
+            sk_id_curr="100002",
             birth_date="1990-01-01",
             cnt_children=0,
             amt_income_total=100_000,
@@ -146,9 +145,8 @@ class TestLoanApplicationResponseBugs:
             flag_own_car=0,
             flag_own_realty=0,
             own_car_age=None,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
-            status="submitted",  # silently ignored — no `status` in schema
+            created_at="2026-01-01T00:00:00",
+            updated_at="2026-01-01T00:00:00",
         )
-        # `status` was silently dropped — attribute doesn't exist on model
-        assert not hasattr(resp, "status") or "status" not in resp.model_fields
+        assert "sk_id_curr" not in resp.model_dump()
+        assert resp.id.startswith("7c1e0c8e")

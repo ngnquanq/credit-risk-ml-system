@@ -115,6 +115,8 @@ The policy is pure: no I/O, no framework imports. Routes load the resource (only
 
 ### 4.3 Behaviour
 
+See the [portal authentication and API authorization sequence](../../platform/core/k8s/identity/README.md#portal-authentication-and-api-authorization) for browser sign-in, callback, and session handling.
+
 Every protected request goes through the same steps:
 
 ```mermaid
@@ -156,7 +158,9 @@ The four-eyes rule for policy changes is a state machine: see [domain model §9]
 | `submit_application` | own (`channel=self`) | own branch (`channel=staff`) | – | – | – | – |
 | `read_application` (PII) | own | own branch | applications in `manual_review` | – | via audit trace only | – |
 | `read_customer_profile` (internal factors: contracts with us, exposure, repayment, bureau summary) | – | only for an application they handle, after consent is recorded | applications in `manual_review` | – | via audit trace only | – |
-| `lookup_customer` (by exact citizen ID + purpose) | – | yes; other branches return contract count and status only | – | – | – | – |
+| `reveal_identity` (full citizen ID and phone, with an audited reason; [ADR-0014](../adr/0014-applicant-personal-data-and-opaque-ids.md)) | – | only for an application they entered | applications in `manual_review` | – | sees the audited reveal, never the values | – |
+| `attach_document` (e.g. payslips during review) | own, while `submitted` or `manual_review` | own branch | – | – | – | – |
+| `lookup_customer` (`POST /customers:lookup`, exact citizen ID in the body + purpose) | – | yes; other branches return contract count and status only | – | – | – | – |
 | `add_case_note`, `flag_concern` | – | own branch | yes | – | – | – |
 | `read_decision` (band, plain-language reasons) | own | own branch | any | any | any | – |
 | `read_explanation` (score, contributions, versions) | – | – | applications in `manual_review` | aggregate views only | as recorded | – |
@@ -214,6 +218,11 @@ CREATE TABLE policy_change (
 
 Existing rows keep `channel='staff'` and null owners. They are readable only by `auditor` until backfilled.
 
+**Migration `006_public_ids_and_identity.sql`** ([ADR-0014](../adr/0014-applicant-personal-data-and-opaque-ids.md))
+- `loan_applications.public_id UUID` (unique, random) is the only id in routes, responses, audit entries and portal URLs; `sk_id_curr` stays inside the API.
+- `applicant_identity` (outside the CDC publication) holds the name, citizen ID and phone, each AES-256-GCM-encrypted with a wrapped data key, plus `citizen_id_hmac` for lookup and the last three digits for masking.
+- Settings `APP_PII_KEKS` (keyring, first key active) and `APP_PII_HMAC_KEY`; the API refuses to start without them outside debug mode.
+
 ## 6. Change list
 
 | File | Change |
@@ -244,6 +253,10 @@ Existing rows keep `channel='staff'` and null owners. They are readable only by 
 | AC10 | Given a loan officer and an application they did not enter, when reading the customer profile, then `403` with rule `handling_application` | `tests/integration/api/test_customer_profile.py` |
 | AC11 | Given a lookup without a purpose, or by name instead of ID, then `422`; given a valid lookup in another branch, then only contract count and status are returned, and the lookup is audited with its purpose | `tests/integration/api/test_customer_lookup.py` |
 | AC12 | Given a loan officer token, when calling the explanation route, then `403`; the decision route returns reasons without score or contributions | `tests/integration/api/test_explanation_visibility.py` |
+| AC13 | Given a stored identity, then the database holds no citizen ID, phone or name in clear, and a response shows the name with masked numbers | `tests/integration/api/test_personal_data.py` |
+| AC14 | Given a reveal with a reason by the handling officer, then the numbers are returned with `no-store` and the audit holds the reason but neither number; auditors, other officers and risk managers get `403` | same, and `staff.spec.ts` (E2E) |
+| AC15 | Given a malformed, unknown, numeric or other person's id, then the same `404`/`403`; no route accepts `sk_id_curr` | same; `applicant.spec.ts` (E2E) |
+| AC16 | Given a submission or reveal, then no citizen ID, phone or name appears in the API log or audit details | same (captured logs); checked again on the local stack |
 
 ## 8. Test plan by layer
 

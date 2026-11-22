@@ -73,6 +73,32 @@ def _install_otel_fastapi_stub():
     setattr(instrumentation, "fastapi", fastapi_mod)
 
 
+def _test_cipher():
+    import base64
+    import os
+
+    from identity import PiiCipher
+
+    key = lambda: base64.urlsafe_b64encode(os.urandom(32)).decode()  # noqa: E731
+    return PiiCipher.from_settings(f"t1:{key()}", key())
+
+
+class FakeDocumentStore:
+    """Signs nothing and stores nothing; ``uploaded`` is what a browser would have posted."""
+
+    def __init__(self):
+        self.uploaded: set[str] = set()
+        self.fail: Exception | None = None
+
+    def upload_policy(self, key, content_type, max_bytes):
+        if self.fail:
+            raise self.fail
+        return "http://storage.test/loan-documents", {"key": key, "Content-Type": content_type, "policy": "p"}
+
+    async def exists(self, key):
+        return key in self.uploaded
+
+
 @pytest.fixture
 async def test_app(db_session, mock_workflow):
     """FastAPI app with dependency overrides for DB and workflow."""
@@ -80,16 +106,10 @@ async def test_app(db_session, mock_workflow):
     _install_otel_fastapi_stub()
     with patch("core.tracing.setup.OTLPSpanExporter", MagicMock()), \
          patch("core.tracing.setup.BatchSpanProcessor", MagicMock()), \
-         patch("opentelemetry.instrumentation.fastapi.FastAPIInstrumentor") as mock_instr, \
-         patch("minio.Minio") as MockMinio:
+         patch("opentelemetry.instrumentation.fastapi.FastAPIInstrumentor") as mock_instr:
 
         mock_instr_instance = MagicMock()
         mock_instr.return_value = mock_instr_instance
-
-        mock_minio = MagicMock()
-        mock_minio.bucket_exists.return_value = True
-        mock_minio.presigned_put_object.return_value = "https://minio.test/presigned"
-        MockMinio.return_value = mock_minio
 
         from entrypoints.api.main import app
         from core.database import get_db
@@ -130,6 +150,21 @@ async def test_app(db_session, mock_workflow):
 
         app.dependency_overrides[get_audit_reader] = override_get_audit_reader
 
+        # ADR-0014: a throwaway keyring per test, and storage that remembers what was "uploaded".
+        from entrypoints.api.dependencies import get_document_store, get_pii_cipher
+
+        app.state.cipher = _test_cipher()
+        app.state.document_store = FakeDocumentStore()
+
+        async def override_get_pii_cipher():
+            return app.state.cipher
+
+        async def override_get_document_store():
+            return app.state.document_store
+
+        app.dependency_overrides[get_pii_cipher] = override_get_pii_cipher
+        app.dependency_overrides[get_document_store] = override_get_document_store
+
         yield app
 
         app.dependency_overrides.clear()
@@ -164,9 +199,24 @@ def audit(test_app):
 
 
 @pytest.fixture
+def upload(test_app):
+    """upload(sub, slot=2) -> a document id that ``sub`` uploaded (as the API would have keyed it)."""
+    import uuid
+
+    from entrypoints.api.main import DOCUMENT_FOLDERS
+
+    def _upload(sub, slot=2):
+        key = f"{test_app.state.cipher.owner_tag(sub)}/{DOCUMENT_FOLDERS[slot]}/doc_{uuid.uuid4().hex}.jpg"
+        test_app.state.document_store.uploaded.add(key)
+        return key
+
+    return _upload
+
+
+@pytest.fixture
 def valid_payload():
     return {
-        "sk_id_curr": "100001",
+        "applicant": {"full_name": "Nguyễn Văn Thử", "citizen_id": "001099000123", "phone": "0900 000 123"},
         "birth_date": "1990-01-15",
         "cnt_children": 0,
         "amt_income_total": 180_000.0,

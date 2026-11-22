@@ -1,16 +1,23 @@
+import { Redis } from "ioredis";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { loadConfig, type PortalConfig, type Realm } from "./config";
 import { verifyMutation, CSRF_FIELD } from "./csrf";
+import { DraftStore, type LoanDraft } from "./draft";
 import { refreshIfNeeded } from "./oidc";
-import { SESSION_COOKIE, SessionStore, type Session } from "./session";
+import { DRAFT_COOKIE, SESSION_COOKIE, SessionStore, type Session } from "./session";
 
-let cached: { config: PortalConfig; store: SessionStore } | null = null;
+let cached: { config: PortalConfig; store: SessionStore; drafts: DraftStore } | null = null;
 
-export function portal(realm: Realm): { config: PortalConfig; store: SessionStore } {
+export function portal(realm: Realm): { config: PortalConfig; store: SessionStore; drafts: DraftStore } {
   if (!cached) {
     const config = loadConfig(realm);
-    cached = { config, store: SessionStore.fromUrl(config.redisUrl, config.idleTimeout, config.absoluteTimeout) };
+    const kv = new Redis(config.redisUrl, { lazyConnect: false, maxRetriesPerRequest: 2 });
+    cached = {
+      config,
+      store: new SessionStore(kv, config.idleTimeout, config.absoluteTimeout),
+      drafts: new DraftStore(kv),
+    };
   }
   return cached;
 }
@@ -42,6 +49,35 @@ export async function requireSession(realm: Realm, roles?: string[]): Promise<Se
   return session;
 }
 
+/** Server actions called from client components (no form, so no CSRF field): Origin must be ours. */
+export function assertSameOrigin(realm: Realm): void {
+  const { config } = portal(realm);
+  if (headers().get("origin") !== config.baseUrl) throw new Error("Request rejected: foreign origin");
+}
+
+/** Estimator draft behind an httpOnly cookie (ADR-0014: amounts stay out of URLs). */
+export async function saveLoanDraft(realm: Realm, draft: LoanDraft): Promise<void> {
+  const { drafts } = portal(realm);
+  const id = await drafts.save(draft, cookies().get(DRAFT_COOKIE)?.value);
+  cookies().set(DRAFT_COOKIE, id, { ...sessionCookieOptions, maxAge: 1800 });
+}
+
+/** Read (and consume the flash message of) the draft; null when there is none. */
+export async function readLoanDraft(realm: Realm): Promise<LoanDraft | null> {
+  const { drafts } = portal(realm);
+  const id = cookies().get(DRAFT_COOKIE)?.value;
+  const draft = await drafts.get(id);
+  if (draft?.flash && id) await drafts.save({ amount: draft.amount, term: draft.term }, id);
+  return draft;
+}
+
+/** After a successful submission. Server actions and route handlers only (cookies are read-only in pages). */
+export async function clearLoanDraft(realm: Realm): Promise<void> {
+  const { drafts } = portal(realm);
+  await drafts.clear(cookies().get(DRAFT_COOKIE)?.value);
+  cookies().delete(DRAFT_COOKIE);
+}
+
 /** Server actions call this first: CSRF token plus Origin check (E12 AC2). */
 export function assertMutation(realm: Realm, session: Session, form: FormData): void {
   const { config } = portal(realm);
@@ -66,6 +102,8 @@ export async function api<T>(realm: Realm, session: Session, path: string, init:
       ...(init.headers ?? {}),
       Authorization: `Bearer ${session.accessToken}`,
       "Content-Type": "application/json",
+      // Reasons come back in the portal's language (the API reads Accept-Language, not the URL).
+      "Accept-Language": realm === "customers" ? "vi" : "en",
     },
   });
   const body = response.status === 204 ? null : await response.json().catch(() => null);

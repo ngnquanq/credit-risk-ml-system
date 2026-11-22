@@ -1,7 +1,8 @@
-import { paths, type DecisionView } from "@crs/api";
+import { paths, type ApplicationView, type DecisionView } from "@crs/api";
 import { ApiError, api, assertMutation, requireSession } from "@crs/auth/server";
-import { Card, CsrfField, ReasonList, StatusBadge } from "@crs/ui";
+import { Card, CsrfField, ReasonList, StatusBadge, formatVnd, shortRef } from "@crs/ui";
 import { notFound, redirect } from "next/navigation";
+import { CustomerIdentity } from "../../CustomerIdentity";
 
 export const dynamic = "force-dynamic";
 
@@ -27,14 +28,22 @@ async function addNote(form: FormData) {
   redirect(`/cases/${encodeURIComponent(id)}`);
 }
 
-const vnd = new Intl.NumberFormat("en-US");
+const DOCUMENT_LABEL = new Map([
+  ["document_id_2", "ID card, front"],
+  ["document_id_15", "ID card, back"],
+  ["document_id_3", "Payslips / income proof"],
+]);
 
 /** Loan officer case view (ADR-0013): internal factors for the customer being served, plain reasons, no score. */
 export default async function CaseView({ params }: { params: { id: string } }) {
   const session = await requireSession("staff", ["loan_officer"]);
   let decision: DecisionView;
+  let application: ApplicationView;
   try {
-    decision = await api<DecisionView>("staff", session, paths.decision(params.id, "en"));
+    [decision, application] = await Promise.all([
+      api<DecisionView>("staff", session, paths.decision(params.id)),
+      api<ApplicationView>("staff", session, paths.application(params.id)),
+    ]);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) notFound();
     if (error instanceof ApiError && error.status === 403) redirect("/forbidden");
@@ -47,10 +56,26 @@ export default async function CaseView({ params }: { params: { id: string } }) {
   return (
     <div className="stack">
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <h1 style={{ margin: 0 }}>Application {decision.customer_id}</h1>
+        <h1 style={{ margin: 0 }}>Application {shortRef(decision.application_id)}</h1>
         <StatusBadge status={decision.status} />
       </div>
       <div className="grid">
+        <Card title="Customer">
+          <CustomerIdentity applicationId={application.id} applicant={application.applicant} canReveal />
+          <p className="muted" style={{ margin: 0, fontSize: 12 }}>
+            Full numbers only for the officer who entered this application; the reason is logged.
+          </p>
+        </Card>
+        <Card title="Application">
+          <table>
+            <tbody>
+              <tr><th scope="row">Credit amount</th><td className="amount">{formatVnd(application.amt_credit)}</td></tr>
+              <tr><th scope="row">Annual income</th><td className="amount">{formatVnd(application.amt_income_total)}</td></tr>
+              <tr><th scope="row">Documents</th>
+                <td>{application.documents.length ? application.documents.map((d) => DOCUMENT_LABEL.get(d) ?? d).join(", ") : "none"}</td></tr>
+            </tbody>
+          </table>
+        </Card>
         <Card title="Relationship with us (internal)">
           {profile ? (
             <>
@@ -63,7 +88,7 @@ export default async function CaseView({ params }: { params: { id: string } }) {
                       <td>problem loans {show(profile.pos_loans.problem_loans)} · max days past due {show(profile.pos_loans.max_days_past_due)}</td></tr>
                     <tr><th scope="row">History observed</th><td colSpan={2}>{show(profile.pos_loans.months_observed, " months")}</td></tr>
                     <tr><th scope="row">Credit bureau</th><td>{show(profile.bureau.active_credits)} active</td>
-                      <td>outstanding {profile.bureau.outstanding == null ? "–" : `${vnd.format(profile.bureau.outstanding)} ₫`} · overdue {show(profile.bureau.overdue_count)}</td></tr>
+                      <td>outstanding {profile.bureau.outstanding == null ? "–" : formatVnd(profile.bureau.outstanding)} · overdue {show(profile.bureau.overdue_count)}</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -83,7 +108,7 @@ export default async function CaseView({ params }: { params: { id: string } }) {
       <Card title="Note for the underwriter">
         <form action={addNote} className="stack">
           <CsrfField token={session.csrfToken} />
-          <input type="hidden" name="id" value={decision.customer_id} />
+          <input type="hidden" name="id" value={decision.application_id} />
           <div className="field">
             <label htmlFor="kind">Type</label>
             <select id="kind" name="kind">

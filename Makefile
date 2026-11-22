@@ -154,11 +154,12 @@ k8s-secrets: ## Create runtime K8s Secrets from environment variables
 	@test -n "$(OPS_DB_PASSWORD)" || (echo "OPS_DB_PASSWORD is required. Copy .env.example to .env or export it." && exit 2)
 	@test -n "$(MINIO_ACCESS_KEY)" || (echo "MINIO_ACCESS_KEY is required. Copy .env.example to .env or export it." && exit 2)
 	@test -n "$(MINIO_SECRET_KEY)" || (echo "MINIO_SECRET_KEY is required. Copy .env.example to .env or export it." && exit 2)
+	@test -n "$(APP_PII_KEKS)" -a -n "$(APP_PII_HMAC_KEY)" || (echo "APP_PII_KEKS and APP_PII_HMAC_KEY are required (ADR-0014, see .env.example)." && exit 2)
 	kubectl create ns api-gateway || true
 	kubectl create ns data-services || true
 	kubectl create secret generic db-secrets -n data-services --from-literal=POSTGRES_PASSWORD="$(OPS_DB_PASSWORD)" --dry-run=client -o yaml | kubectl apply -f -
 	kubectl create secret generic minio-root-credentials -n data-services --from-literal=MINIO_ROOT_USER="$(MINIO_ACCESS_KEY)" --from-literal=MINIO_ROOT_PASSWORD="$(MINIO_SECRET_KEY)" --dry-run=client -o yaml | kubectl apply -f -
-	kubectl create secret generic api-secrets -n api-gateway --from-literal=OPS_DB_PASSWORD="$(OPS_DB_PASSWORD)" --from-literal=MINIO_ACCESS_KEY="$(MINIO_ACCESS_KEY)" --from-literal=MINIO_SECRET_KEY="$(MINIO_SECRET_KEY)" --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create secret generic api-secrets -n api-gateway --from-literal=OPS_DB_PASSWORD="$(OPS_DB_PASSWORD)" --from-literal=MINIO_ACCESS_KEY="$(MINIO_ACCESS_KEY)" --from-literal=MINIO_SECRET_KEY="$(MINIO_SECRET_KEY)" --from-literal=APP_PII_KEKS="$(APP_PII_KEKS)" --from-literal=APP_PII_HMAC_KEY="$(APP_PII_HMAC_KEY)" --dry-run=client -o yaml | kubectl apply -f -
 
 CNPG_VERSION ?= 1.24.1
 

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Redis } from "ioredis";
 
-export { SESSION_COOKIE } from "./cookies";
+export { DRAFT_COOKIE, SESSION_COOKIE } from "./cookies";
 
 export interface Session {
   sub: string;

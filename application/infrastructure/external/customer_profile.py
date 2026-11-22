@@ -6,7 +6,6 @@ no raw contract rows and no personal fields.
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any, Optional, Protocol
 
 
@@ -56,7 +55,7 @@ class ClickHouseProfileProvider:
 
         customer = int(sk_id_curr)  # ids are numeric in the warehouse; int() also rules out injection
         marts = await dwh_client_ch.fetch_all_by_sk_id_curr(customer)
-        rows = await asyncio.to_thread(
+        rows = await dwh_client_ch.run(
             dwh_client_ch._query_dicts,
             f"SELECT * FROM mart_bureau_features WHERE SK_ID_CURR = {customer} LIMIT 1",
         )

@@ -16,7 +16,10 @@ class KafkaScoringGateway(ScoringGateway):
         conf = {
             'bootstrap.servers': settings.kafka_bootstrap_servers,
             'client.id': socket.gethostname(),
-            'acks': 'all' # Strong durability
+            'acks': 'all',  # Strong durability
+            # Bound how long an undeliverable message is retried (broker down): fail and log,
+            # never hold resources for librdkafka's 5-minute default.
+            'message.timeout.ms': 30000,
         }
         self.producer = Producer(conf)
         # Use the configured application topic

@@ -23,6 +23,8 @@ class Action(str, Enum):
     SUBMIT_APPLICATION = "submit_application"
     READ_APPLICATION = "read_application"
     READ_CUSTOMER_PROFILE = "read_customer_profile"
+    REVEAL_IDENTITY = "reveal_identity"
+    ATTACH_DOCUMENT = "attach_document"
     LOOKUP_CUSTOMER = "lookup_customer"
     ADD_CASE_NOTE = "add_case_note"
     FLAG_CONCERN = "flag_concern"
@@ -90,6 +92,10 @@ def _own_self_channel(p: Principal, r: Resource) -> bool:
     return r.channel == "self" and _own(p, r)
 
 
+def _own_open(p: Principal, r: Resource) -> bool:
+    return _own(p, r) and r.status in {"submitted", MANUAL_REVIEW}
+
+
 def _same_branch(p: Principal, r: Resource) -> bool:
     return p.branch_id is not None and r.branch_id == p.branch_id
 
@@ -98,8 +104,12 @@ def _staff_channel_same_branch(p: Principal, r: Resource) -> bool:
     return r.channel == "staff" and _same_branch(p, r)
 
 
+def _handling(p: Principal, r: Resource) -> bool:
+    return r.created_by_sub == p.sub
+
+
 def _handling_with_consent(p: Principal, r: Resource) -> bool:
-    return r.created_by_sub == p.sub and r.consent_recorded
+    return _handling(p, r) and r.consent_recorded
 
 
 def _in_manual_review(p: Principal, r: Resource) -> bool:
@@ -132,6 +142,16 @@ _RULES: dict[Action, list[tuple[str, str, Condition]]] = {
     Action.READ_CUSTOMER_PROFILE: [
         ("loan_officer", "handling_application", _handling_with_consent),
         ("underwriter", "in_manual_review", _in_manual_review),
+    ],
+    # Unmasked citizen ID and phone (ADR-0014): only whoever is working the case, with a reason.
+    Action.REVEAL_IDENTITY: [
+        ("loan_officer", "handling_application", _handling),
+        ("underwriter", "in_manual_review", _in_manual_review),
+    ],
+    # Extra evidence (payslips) while the file is still open, e.g. when a reviewer asks for it.
+    Action.ATTACH_DOCUMENT: [
+        ("applicant", "own_open", _own_open),
+        ("loan_officer", "same_branch", _same_branch),
     ],
     Action.LOOKUP_CUSTOMER: [
         ("loan_officer", "lookup_purpose", _valid_purpose),

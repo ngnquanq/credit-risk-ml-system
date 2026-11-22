@@ -19,6 +19,7 @@ Records of significant architectural decisions. Each ADR captures **why** a deci
 | [0011](0011-monorepo-layout-for-portals-contracts-and-environments.md) | Monorepo layout for portals, contracts and environments | Accepted |
 | [0012](0012-keycloak-realms-and-bff-portals.md) | Keycloak with two realms, and backend-for-frontend portals | Accepted |
 | [0013](0013-role-based-data-and-explanation-visibility.md) | Role-based visibility of customer data and explanations; officers do not decide | Accepted |
+| [0014](0014-applicant-personal-data-and-opaque-ids.md) | Applicant personal data is kept apart and encrypted; URLs carry opaque ids only | Accepted |
 
 ## Creating a New ADR
 

@@ -9,6 +9,54 @@ Keycloak with two realms ([ADR-0012](../../../../docs/adr/0012-keycloak-realms-a
 
 Both realms put audience `credit-api` into access tokens (5 minutes). The API trusts exactly these issuers (`APP_OIDC_ISSUERS`).
 
+## Portal authentication and API authorization
+
+Both portals use OIDC Authorization Code Flow with PKCE. The portal acts as a backend for frontend (BFF) and exchanges the code as a confidential client. It stores tokens in Redis and gives the browser an httpOnly session cookie.
+
+```mermaid
+sequenceDiagram
+    actor Browser
+    participant Portal as Portal BFF
+    participant Redis as Portal session store
+    participant KC as Keycloak
+    participant API as Loan API
+    participant Policy as Application policy
+
+    Browser->>Portal: GET /auth/login
+    Portal->>Redis: Store state, nonce, and PKCE verifier
+    Portal-->>Browser: Redirect to Keycloak with S256 challenge
+    Browser->>KC: Sign in or reuse an existing SSO session
+    KC-->>Browser: Redirect to callback with code and state
+    Browser->>Portal: GET /auth/callback
+    Portal->>Redis: Consume pending login by state
+    Portal->>KC: Exchange code using client credentials and PKCE verifier
+    KC-->>Portal: ID token, access token, and refresh token
+    Portal->>Portal: Validate token response and nonce
+    Portal->>Redis: Store session and tokens
+    Portal-->>Browser: Set session cookie and redirect
+
+    Browser->>Portal: Open an application using session cookie
+    Portal->>Redis: Read session
+    Portal->>API: Call protected route with bearer access token
+    opt Signing key needs to be fetched
+        API->>KC: Fetch public keys from JWKS
+    end
+    API->>API: Verify access token and resolve principal
+    alt Authentication fails
+        API-->>Portal: 401 Unauthorized
+    else Authentication succeeds
+        API->>Policy: Check action against principal and application
+        Policy-->>API: Allow or deny
+        API-->>Portal: Application data or route-specific denial
+    end
+    Portal-->>Browser: Render result
+```
+
+- **Login checks.** `state` links the callback to its pending login. `nonce` binds the ID token to that login. PKCE binds the code exchange to the portal's original verifier. [OIDC flow implementation](../../../../portals/packages/auth/src/oidc.ts)
+- **Authentication.** The API checks RS256 signatures, the trusted issuer, the `credit-api` audience, expiration and application roles. Staff tokens must satisfy the configured `acr` requirement when it is enabled. [Token verifier](../../../../application/entrypoints/api/security.py)
+- **Authorization.** The API evaluates the requested action against the principal and the resource. A valid role can still be denied for a different applicant or branch. Some routes return 404 to avoid disclosing resource existence. [Application policy](../../../../application/authz/policy.py)
+- **Session lifecycle.** The portal refreshes the access token server-side when it approaches expiry and destroys the session if refresh fails. Logout clears the portal session and redirects to Keycloak's end-session endpoint. [Session implementation](../../../../portals/packages/auth/src/session.ts) · [Auth routes](../../../../portals/packages/auth/src/routes.ts)
+
 ## Deploy
 
 ```bash

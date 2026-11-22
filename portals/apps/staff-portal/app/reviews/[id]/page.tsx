@@ -1,18 +1,10 @@
-import { paths, type ExplanationView } from "@crs/api";
+import { paths, type ApplicationView, type ExplanationView } from "@crs/api";
 import { ApiError, api, assertMutation, requireSession } from "@crs/auth/server";
-import { Card, ContributionBars, CsrfField } from "@crs/ui";
-import { redirect } from "next/navigation";
+import { Card, ContributionBars, CsrfField, formatVnd, shortRef } from "@crs/ui";
+import { notFound, redirect } from "next/navigation";
+import { CustomerIdentity } from "../../CustomerIdentity";
 
 export const dynamic = "force-dynamic";
-
-interface ApplicationView {
-  sk_id_curr: string;
-  amt_income_total: number;
-  amt_credit: number;
-  amt_annuity: number | null;
-  employment_start_date: string | null;
-  name_income_type: string;
-}
 
 async function decide(form: FormData) {
   "use server";
@@ -35,24 +27,29 @@ async function decide(form: FormData) {
   redirect("/reviews");
 }
 
-const vnd = new Intl.NumberFormat("en-US");
-
 /** Three steps (ADR-0013): evidence first, then the model's explanation, then the decision. */
 export default async function ReviewCase({ params }: { params: { id: string } }) {
   const session = await requireSession("staff", ["underwriter"]);
-  const [application, explanation] = await Promise.all([
-    api<ApplicationView>("staff", session, paths.application(params.id)),
-    api<ExplanationView>("staff", session, paths.explanation(params.id)).catch(() => null),
-  ]);
+  let application: ApplicationView;
+  try {
+    application = await api<ApplicationView>("staff", session, paths.application(params.id));
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) notFound();
+    if (error instanceof ApiError && error.status === 403) redirect("/forbidden");
+    throw error;
+  }
+  const explanation = await api<ExplanationView>("staff", session, paths.explanation(params.id)).catch(() => null);
 
   return (
     <div className="stack">
-      <h1 style={{ margin: 0 }}>Application {application.sk_id_curr}</h1>
+      <h1 style={{ margin: 0 }}>Application {shortRef(application.id)}</h1>
       <div className="grid">
         <Card title="1 · Evidence">
+          <CustomerIdentity applicationId={application.id} applicant={application.applicant} canReveal />
           <ul style={{ margin: 0, paddingLeft: 18 }}>
-            <li>Annual income {vnd.format(application.amt_income_total)} ₫ ({application.name_income_type})</li>
-            <li>Credit requested {vnd.format(application.amt_credit)} ₫</li>
+            <li>Annual income <span className="amount">{formatVnd(application.amt_income_total)}</span> ({application.name_income_type})</li>
+            <li>Credit requested <span className="amount">{formatVnd(application.amt_credit)}</span></li>
+            <li>Documents: {application.documents.length ? application.documents.length : "none"}</li>
             <li>Current job since {application.employment_start_date ?? "not employed"}</li>
           </ul>
         </Card>
@@ -80,7 +77,7 @@ export default async function ReviewCase({ params }: { params: { id: string } })
       <Card title="3 · Your decision">
         <form action={decide} className="stack">
           <CsrfField token={session.csrfToken} />
-          <input type="hidden" name="id" value={application.sk_id_curr} />
+          <input type="hidden" name="id" value={application.id} />
           <fieldset className="row" style={{ border: 0, padding: 0, margin: 0 }}>
             <legend className="visually-hidden">Outcome</legend>
             <label className="row"><input type="radio" name="outcome" value="approved" required /> Approve</label>

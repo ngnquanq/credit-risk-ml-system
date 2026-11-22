@@ -3,7 +3,9 @@ Database models matching the flattened schema created in migrations.
 Uses proper field-based storage instead of JSONB blob.
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, func, Date, Numeric
+import uuid
+
+from sqlalchemy import Column, Integer, String, DateTime, func, Date, Numeric, Text, Uuid
 from sqlalchemy.dialects.postgresql import BIGINT, JSONB
 from .base import Base
 
@@ -12,8 +14,10 @@ class LoanApplication(Base):
     """Matches the flattened loan_applications table schema."""
     __tablename__ = "loan_applications"
 
-    # Primary Key & Identity
+    # Primary Key & Identity: sk_id_curr is the internal customer key and never leaves the API;
+    # public_id is the opaque id used in every URL and response (ADR-0014, migration 006).
     sk_id_curr = Column(String(255), primary_key=True)
+    public_id = Column(Uuid(as_uuid=False), nullable=False, unique=True, default=lambda: str(uuid.uuid4()))
     
     # Basic Demographics
     code_gender = Column(String(1))
@@ -129,3 +133,19 @@ class CaseNote(Base):
     author_sub = Column(String(64), nullable=False)
     created_at = Column(DateTime, server_default=func.current_timestamp(), nullable=False)
 
+
+
+class ApplicantIdentity(Base):
+    """Applicant personal data, encrypted per field; never replicated by CDC (ADR-0014, migration 006)."""
+    __tablename__ = "applicant_identity"
+
+    id = Column(BIGINT().with_variant(Integer(), "sqlite"), primary_key=True, autoincrement=True)
+    customer_ref = Column(String(255), nullable=False, unique=True)
+    citizen_id_hmac = Column(String(64), nullable=False, unique=True)
+    full_name_enc = Column(Text, nullable=False)
+    citizen_id_enc = Column(Text, nullable=False)
+    phone_enc = Column(Text, nullable=False)
+    citizen_id_last3 = Column(String(3), nullable=False)
+    phone_last3 = Column(String(3), nullable=False)
+    key_id = Column(String(16), nullable=False)
+    created_at = Column(DateTime, server_default=func.current_timestamp(), nullable=False)

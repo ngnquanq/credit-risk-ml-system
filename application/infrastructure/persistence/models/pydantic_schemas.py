@@ -3,7 +3,9 @@ Customer-focused API schemas based on Home Credit data analysis.
 Only includes fields that customers can realistically provide.
 """
 
-from pydantic import BaseModel, Field
+import re
+
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import datetime, date
 from enum import Enum
@@ -52,12 +54,9 @@ class HousingType(str, Enum):
     CO_OP_APARTMENT = "Co-op apartment"
 
 
-class LoanApplicationCreate(BaseModel):
-    """Customer loan application matching flattened database schema."""
-    
-    # Customer Identity
-    sk_id_curr: str = Field(..., description="Customer ID")
-    
+class ApplicationFields(BaseModel):
+    """What an applicant or a loan officer enters about the loan (no identity, no internal keys)."""
+
     # Basic Demographics 
     # Not asked in the portals and never a model input (ADR-0013, E6); kept optional for KYC data and bias audits.
     code_gender: Optional[GenderType] = Field(None, description="Gender of the applicant (optional, audit only)")
@@ -95,57 +94,90 @@ class LoanApplicationCreate(BaseModel):
     own_car_age: Optional[int] = Field(None, description="Age of car in years", ge=0)
     
     # Document IDs (from MinIO uploads)
-    document_ids: Optional[dict] = Field(None, description="Document IDs from uploaded files")
+    document_ids: Optional[dict[str, str]] = Field(
+        None, description="document_id_N -> document_id returned by POST /api/v1/presigned-url"
+    )
 
     # Consent to the credit bureau check (E11); recorded with a timestamp
     bureau_consent: bool = Field(False, description="Applicant consented to the credit bureau check")
 
+    @field_validator("document_ids")
+    @classmethod
+    def _document_slots(cls, value: Optional[dict[str, str]]) -> Optional[dict[str, str]]:
+        for key in value or {}:
+            match = re.fullmatch(r"document_id_(\d{1,2})", key)
+            if not match or not 2 <= int(match.group(1)) <= 21:
+                raise ValueError(f"Unknown document slot {key!r}")
+        return value
+
+
+class ApplicantIn(BaseModel):
+    """Identity of the applicant (ADR-0014): stored encrypted, apart from the loan data."""
+
+    full_name: str = Field(..., min_length=2, max_length=120)
+    citizen_id: str = Field(..., description="12-digit citizen identity card number (CCCD)")
+    phone: str = Field(..., description="Vietnamese mobile number")
+
+    @field_validator("citizen_id")
+    @classmethod
+    def _citizen_id(cls, value: str) -> str:
+        from identity import normalize_citizen_id
+
+        return normalize_citizen_id(value)
+
+    @field_validator("phone")
+    @classmethod
+    def _phone(cls, value: str) -> str:
+        from identity import normalize_phone
+
+        return normalize_phone(value)
+
+
+class ApplicationSubmission(ApplicationFields):
+    """POST /api/v1/applications. The customer key is resolved by the API from the citizen ID."""
+
+    applicant: ApplicantIn
+
     model_config = {
         "json_schema_extra": {
             "example": {
-                "gender": "M",
-                "age": 35,
-                "children_count": 2,
-                "family_status": "Married",
-                "education_type": "Higher education",
-                "income_type": "Working",
-                "annual_income": 180000.0,
-                "occupation_type": "Core staff",
-                "organization_type": "Business Entity Type 3",
-                "employment_years": 5,
-                "contract_type": "Cash loans",
-                "credit_amount": 406597.5,
-                "goods_price": 351000.0,
-                "loan_purpose": "Repairs",
-                "owns_car": True,
-                "car_age": 12,
-                "owns_realty": True,
-                "housing_type": "House / apartment",
-                "has_mobile_phone": True,
-                "has_work_phone": False,
-                "has_phone": True,
-                "has_email": True,
-                "family_members_count": 4,
-                "documents": [
-                    {
-                        "document_type": 3,
-                        "file_name": "passport.pdf",
-                        "file_size": 2048576
-                    },
-                    {
-                        "document_type": 6,
-                        "file_name": "salary_certificate.pdf", 
-                        "file_size": 1024768
-                    }
-                ]
+                "applicant": {"full_name": "Nguyễn Văn Ví Dụ", "citizen_id": "001099000123", "phone": "0900000123"},
+                "birth_date": "1991-03-14",
+                "cnt_children": 0,
+                "amt_income_total": 180000000,
+                "amt_credit": 40000000,
+                "amt_annuity": 2035832,
+                "name_income_type": "Working",
+                "name_education_type": "Higher education",
+                "name_family_status": "Married",
+                "name_housing_type": "House / apartment",
+                "employment_start_date": "2025-06-01",
+                "document_ids": {"document_id_2": "<from /api/v1/presigned-url>"},
+                "bureau_consent": True,
             }
         }
     }
 
 
+class LoanApplicationCreate(ApplicationFields):
+    """Internal workflow input: the loan data plus the customer key the API resolved."""
+
+    sk_id_curr: str = Field(..., description="Internal customer key; never accepted from callers")
+
+
+class MaskedApplicant(BaseModel):
+    full_name: str
+    citizen_id_masked: str
+    phone_masked: str
+
+
 class LoanApplicationResponse(BaseModel):
-    """Response schema for loan applications."""
-    sk_id_curr: str
+    """Response schema for loan applications. ``id`` is the opaque public id (ADR-0014)."""
+    id: str
+    applicant: Optional[MaskedApplicant] = None
+    channel: Optional[str] = None
+    branch_id: Optional[str] = None
+    documents: list[str] = Field(default_factory=list, description="Document slots that hold a file")
     code_gender: Optional[str] = None
     birth_date: date
     cnt_children: int

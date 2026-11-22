@@ -103,3 +103,38 @@ def test_generated_folder_and_portal_env_files_are_git_ignored():
 
     for path in ("scripts/local/.generated/credentials.txt", "portals/apps/staff-portal/.env.local"):
         assert subprocess.run(["git", "check-ignore", "-q", path], cwd=ROOT).returncode == 0, path
+
+
+def _api_env(out):
+    return dict(line.split("=", 1) for line in (out / "api.env").read_text().splitlines() if "=" in line)
+
+
+def test_demo_identities_are_encrypted_with_the_api_keys(generated):
+    """ADR-0014: the seed holds ciphertext only, and the API's keys decrypt it."""
+    from identity import PiiCipher
+
+    out, _ = generated
+    seed = (out / "seed" / "demo-identity.sql").read_text()
+    assert "001091000002" not in seed and "Lý Văn Đức" not in seed and "0901000002" not in seed
+    env = _api_env(out)
+    cipher = PiiCipher.from_settings(env["APP_PII_KEKS"], env["APP_PII_HMAC_KEY"])
+    assert cipher.citizen_id_hmac("001091000002") in seed
+    token = re.search(r"'(v1\.local1\.[^']+)'", seed).group(1)
+    assert cipher.decrypt("full_name", token) == "Lý Văn Đức"
+
+
+def test_every_seeded_application_has_an_identity_and_a_public_id(generator):
+    rows = re.findall(r"\('(\d{6})', '([0-9a-f-]{36})', '\d{4}-", SEED.read_text())
+    assert {ref for ref, _ in rows} == set(generator.DEMO_IDENTITIES)
+    assert len({pid for _, pid in rows}) == len(rows)
+
+
+def test_document_store_is_local_and_only_the_portals_get_its_origin(generated):
+    out, portals = generated
+    env = _api_env(out)
+    assert env["MINIO_ENDPOINT"] == "localhost:9000" and env["APP_MINIO_PUBLIC_URL"] == "http://localhost:9000"
+    minio = (out / "minio.env").read_text()
+    for app in ("staff-portal", "applicant-portal"):
+        portal_env = (portals / app / ".env.local").read_text()
+        assert "STORAGE_PUBLIC_ORIGIN=http://localhost:9000" in portal_env
+        assert minio.split("MINIO_ROOT_PASSWORD=")[1].strip() not in portal_env

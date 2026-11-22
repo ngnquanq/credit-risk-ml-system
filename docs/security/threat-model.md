@@ -71,6 +71,11 @@ flowchart LR
 | T21 | TB2→TB4 | Information disclosure | Staff browse customers they do not serve (curiosity, relatives) | Profile only for the application being handled; lookup by exact ID with a purpose; monthly review of lookups | E11, ADR-0013 | Designed |
 | T22 | TB2→TB4 | Tampering | Officer coaches applicants to game inputs using model contributions | Officers see plain-language reasons only; contributions limited to underwriters; inputs verified by documents | E14, ADR-0013 | Designed |
 | T23 | TB4 | Elevation | Officer with a sales target decides borderline cases | Maker–checker: officers cannot decide; underwriters cannot review their own submissions | E11, ADR-0013 | Designed |
+| T24 | TB1→TB3 | Information disclosure | Personal data or amounts in URLs end up in history, proxy logs and Referer headers; sequential ids are enumerated | Opaque `public_id` in every URL; estimator draft behind an httpOnly cookie; citizen-ID lookup in a POST body; same 404 for unknown and guessed ids; `Referrer-Policy: no-referrer` | E11, E12, ADR-0014 | Implemented |
+| T25 | TB2→TB4 | Information disclosure | Staff copy citizen IDs and phones in bulk | Masked by default; `identity:reveal` only for the handling officer or an underwriter in review, with an audited reason; values never logged or audited; `no-store` | E11, ADR-0014 | Implemented |
+| T26 | TB4 | Information disclosure | Database, CDC stream or warehouse dump exposes identities | `applicant_identity` outside the CDC publication; per-field AES-256-GCM with wrapped data keys; keyed HMAC for lookup; KEKs in Secrets (KMS follow-up) | E11, ADR-0014 | Implemented |
+| T27 | TB1→TB4 | Tampering | Uploads of executables or huge files, or attaching someone else's document | Presigned POST policy pins key, type and size (10 MB); document ids must carry the caller's HMAC prefix and exist; CSP `connect-src` allows only the storage origin; 90-day expiry | E12, ADR-0014 | Implemented |
+| T28 | TB4 | Denial of service | A dead dependency (warehouse) exhausts the shared thread pool and stalls unrelated requests | Warehouse and storage calls on their own executors with connect, query and borrow timeouts; no half-built connection pool | E15 | Implemented |
 
 ## 3. Assumptions
 

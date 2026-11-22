@@ -6,7 +6,9 @@ The vocabulary and the core objects of the credit decisioning domain. Use these 
 
 | Term | Meaning | Where it lives |
 |---|---|---|
-| **Application** | One loan request, identified by `sk_id_curr` | PostgreSQL `loan_applications` |
+| **Application** | One loan request. Internally keyed by `sk_id_curr` (the customer key that joins all data); outside the API only by its opaque `public_id` (ADR-0014) | PostgreSQL `loan_applications` |
+| **Applicant identity** | Name, citizen ID and phone of one customer, encrypted per field; found by the keyed hash of the citizen ID; shown masked, revealed only with an audited reason | PostgreSQL `applicant_identity`, not replicated (ADR-0014) |
+| **Document** | An uploaded ID card side or payslip, keyed by the uploader's HMAC tag; expires after 90 days | MinIO `loan-documents`; id in `loan_applications.document_id_N` |
 | **Applicant data** | Fields the applicant types in (income, credit, dates, flags) | the application row |
 | **Feature** | One model input with a name, type, source group and transform | **Feature catalog** (target); today scattered (F-07) |
 | **Feature group** | Features produced together: `application`, `external` (bureau), `dwh` (history) | Kafka topic + Feast view per group |
@@ -230,6 +232,9 @@ stateDiagram-v2
 | Feature catalog | | | | versioned in git; set version and digest stamped into model metadata |
 | Identity, role, branch | Keycloak database (separate instance) | | | |
 | Application ownership | `loan_applications.channel`, `created_by_sub`, `applicant_sub`, `branch_id` (E11) | CDC event carries them | | |
+| Applicant identity | `applicant_identity` (encrypted, ADR-0014) | **never** (not in the CDC publication) | | |
+| Documents | document ids on the application row | ids only | | `loan-documents` bucket, 90-day expiry |
+| Estimator draft (amount, term) | | | portal Redis `draft:*`, 30 minutes | |
 | Explanation | `application_status_log.metadata.reason_codes` (E14) | `hc.scoring` payload | | |
 | Audit event | `audit_event` (append-only, E13) | | | searchable copy in Elasticsearch (ECK) |
 | Policy change | `policy_change` (E11) | | | |

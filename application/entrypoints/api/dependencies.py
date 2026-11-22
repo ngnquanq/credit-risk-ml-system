@@ -15,11 +15,15 @@ async def get_loan_repository(db: AsyncSession = Depends(get_db)) -> LoanReposit
     """Dependency for LoanRepository."""
     return PostgresLoanRepository(db)
 
-async def get_scoring_gateway() -> ScoringGateway:
-    """Dependency for ScoringGateway."""
-    # In production, you might want to reuse a single producer instance
-    # or handle configuration here.
+@lru_cache(maxsize=1)
+def _scoring_gateway() -> ScoringGateway:
     return KafkaScoringGateway()
+
+
+async def get_scoring_gateway() -> ScoringGateway:
+    """One producer per process. A producer per request leaked librdkafka threads and, with the
+    broker down, destroying each one (with a message still queued) stalled later submissions."""
+    return _scoring_gateway()
 
 async def get_submit_loan_workflow(
     repo: LoanRepository = Depends(get_loan_repository),
@@ -67,3 +71,37 @@ async def get_profile_provider():
 
     return ClickHouseProfileProvider()
 
+
+
+@lru_cache(maxsize=1)
+def _pii_cipher():
+    from core import settings
+    from identity import PiiCipher
+
+    if settings.pii_keks is None or settings.pii_hmac_key is None:
+        raise RuntimeError("APP_PII_KEKS and APP_PII_HMAC_KEY are required (ADR-0014)")
+    return PiiCipher.from_settings(settings.pii_keks.get_secret_value(), settings.pii_hmac_key.get_secret_value())
+
+
+async def get_pii_cipher():
+    """Field encryption and keyed hashing for applicant personal data (ADR-0014)."""
+    return _pii_cipher()
+
+
+async def get_identity_repository(db: AsyncSession = Depends(get_db), cipher=Depends(get_pii_cipher)):
+    from identity.repository import IdentityRepository
+
+    return IdentityRepository(db, cipher)
+
+
+@lru_cache(maxsize=1)
+def _document_store():
+    from core import settings
+    from infrastructure.storage.documents import DocumentStore
+
+    return DocumentStore.from_settings(settings)
+
+
+async def get_document_store():
+    """Presigned uploads and existence checks for applicant documents."""
+    return _document_store()

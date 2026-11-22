@@ -1,159 +1,56 @@
 {
   "components": {
     "schemas": {
-      "CaseNoteRequest": {
+      "ApplicantIn": {
+        "description": "Identity of the applicant (ADR-0014): stored encrypted, apart from the loan data.",
         "properties": {
-          "kind": {
-            "pattern": "^(note|concern)$",
-            "title": "Kind",
+          "citizen_id": {
+            "description": "12-digit citizen identity card number (CCCD)",
+            "title": "Citizen Id",
             "type": "string"
           },
-          "text": {
-            "maxLength": 1000,
-            "minLength": 10,
-            "title": "Text",
+          "full_name": {
+            "maxLength": 120,
+            "minLength": 2,
+            "title": "Full Name",
+            "type": "string"
+          },
+          "phone": {
+            "description": "Vietnamese mobile number",
+            "title": "Phone",
             "type": "string"
           }
         },
         "required": [
-          "kind",
-          "text"
+          "full_name",
+          "citizen_id",
+          "phone"
         ],
-        "title": "CaseNoteRequest",
+        "title": "ApplicantIn",
         "type": "object"
       },
-      "ContractType": {
-        "enum": [
-          "Cash loans",
-          "Revolving loans"
-        ],
-        "title": "ContractType",
-        "type": "string"
-      },
-      "EducationType": {
-        "enum": [
-          "Secondary / secondary special",
-          "Higher education",
-          "Incomplete higher",
-          "Lower secondary",
-          "Academic degree"
-        ],
-        "title": "EducationType",
-        "type": "string"
-      },
-      "FamilyStatus": {
-        "enum": [
-          "Single / not married",
-          "Married",
-          "Civil marriage",
-          "Widow",
-          "Separated"
-        ],
-        "title": "FamilyStatus",
-        "type": "string"
-      },
-      "GenderType": {
-        "enum": [
-          "M",
-          "F"
-        ],
-        "title": "GenderType",
-        "type": "string"
-      },
-      "HTTPValidationError": {
-        "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "title": "Detail",
-            "type": "array"
-          }
-        },
-        "title": "HTTPValidationError",
-        "type": "object"
-      },
-      "HealthResponse": {
-        "description": "Health check response.",
-        "properties": {
-          "status": {
-            "default": "healthy",
-            "title": "Status",
-            "type": "string"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "title": "Timestamp",
-            "type": "string"
-          }
-        },
-        "required": [
-          "timestamp"
-        ],
-        "title": "HealthResponse",
-        "type": "object"
-      },
-      "HousingType": {
-        "enum": [
-          "House / apartment",
-          "Renting",
-          "With parents",
-          "Municipal apartment",
-          "Office apartment",
-          "Co-op apartment"
-        ],
-        "title": "HousingType",
-        "type": "string"
-      },
-      "IncomeType": {
-        "enum": [
-          "Working",
-          "Commercial associate",
-          "Pensioner",
-          "State servant",
-          "Businessman"
-        ],
-        "title": "IncomeType",
-        "type": "string"
-      },
-      "LoanApplicationCreate": {
-        "description": "Customer loan application matching flattened database schema.",
+      "ApplicationSubmission": {
+        "description": "POST /api/v1/applications. The customer key is resolved by the API from the citizen ID.",
         "example": {
-          "age": 35,
-          "annual_income": 180000.0,
-          "car_age": 12,
-          "children_count": 2,
-          "contract_type": "Cash loans",
-          "credit_amount": 406597.5,
-          "documents": [
-            {
-              "document_type": 3,
-              "file_name": "passport.pdf",
-              "file_size": 2048576
-            },
-            {
-              "document_type": 6,
-              "file_name": "salary_certificate.pdf",
-              "file_size": 1024768
-            }
-          ],
-          "education_type": "Higher education",
-          "employment_years": 5,
-          "family_members_count": 4,
-          "family_status": "Married",
-          "gender": "M",
-          "goods_price": 351000.0,
-          "has_email": true,
-          "has_mobile_phone": true,
-          "has_phone": true,
-          "has_work_phone": false,
-          "housing_type": "House / apartment",
-          "income_type": "Working",
-          "loan_purpose": "Repairs",
-          "occupation_type": "Core staff",
-          "organization_type": "Business Entity Type 3",
-          "owns_car": true,
-          "owns_realty": true
+          "amt_annuity": 2035832,
+          "amt_credit": 40000000,
+          "amt_income_total": 180000000,
+          "applicant": {
+            "citizen_id": "001099000123",
+            "full_name": "Nguy\u1ec5n V\u0103n V\u00ed D\u1ee5",
+            "phone": "0900000123"
+          },
+          "birth_date": "1991-03-14",
+          "bureau_consent": true,
+          "cnt_children": 0,
+          "document_ids": {
+            "document_id_2": "<from /api/v1/presigned-url>"
+          },
+          "employment_start_date": "2025-06-01",
+          "name_education_type": "Higher education",
+          "name_family_status": "Married",
+          "name_housing_type": "House / apartment",
+          "name_income_type": "Working"
         },
         "properties": {
           "amt_annuity": {
@@ -195,6 +92,9 @@
             "title": "Amt Income Total",
             "type": "number"
           },
+          "applicant": {
+            "$ref": "#/components/schemas/ApplicantIn"
+          },
           "birth_date": {
             "description": "Date of birth",
             "format": "date",
@@ -228,14 +128,16 @@
           "document_ids": {
             "anyOf": [
               {
-                "additionalProperties": true,
+                "additionalProperties": {
+                  "type": "string"
+                },
                 "type": "object"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Document IDs from uploaded files",
+            "description": "document_id_N -> document_id returned by POST /api/v1/presigned-url",
             "title": "Document Ids"
           },
           "employment_start_date": {
@@ -364,28 +266,182 @@
             ],
             "description": "Age of car in years",
             "title": "Own Car Age"
-          },
-          "sk_id_curr": {
-            "description": "Customer ID",
-            "title": "Sk Id Curr",
-            "type": "string"
           }
         },
         "required": [
-          "sk_id_curr",
           "birth_date",
           "amt_income_total",
           "amt_credit",
           "name_income_type",
           "name_education_type",
           "name_family_status",
-          "name_housing_type"
+          "name_housing_type",
+          "applicant"
         ],
-        "title": "LoanApplicationCreate",
+        "title": "ApplicationSubmission",
         "type": "object"
       },
+      "AttachDocumentRequest": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "slot": {
+            "maximum": 21.0,
+            "minimum": 2.0,
+            "title": "Slot",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slot",
+          "document_id"
+        ],
+        "title": "AttachDocumentRequest",
+        "type": "object"
+      },
+      "CaseNoteRequest": {
+        "properties": {
+          "kind": {
+            "pattern": "^(note|concern)$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "text"
+        ],
+        "title": "CaseNoteRequest",
+        "type": "object"
+      },
+      "ContractType": {
+        "enum": [
+          "Cash loans",
+          "Revolving loans"
+        ],
+        "title": "ContractType",
+        "type": "string"
+      },
+      "CustomerLookupRequest": {
+        "description": "The citizen ID travels in the body, never in a path or query string (ADR-0014).",
+        "properties": {
+          "citizen_id": {
+            "title": "Citizen Id",
+            "type": "string"
+          },
+          "purpose": {
+            "enum": [
+              "co_applicant",
+              "guarantor",
+              "customer_present"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          }
+        },
+        "required": [
+          "citizen_id",
+          "purpose"
+        ],
+        "title": "CustomerLookupRequest",
+        "type": "object"
+      },
+      "EducationType": {
+        "enum": [
+          "Secondary / secondary special",
+          "Higher education",
+          "Incomplete higher",
+          "Lower secondary",
+          "Academic degree"
+        ],
+        "title": "EducationType",
+        "type": "string"
+      },
+      "FamilyStatus": {
+        "enum": [
+          "Single / not married",
+          "Married",
+          "Civil marriage",
+          "Widow",
+          "Separated"
+        ],
+        "title": "FamilyStatus",
+        "type": "string"
+      },
+      "GenderType": {
+        "enum": [
+          "M",
+          "F"
+        ],
+        "title": "GenderType",
+        "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "description": "Health check response.",
+        "properties": {
+          "status": {
+            "default": "healthy",
+            "title": "Status",
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timestamp"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "HousingType": {
+        "enum": [
+          "House / apartment",
+          "Renting",
+          "With parents",
+          "Municipal apartment",
+          "Office apartment",
+          "Co-op apartment"
+        ],
+        "title": "HousingType",
+        "type": "string"
+      },
+      "IncomeType": {
+        "enum": [
+          "Working",
+          "Commercial associate",
+          "Pensioner",
+          "State servant",
+          "Businessman"
+        ],
+        "title": "IncomeType",
+        "type": "string"
+      },
       "LoanApplicationResponse": {
-        "description": "Response schema for loan applications.",
+        "description": "Response schema for loan applications. ``id`` is the opaque public id (ADR-0014).",
         "properties": {
           "amt_annuity": {
             "anyOf": [
@@ -417,10 +473,42 @@
             "title": "Amt Income Total",
             "type": "number"
           },
+          "applicant": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MaskedApplicant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "birth_date": {
             "format": "date",
             "title": "Birth Date",
             "type": "string"
+          },
+          "branch_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Id"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
           },
           "cnt_children": {
             "title": "Cnt Children",
@@ -441,6 +529,14 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "documents": {
+            "description": "Document slots that hold a file",
+            "items": {
+              "type": "string"
+            },
+            "title": "Documents",
+            "type": "array"
           },
           "employment_start_date": {
             "anyOf": [
@@ -481,6 +577,10 @@
           "flag_work_phone": {
             "title": "Flag Work Phone",
             "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
           },
           "name_contract_type": {
             "title": "Name Contract Type",
@@ -535,10 +635,6 @@
             ],
             "title": "Own Car Age"
           },
-          "sk_id_curr": {
-            "title": "Sk Id Curr",
-            "type": "string"
-          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -546,7 +642,7 @@
           }
         },
         "required": [
-          "sk_id_curr",
+          "id",
           "birth_date",
           "cnt_children",
           "amt_income_total",
@@ -573,6 +669,29 @@
           "updated_at"
         ],
         "title": "LoanApplicationResponse",
+        "type": "object"
+      },
+      "MaskedApplicant": {
+        "properties": {
+          "citizen_id_masked": {
+            "title": "Citizen Id Masked",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "phone_masked": {
+            "title": "Phone Masked",
+            "type": "string"
+          }
+        },
+        "required": [
+          "full_name",
+          "citizen_id_masked",
+          "phone_masked"
+        ],
+        "title": "MaskedApplicant",
         "type": "object"
       },
       "PolicyChangeRequest": {
@@ -625,26 +744,24 @@
       },
       "PreSignedURLRequest": {
         "properties": {
+          "content_type": {
+            "enum": [
+              "application/pdf",
+              "image/jpeg",
+              "image/png"
+            ],
+            "title": "Content Type",
+            "type": "string"
+          },
           "document_type": {
-            "description": "Document type (2-21)",
+            "description": "Document slot (2-21)",
             "title": "Document Type",
             "type": "integer"
-          },
-          "file_extension": {
-            "description": "File extension (pdf, jpg, png)",
-            "title": "File Extension",
-            "type": "string"
-          },
-          "sk_id_curr": {
-            "description": "Customer ID (sk_id_curr) used for folder organization",
-            "title": "Sk Id Curr",
-            "type": "string"
           }
         },
         "required": [
-          "sk_id_curr",
           "document_type",
-          "file_extension"
+          "content_type"
         ],
         "title": "PreSignedURLRequest",
         "type": "object"
@@ -655,16 +772,45 @@
             "title": "Document Id",
             "type": "string"
           },
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Fields",
+            "type": "object"
+          },
+          "max_bytes": {
+            "title": "Max Bytes",
+            "type": "integer"
+          },
           "upload_url": {
+            "description": "POST the form here (multipart), fields first, file last",
             "title": "Upload Url",
             "type": "string"
           }
         },
         "required": [
           "upload_url",
-          "document_id"
+          "fields",
+          "document_id",
+          "max_bytes"
         ],
         "title": "PreSignedURLResponse",
+        "type": "object"
+      },
+      "RevealRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "RevealRequest",
         "type": "object"
       },
       "ReviewDecisionRequest": {
@@ -693,6 +839,24 @@
           "reason"
         ],
         "title": "ReviewDecisionRequest",
+        "type": "object"
+      },
+      "SubmissionResponse": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ],
+        "title": "SubmissionResponse",
         "type": "object"
       },
       "ValidationError": {
@@ -770,7 +934,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/LoanApplicationCreate"
+                "$ref": "#/components/schemas/ApplicationSubmission"
               }
             }
           },
@@ -781,7 +945,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LoanApplicationResponse"
+                  "$ref": "#/components/schemas/SubmissionResponse"
                 }
               }
             },
@@ -804,17 +968,17 @@
         ]
       }
     },
-    "/api/v1/applications/{customer_id}": {
+    "/api/v1/applications/{application_id}": {
       "get": {
-        "description": "Get a loan application (personal data) by customer ID.",
-        "operationId": "get_loan_application_api_v1_applications__customer_id__get",
+        "description": "Loan data with the applicant's name and masked citizen ID and phone.",
+        "operationId": "get_loan_application_api_v1_applications__application_id__get",
         "parameters": [
           {
             "in": "path",
-            "name": "customer_id",
+            "name": "application_id",
             "required": true,
             "schema": {
-              "title": "Customer Id",
+              "title": "Application Id",
               "type": "string"
             }
           },
@@ -863,17 +1027,17 @@
         ]
       }
     },
-    "/api/v1/applications/{customer_id}/customer-profile": {
+    "/api/v1/applications/{application_id}/customer-profile": {
       "get": {
         "description": "Internal factors, only for the application being handled and after consent (ADR-0013).",
-        "operationId": "customer_profile_api_v1_applications__customer_id__customer_profile_get",
+        "operationId": "customer_profile_api_v1_applications__application_id__customer_profile_get",
         "parameters": [
           {
             "in": "path",
-            "name": "customer_id",
+            "name": "application_id",
             "required": true,
             "schema": {
-              "title": "Customer Id",
+              "title": "Application Id",
               "type": "string"
             }
           },
@@ -920,28 +1084,17 @@
         ]
       }
     },
-    "/api/v1/applications/{customer_id}/decision": {
+    "/api/v1/applications/{application_id}/decision": {
       "get": {
-        "description": "Decision with plain-language reasons. No score or contributions (ADR-0013).",
-        "operationId": "get_decision_api_v1_applications__customer_id__decision_get",
+        "description": "Decision, plain-language reasons (Accept-Language: vi or en) and the status timeline.\n\nNo score or contributions (ADR-0013), and the timeline carries statuses and times only.",
+        "operationId": "get_decision_api_v1_applications__application_id__decision_get",
         "parameters": [
           {
             "in": "path",
-            "name": "customer_id",
+            "name": "application_id",
             "required": true,
             "schema": {
-              "title": "Customer Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "locale",
-            "required": false,
-            "schema": {
-              "default": "vi",
-              "pattern": "^(vi|en)$",
-              "title": "Locale",
+              "title": "Application Id",
               "type": "string"
             }
           },
@@ -988,17 +1141,84 @@
         ]
       }
     },
-    "/api/v1/applications/{customer_id}/explanation": {
-      "get": {
-        "description": "Score, band, contributions and versions of the automated decision (underwriter, auditor).",
-        "operationId": "get_explanation_api_v1_applications__customer_id__explanation_get",
+    "/api/v1/applications/{application_id}/documents": {
+      "post": {
+        "description": "Add a document the caller uploaded to an open application (e.g. payslips during review).",
+        "operationId": "attach_document_api_v1_applications__application_id__documents_post",
         "parameters": [
           {
             "in": "path",
-            "name": "customer_id",
+            "name": "application_id",
             "required": true,
             "schema": {
-              "title": "Customer Id",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Attach Document",
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/v1/applications/{application_id}/explanation": {
+      "get": {
+        "description": "Score, band, contributions and versions of the automated decision (underwriter, auditor).",
+        "operationId": "get_explanation_api_v1_applications__application_id__explanation_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "title": "Application Id",
               "type": "string"
             }
           },
@@ -1045,16 +1265,83 @@
         ]
       }
     },
-    "/api/v1/applications/{customer_id}/notes": {
-      "get": {
-        "operationId": "list_case_notes_api_v1_applications__customer_id__notes_get",
+    "/api/v1/applications/{application_id}/identity:reveal": {
+      "post": {
+        "description": "Unmasked citizen ID and phone for whoever works the case; the reason is audited, the values never.",
+        "operationId": "reveal_identity_api_v1_applications__application_id__identity_reveal_post",
         "parameters": [
           {
             "in": "path",
-            "name": "customer_id",
+            "name": "application_id",
             "required": true,
             "schema": {
-              "title": "Customer Id",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevealRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reveal Identity",
+        "tags": [
+          "Applications"
+        ]
+      }
+    },
+    "/api/v1/applications/{application_id}/notes": {
+      "get": {
+        "operationId": "list_case_notes_api_v1_applications__application_id__notes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "title": "Application Id",
               "type": "string"
             }
           },
@@ -1101,14 +1388,14 @@
         ]
       },
       "post": {
-        "operationId": "add_case_note_api_v1_applications__customer_id__notes_post",
+        "operationId": "add_case_note_api_v1_applications__application_id__notes_post",
         "parameters": [
           {
             "in": "path",
-            "name": "customer_id",
+            "name": "application_id",
             "required": true,
             "schema": {
-              "title": "Customer Id",
+              "title": "Application Id",
               "type": "string"
             }
           },
@@ -1165,17 +1452,17 @@
         ]
       }
     },
-    "/api/v1/applications/{customer_id}/status": {
+    "/api/v1/applications/{application_id}/status": {
       "get": {
         "description": "Latest status; ``submitted`` until a decision is recorded (E5).",
-        "operationId": "get_application_status_api_v1_applications__customer_id__status_get",
+        "operationId": "get_application_status_api_v1_applications__application_id__status_get",
         "parameters": [
           {
             "in": "path",
-            "name": "customer_id",
+            "name": "application_id",
             "required": true,
             "schema": {
-              "title": "Customer Id",
+              "title": "Application Id",
               "type": "string"
             }
           },
@@ -1279,30 +1566,69 @@
         ]
       }
     },
-    "/api/v1/customers/{customer_id}/summary": {
-      "get": {
-        "description": "Lookup by exact customer ID with a purpose; other branches see counts and statuses only.",
-        "operationId": "lookup_customer_api_v1_customers__customer_id__summary_get",
+    "/api/v1/customers:lookup": {
+      "post": {
+        "description": "Exact citizen-ID lookup with a stated purpose; counts and statuses only (ADR-0013).",
+        "operationId": "lookup_customer_api_v1_customers_lookup_post",
         "parameters": [
           {
-            "in": "path",
-            "name": "customer_id",
-            "required": true,
+            "in": "header",
+            "name": "authorization",
+            "required": false,
             "schema": {
-              "title": "Customer Id",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerLookupRequest"
+              }
             }
           },
-          {
-            "in": "query",
-            "name": "purpose",
-            "required": true,
-            "schema": {
-              "pattern": "^(co_applicant|guarantor|customer_present)$",
-              "title": "Purpose",
-              "type": "string"
-            }
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
           },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lookup Customer",
+        "tags": [
+          "Cases"
+        ]
+      }
+    },
+    "/api/v1/me/applications": {
+      "get": {
+        "description": "The signed-in applicant's own applications, newest first.",
+        "operationId": "my_applications_api_v1_me_applications_get",
+        "parameters": [
           {
             "in": "header",
             "name": "authorization",
@@ -1340,9 +1666,9 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Lookup Customer",
+        "summary": "My Applications",
         "tags": [
-          "Cases"
+          "Applications"
         ]
       }
     },
@@ -1516,7 +1842,7 @@
     },
     "/api/v1/presigned-url": {
       "post": {
-        "description": "Generate pre-signed URL for document upload to MinIO with organized folder structure.",
+        "description": "One-object upload policy: key, content type and size are fixed by the API.",
         "operationId": "get_presigned_url_api_v1_presigned_url_post",
         "parameters": [
           {
@@ -1634,17 +1960,17 @@
         ]
       }
     },
-    "/api/v1/reviews/{customer_id}/decision": {
+    "/api/v1/reviews/{application_id}/decision": {
       "post": {
         "description": "Record an underwriter's decision on an application in manual review.",
-        "operationId": "decide_review_api_v1_reviews__customer_id__decision_post",
+        "operationId": "decide_review_api_v1_reviews__application_id__decision_post",
         "parameters": [
           {
             "in": "path",
-            "name": "customer_id",
+            "name": "application_id",
             "required": true,
             "schema": {
-              "title": "Customer Id",
+              "title": "Application Id",
               "type": "string"
             }
           },

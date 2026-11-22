@@ -1,4 +1,5 @@
-# Local UI stack: Keycloak (both realms), PostgreSQL (operations + audit, with demo data), Redis (portal sessions).
+# Local UI stack: Keycloak (both realms), PostgreSQL (operations + audit, with demo data), Redis (portal sessions),
+# MinIO (applicant documents, uploaded by browsers with presigned POST policies).
 # Generated secrets come from scripts/local/.generated (git-ignored). Start with `make local-ui-up`.
 name: crs-local
 
@@ -25,6 +26,7 @@ services:
     volumes:
       - ../../platform/core/schemas:/schemas:ro
       - ./initdb:/docker-entrypoint-initdb.d:ro
+      - ./.generated/seed:/generated:ro   # encrypted demo identities (generate.py)
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ops_admin -d operations"]
       interval: 5s
@@ -34,3 +36,32 @@ services:
     image: redis:7.4.1-alpine
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     ports: ["6380:6379"]
+
+  minio:
+    # Same build as the cluster charts (minio/minio is no longer pullable from Docker Hub).
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r3
+    env_file: .generated/minio.env
+    environment:
+      MINIO_DEFAULT_BUCKETS: loan-documents
+      # Only the portals' pages may post uploads from the browser.
+      MINIO_API_CORS_ALLOW_ORIGIN: http://localhost:3001,http://localhost:3002
+    ports: ["9000:9000", "9001:9001"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9000/minio/health/live"]
+      interval: 5s
+      retries: 20
+
+  minio-init:
+    # ADR-0014: uploaded documents expire after 90 days (retention under local law is an open question).
+    image: bitnamilegacy/minio-client:2025.7.21-debian-12-r2
+    env_file: .generated/minio.env
+    depends_on:
+      minio: {condition: service_healthy}
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - >-
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
+        mc mb -p local/loan-documents &&
+        mc anonymous set none local/loan-documents &&
+        (mc ilm rule ls local/loan-documents | grep -q 90 || mc ilm rule add --expire-days 90 local/loan-documents)
+    restart: "no"
