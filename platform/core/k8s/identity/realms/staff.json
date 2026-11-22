@@ -1,6 +1,7 @@
 {
   "realm": "staff",
   "enabled": true,
+  "loginTheme": "crs-lending",
   "displayName": "CRS Lending staff",
   "registrationAllowed": false,
   "resetPasswordAllowed": false,

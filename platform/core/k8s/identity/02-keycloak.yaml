@@ -79,7 +79,19 @@ spec:
             limits: {memory: 1Gi}
           volumeMounts:
             - {name: realms, mountPath: /opt/keycloak/data/import, readOnly: true}
+            - {name: login-theme, mountPath: /opt/keycloak/themes/crs-lending, readOnly: true}
       volumes:
+        - name: login-theme
+          configMap:
+            name: keycloak-login-theme
+            items:
+              - {key: theme.properties, path: login/theme.properties}
+              - {key: be-vietnam-pro-latin-400-normal.woff2, path: login/resources/be-vietnam-pro-latin-400-normal.woff2}
+              - {key: be-vietnam-pro-latin-600-normal.woff2, path: login/resources/be-vietnam-pro-latin-600-normal.woff2}
+              - {key: be-vietnam-pro-vietnamese-400-normal.woff2, path: login/resources/be-vietnam-pro-vietnamese-400-normal.woff2}
+              - {key: be-vietnam-pro-vietnamese-600-normal.woff2, path: login/resources/be-vietnam-pro-vietnamese-600-normal.woff2}
+              - {key: crs-login.css, path: login/resources/crs-login.css}
+              - {key: crs-mark.svg, path: login/resources/crs-mark.svg}
         - name: realms
           configMap:
             name: keycloak-realms   # make k8s-identity creates it from realms/*.json

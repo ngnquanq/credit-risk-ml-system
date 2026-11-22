@@ -15,6 +15,7 @@ services:
     ports: ["8180:8080"]
     volumes:
       - ./.generated/realms:/opt/keycloak/data/import:ro
+      - ../../platform/core/k8s/identity/themes/crs-lending:/opt/keycloak/themes/crs-lending:ro
 
   postgres:
     image: postgres:16.4

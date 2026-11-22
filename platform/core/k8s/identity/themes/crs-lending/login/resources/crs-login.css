@@ -1,0 +1,137 @@
+@font-face {
+  font-family: "Be Vietnam Pro";
+  src: url("be-vietnam-pro-latin-400-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  src: url("be-vietnam-pro-vietnamese-400-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  src: url("be-vietnam-pro-latin-600-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 600 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  src: url("be-vietnam-pro-vietnamese-600-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 600 900;
+  font-display: swap;
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+
+#keycloak-bg {
+  --crs-red: #c8102e;
+  --crs-red-dark: #9b0c23;
+  --crs-ink: #111111;
+  --crs-border: #e4e4e7;
+  --pf-v5-global--FontFamily--sans-serif: "Be Vietnam Pro", system-ui, sans-serif;
+  --pf-v5-global--FontFamily--heading--sans-serif: var(--pf-v5-global--FontFamily--sans-serif);
+  background: #f4f4f5;
+  color: var(--crs-ink);
+  font-family: var(--pf-v5-global--FontFamily--sans-serif);
+}
+
+#keycloak-bg .pf-v5-c-login {
+  background: none;
+  padding: clamp(24px, 8vh, 80px) 16px 32px;
+}
+
+#keycloak-bg .pf-v5-c-login__container {
+  width: min(100%, 460px);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "header" "main" "footer";
+  gap: 16px;
+  margin: 0 auto;
+}
+
+#keycloak-bg #kc-header {
+  margin: 0;
+  text-align: start;
+}
+
+#keycloak-bg #kc-header-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--crs-ink) !important;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: start;
+}
+
+#kc-header-wrapper::before {
+  content: "";
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  background: url("crs-mark.svg") center / contain no-repeat;
+}
+
+#keycloak-bg .pf-v5-c-login__main {
+  min-width: 0;
+  border: 1px solid var(--crs-border);
+  border-top: 3px solid var(--crs-red);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 14px 38px rgb(17 17 17 / 7%);
+  overflow-wrap: anywhere;
+}
+
+#keycloak-bg #kc-page-title {
+  color: var(--crs-ink);
+  font-size: clamp(22px, 6vw, 28px);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+#keycloak-bg .pf-v5-c-form-control,
+#keycloak-bg .pf-v5-c-button {
+  min-height: 44px;
+  font-family: inherit;
+}
+
+#keycloak-bg .pf-v5-c-form-control {
+  --pf-v5-c-form-control--before--BorderColor: #d4d4d8;
+  --pf-v5-c-form-control--focus--after--BorderBottomColor: var(--crs-red);
+  border-radius: 10px;
+}
+
+#keycloak-bg .pf-v5-c-button.pf-m-primary {
+  --pf-v5-c-button--m-primary--BackgroundColor: var(--crs-red);
+  --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--crs-red-dark);
+  --pf-v5-c-button--m-primary--focus--BackgroundColor: var(--crs-red-dark);
+  --pf-v5-c-button--m-primary--active--BackgroundColor: var(--crs-red-dark);
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+#keycloak-bg a {
+  color: var(--crs-red-dark);
+}
+
+#keycloak-bg :focus-visible {
+  outline: 2px solid var(--crs-red);
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  #keycloak-bg .pf-v5-c-login__main-header,
+  #keycloak-bg .pf-v5-c-login__main-body {
+    padding-inline: 20px;
+  }
+}

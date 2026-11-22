@@ -66,6 +66,12 @@ make k8s-identity           # needs the Identity variables from .env.example
 
 Realm files contain no secrets: client secrets are `${...}` placeholders filled from the `keycloak-clients` Secret at import.
 
+## Login theme
+
+The `crs-lending` theme extends Keycloak's `keycloak.v2` login theme. It uses the portal palette and self-hosted Be Vietnam Pro. Keycloak supplies the forms and their authentication behavior.
+
+`make k8s-identity` publishes the theme files as the `keycloak-login-theme` ConfigMap. Both realm definitions select the theme on first import. For an existing realm, set **Realm settings → Themes → Login theme → crs-lending** after deploying the theme. Restart the Keycloak StatefulSet after updating theme assets on a running cluster so every replica loads the new files.
+
 ## To verify on the first deployment (not yet run on a cluster)
 
 - Placeholder substitution in the realm import (`${STAFF_PORTAL_CLIENT_SECRET}`, `${SMTP_HOST}`). Set `SMTP_HOST` and `SMTP_PORT` on the StatefulSet, or point them at a local mail catcher for UAT.

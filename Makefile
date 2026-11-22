@@ -181,6 +181,7 @@ k8s-identity-secrets: ## Create Keycloak secrets from environment variables (nev
 k8s-identity: k8s-identity-secrets ## Deploy Keycloak with the staff and customers realms (E11)
 	kubectl apply -f platform/core/k8s/identity/01-keycloak-db.yaml
 	kubectl create configmap keycloak-realms -n identity --from-file=platform/core/k8s/identity/realms/ --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create configmap keycloak-login-theme -n identity --from-file=platform/core/k8s/identity/themes/crs-lending/login/theme.properties --from-file=platform/core/k8s/identity/themes/crs-lending/login/resources/ --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply -f platform/core/k8s/identity/02-keycloak.yaml
 	kubectl rollout status statefulset/keycloak -n identity --timeout=300s
 

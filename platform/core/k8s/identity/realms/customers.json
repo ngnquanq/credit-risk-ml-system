@@ -1,6 +1,7 @@
 {
   "realm": "customers",
   "enabled": true,
+  "loginTheme": "crs-lending",
   "displayName": "CRS Lending",
   "registrationAllowed": true,
   "registrationEmailAsUsername": true,
