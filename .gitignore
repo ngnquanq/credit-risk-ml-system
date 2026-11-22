@@ -5,3 +5,4 @@ dist/
 src/content/docs/synced/
 public/docs-assets/
 src/synced-meta.json
+.cache/

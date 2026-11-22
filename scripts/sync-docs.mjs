@@ -3,8 +3,11 @@
  * Pull pages from master's docs/ into the site. docs/ on master stays the single source of
  * truth; this branch only holds the site and this mapping.
  *
- * - DOCS_SOURCE: path to a checkout of docs/ (CI: source/docs; locally: ../credit-risk-ml-system/docs)
- * - SOURCE_SHA:  commit the pages were built from (shown in the footer for reproducibility)
+ * Where docs/ comes from (this branch has no docs/ of its own):
+ * - default: exported from the git ref DOCS_REF (default origin/master) of this same repository,
+ *   so `git switch docs-site && npm run dev` works inside the repo with no other checkout;
+ * - DOCS_SOURCE: a directory that already holds docs/ (CI checks master out into source/docs).
+ * SOURCE_SHA overrides the commit shown in the footer.
  *
  * Per page: the first "# Heading" becomes the frontmatter title, relative links to other synced
  * pages become site links, links to anything else in the repo go to GitHub, images are copied
@@ -16,7 +19,33 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const SITE = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const SOURCE = resolve(SITE, process.env.DOCS_SOURCE ?? "../credit-risk-ml-system/docs");
+const CACHE = join(SITE, ".cache/source");
+
+/** Directory with the docs/ tree, and the commit it came from. */
+function resolveSource() {
+  if (process.env.DOCS_SOURCE) {
+    const dir = resolve(SITE, process.env.DOCS_SOURCE);
+    return { dir, sha: process.env.SOURCE_SHA ?? gitSha(["-C", dir, "rev-parse", "HEAD"]) };
+  }
+  const ref = process.env.DOCS_REF ?? "origin/master";
+  rmSync(CACHE, { recursive: true, force: true });
+  mkdirSync(CACHE, { recursive: true });
+  const tar = join(CACHE, "docs.tar");
+  execFileSync("git", ["-C", SITE, "archive", "--format=tar", "-o", tar, ref, "docs"]);
+  execFileSync("tar", ["-xf", tar, "-C", CACHE]);
+  rmSync(tar);
+  return { dir: join(CACHE, "docs"), sha: process.env.SOURCE_SHA ?? gitSha(["-C", SITE, "rev-parse", ref]) };
+}
+
+function gitSha(args) {
+  try {
+    return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    return "unknown";
+  }
+}
+
+const { dir: SOURCE, sha: SOURCE_SHA } = resolveSource();
 const BASE = "/credit-risk-ml-system";
 const REPO = "https://github.com/ngnquanq/credit-risk-ml-system";
 const OUT = join(SITE, "src/content/docs/synced");
@@ -71,15 +100,6 @@ function convert(markdown, fromDoc) {
   return { title, body };
 }
 
-function sourceSha() {
-  if (process.env.SOURCE_SHA) return process.env.SOURCE_SHA;
-  try {
-    return execFileSync("git", ["-C", SOURCE, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-  } catch {
-    return "unknown";
-  }
-}
-
 rmSync(OUT, { recursive: true, force: true });
 rmSync(ASSETS, { recursive: true, force: true });
 let count = 0;
@@ -103,6 +123,6 @@ for (const [doc, slug] of Object.entries(PAGES)) {
   writeFileSync(out, front + body);
   count++;
 }
-const sha = sourceSha();
+const sha = SOURCE_SHA;
 writeFileSync(join(SITE, "src/synced-meta.json"), JSON.stringify({ sha, syncedAt: new Date().toISOString() }, null, 2));
 console.log(`synced ${count} pages from ${relative(SITE, SOURCE)} @ ${sha.slice(0, 7)}`);

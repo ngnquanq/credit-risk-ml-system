@@ -17,13 +17,16 @@ This branch holds only the documentation website for [credit-risk-ml-system](htt
 
 ## Run locally
 
+Inside the repository, on this branch:
+
 ```bash
+git switch docs-site      # commit or stash work on other branches first
 npm ci
-npm run dev        # syncs from ../credit-risk-ml-system/docs, then serves http://localhost:4321/credit-risk-ml-system/
-npm run build      # static site in dist/
+npm run dev               # exports docs/ from origin/master, then serves http://localhost:4321/credit-risk-ml-system/
+npm run build             # static site in dist/
 ```
 
-Set `DOCS_SOURCE` to read `docs/` from another checkout.
+`DOCS_REF=<branch or commit>` previews docs from another ref, for example a branch that is not merged yet. `DOCS_SOURCE=<dir>` reads an existing folder instead (the workflow uses this).
 
 ## Publish a new page
 
