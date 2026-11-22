@@ -1,0 +1,22 @@
+---
+import Default from "@astrojs/starlight/components/Footer.astro";
+import meta from "../synced-meta.json";
+
+const sha = meta.sha ?? "unknown";
+const short = sha.slice(0, 7);
+---
+
+<Default><slot /></Default>
+<p class="provenance">
+  Built from{" "}
+  {sha === "unknown" ? "master" : <a href={`https://github.com/ngnquanq/credit-risk-ml-system/tree/${sha}`}><code>master@{short}</code></a>}
+  · <a href="https://github.com/ngnquanq/credit-risk-ml-system/blob/master/LICENSE">MIT License</a>
+</p>
+
+<style>
+  .provenance {
+    margin-top: 1.5rem;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+</style>

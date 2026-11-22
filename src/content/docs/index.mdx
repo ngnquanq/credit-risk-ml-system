@@ -1,0 +1,66 @@
+---
+title: Credit Risk Decisioning Platform
+description: An open, end-to-end reference for explainable, fair and auditable credit decisions.
+template: splash
+hero:
+  title: Credit decisions you can <span class="accent">explain, audit and defend</span>
+  tagline: An open reference platform that takes a loan application from change-data capture to a human reviewer, with the security, fairness and audit controls a regulated lender needs. Built on the Home Credit Default Risk data.
+  actions:
+    - text: Read the technical report
+      link: /credit-risk-ml-system/report/
+      icon: right-arrow
+      variant: primary
+    - text: Architecture
+      link: /credit-risk-ml-system/architecture/overview/
+      variant: secondary
+    - text: View on GitHub
+      link: https://github.com/ngnquanq/credit-risk-ml-system
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+:::caution[Sample site]
+This is a preview of the documentation site. Only a few pages are published, and the technical report's results are pending.
+:::
+
+## What makes it different
+
+<CardGrid>
+  <Card title="Decisions, not just scores" icon="approve-check">
+    A three-band policy (approve, review, reject) and an idempotent decision recorder. When features are missing or scoring fails, the system never approves automatically: it routes the application to a person.
+  </Card>
+  <Card title="Explanations for each audience" icon="comment">
+    Reasons come from SHAP and are mapped through a feature catalog. Applicants read plain-language reasons. Underwriters see the score and each feature's contribution. Loan officers never see weights they could coach against.
+  </Card>
+  <Card title="Fairness by construction" icon="setting">
+    A versioned feature catalog tags protected attributes and their proxies. Training refuses a feature set that uses them unless the set is explicitly marked legacy.
+  </Card>
+  <Card title="Security and audit as features" icon="seti:lock">
+    Two Keycloak realms, a permission matrix as code, maker–checker reviews, and four-eyes changes to the decision policy. Personal data is encrypted per field and kept out of the event stream, and every access lands in a hash-chained audit trail.
+  </Card>
+</CardGrid>
+
+## The pipeline in one picture
+
+<pre class="mermaid">{`flowchart LR
+  A[Applicant or loan officer] --> P[Portals · Next.js BFF]
+  P --> API[Loan API · FastAPI]
+  API --> PG[(PostgreSQL)]
+  PG -- CDC --> K[[Kafka]]
+  K --> F[Flink feature jobs]
+  F --> FS[(Feast · Redis)]
+  FS --> S[Scoring · KServe + XGBoost]
+  S --> D[Decision recorder]
+  D --> PG
+  D --> R[Underwriter review]`}</pre>
+
+## Read next
+
+<CardGrid>
+  <LinkCard title="Technical report (draft)" description="Does removing the protected attribute make a credit model fairer, and what does it cost?" href="/credit-risk-ml-system/report/" />
+  <LinkCard title="System overview (C4)" description="Context, containers and components, generated from one Structurizr model." href="/credit-risk-ml-system/architecture/overview/" />
+  <LinkCard title="ADR-0014 · Personal data" description="Why identity data is kept apart and encrypted, and why URLs carry only opaque ids." href="/credit-risk-ml-system/decisions/0014-personal-data-and-opaque-ids/" />
+  <LinkCard title="Threat model" description="STRIDE threats per trust boundary, each with its mitigation and status." href="/credit-risk-ml-system/security/threat-model/" />
+</CardGrid>

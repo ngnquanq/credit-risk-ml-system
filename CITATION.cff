@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this platform or its documentation, please cite it as below."
+title: "Credit Risk Decisioning Platform: an open reference for explainable, fair and auditable credit decisions"
+type: software
+authors:
+  - family-names: Nguyen
+    given-names: Nhat Quang
+repository-code: "https://github.com/ngnquanq/credit-risk-ml-system"
+url: "https://ngnquanq.github.io/credit-risk-ml-system/"
+license: MIT
+keywords:
+  - credit risk
+  - machine learning engineering
+  - algorithmic fairness
+  - explainability
+  - MLOps
+  - audit

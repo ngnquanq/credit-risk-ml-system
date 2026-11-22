@@ -1,0 +1,57 @@
+# Builds the documentation site from master's docs/ and publishes it to GitHub Pages.
+# This workflow and the site code live only on the docs-site branch; master is never touched.
+name: Deploy docs site
+
+on:
+  push:
+    branches: [docs-site]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Site code (docs-site branch)
+        uses: actions/checkout@v4
+
+      - name: Content (docs/ on master)
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          path: source
+          sparse-checkout: docs
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Sync docs and build
+        run: npm run build
+        env:
+          DOCS_SOURCE: source/docs
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

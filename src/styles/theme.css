@@ -1,0 +1,81 @@
+/*
+ * Same identity as the portals: red for emphasis and primary actions, black text, greys,
+ * white surfaces; Be Vietnam Pro for text, JetBrains Mono for code. Starlight defines dark
+ * mode on :root and light mode on [data-theme="light"].
+ */
+:root {
+  --sl-font: "Be Vietnam Pro", system-ui, sans-serif;
+  --sl-font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* dark */
+  --sl-color-accent-low: #3f1218;
+  --sl-color-accent: #ef4d63;
+  --sl-color-accent-high: #fbc7cf;
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #f4f4f5;
+  --sl-color-gray-2: #d4d4d8;
+  --sl-color-gray-3: #a1a1aa;
+  --sl-color-gray-4: #52525b;
+  --sl-color-gray-5: #3f3f46;
+  --sl-color-gray-6: #18181b;
+  --sl-color-black: #0f0f10;
+
+  --crs-red: #c8102e;
+  --sl-content-width: 48rem;
+  --sl-line-height: 1.7;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: #fdecee;
+  --sl-color-accent: #c8102e;
+  --sl-color-accent-high: #7a0a1c;
+  --sl-color-white: #111111;
+  --sl-color-gray-1: #27272a;
+  --sl-color-gray-2: #3f3f46;
+  --sl-color-gray-3: #52525b;
+  --sl-color-gray-4: #a1a1aa;
+  --sl-color-gray-5: #e4e4e7;
+  --sl-color-gray-6: #f4f4f5;
+  --sl-color-gray-7: #fafafa;
+  --sl-color-black: #ffffff;
+}
+
+/* Headings: tighter and heavier, like the portals. */
+.sl-markdown-content :is(h1, h2, h3) { letter-spacing: -0.01em; }
+.sl-markdown-content h2 { font-weight: 700; }
+h1#_top { font-weight: 700; letter-spacing: -0.02em; }
+
+/* Tables read like the staff portal: quiet rules, numbers aligned. */
+.sl-markdown-content table { font-size: 0.92rem; font-variant-numeric: tabular-nums; }
+.sl-markdown-content th { background: var(--sl-color-gray-6); }
+
+/* Diagrams: centred, never wider than the column; a quiet frame. */
+.sl-markdown-content pre.mermaid {
+  background: transparent; border: 1px solid var(--sl-color-gray-5); border-radius: 12px;
+  padding: 1rem; text-align: center; overflow-x: auto;
+}
+.sl-markdown-content img[src$=".svg"] {
+  background: #ffffff; border-radius: 12px; padding: 0.75rem; border: 1px solid var(--sl-color-gray-5);
+}
+
+/* Hero: the portal's red underline accent. */
+.hero .tagline { max-width: 40rem; }
+.hero h1 span.accent { color: var(--sl-color-accent); }
+
+/* Academic touches: abstract box and numbered references. */
+.abstract {
+  border-left: 4px solid var(--sl-color-accent); background: var(--sl-color-accent-low);
+  padding: 1rem 1.25rem; border-radius: 0 12px 12px 0;
+}
+.abstract p:first-child { margin-top: 0; }
+ol.references { padding-left: 1.75rem; }
+ol.references li { margin-bottom: 0.6rem; }
+.pending { color: var(--sl-color-gray-3); font-style: italic; }
+
+/* Cards: one accent instead of Starlight's rotating palette. */
+.card-grid > .card:nth-child(n) {
+  --sl-card-border: var(--sl-color-accent);
+  --sl-card-bg: var(--sl-color-accent-low);
+}
+.hero { padding-block: 3rem 2rem; }
+.hero > .stack, .hero .copy { max-width: 46rem; }
