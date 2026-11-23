@@ -696,10 +696,10 @@ def ensure_model_loaded() -> None:
                         f"ACTION REQUIRED:\n"
                         f"  1. Update Feast StreamFeatureViews to include missing features\n"
                         f"  2. Sample Kafka topics to generate schemas:\n"
-                        f"     python application/feast_repo/generate_schemas_from_kafka.py\n"
+                        f"     python services/feature-store/feast_repo/generate_schemas_from_kafka.py\n"
                         f"  3. Update feature_views.py to use generated schemas\n"
                         f"  4. Rebuild Docker image and redeploy Feast:\n"
-                        f"     kubectl apply -k platform/ml/k8s/feature-store/\n"
+                        f"     kubectl apply -k services/feature-store/deploy/\n"
                         f"  5. Redeploy this service\n"
                         f"{'='*70}\n"
                     )

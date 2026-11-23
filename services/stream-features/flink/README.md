@@ -21,7 +21,7 @@ Run locally (example)
 2) Create sink topics (idempotent):
    `python application/kafka/create_topics.py`
 3) Submit the job to a Flink cluster or run with `pyflink` installed:
-   `python application/flink/jobs/cdc_application_etl.py`
+   `python services/stream-features/flink/jobs/cdc_application_etl.py`
 
 Note: In production, build a Flink image with Kafka connectors on the classpath
 and submit using `flink run -py jobs/cdc_application_etl.py`.

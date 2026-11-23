@@ -66,7 +66,7 @@ s3://bentoml-bundles/
             │   ├── bundle/
             │   │   ├── model.joblib      # Serialized sklearn pipeline (preprocessor + XGBoost)
             │   │   └── feast_metadata.yaml  # Feature name mapping (Feast → model columns)
-            │   ├── feast_repo/           # Physical copy of application/feast_repo/
+            │   ├── feast_repo/           # Physical copy of services/feature-store/feast_repo/
             │   │   ├── feature_store.yaml
             │   │   ├── feature_views.py
             │   │   └── ...
@@ -116,7 +116,7 @@ The branch is configured via `APP_REF` in the builder job template (`services/mo
 BentoML's `include` directive does not follow symlinks. Since `application/scoring/feast_repo` and `application/scoring/tracing` may be symlinks, the builder physically copies them:
 
 ```
-application/feast_repo/  →  application/scoring/feast_repo/
+services/feature-store/feast_repo/  →  application/scoring/feast_repo/
 application/tracing/     →  application/scoring/tracing/
 ```
 

@@ -9,7 +9,7 @@ from feature_catalog.catalog import Catalog, load_set_status
 from training.feature_preprocessing import load_feature_set
 
 REPO = Path(__file__).resolve().parents[3]
-FEAST_SCHEMAS = REPO / "application" / "feast_repo" / "feature_schema"
+FEAST_SCHEMAS = REPO / "services" / "feature-store" / "feast_repo" / "feature_schema"
 SETS = sorted(p.stem for p in (REPO / "contracts" / "feature_catalog" / "sets").glob("*.json"))
 
 

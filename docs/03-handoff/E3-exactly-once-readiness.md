@@ -58,7 +58,7 @@ Component view [`T-E3-Readiness`](../architecture/c4/docs/images/T-E3-Readiness.
 classDiagram
     direction LR
     class ReadinessCoordinator {
-        <<application/feast_repo/readiness.py>>
+        <<services/feature-store/feast_repo/readiness.py>>
         +groups: frozenset = application, external, dwh
         +timeout_s: int = 300
         +register_arrival(sk_id_curr: str, group: str) ReadinessStatus
@@ -172,10 +172,10 @@ Both scripts set `dispatched:<id>` with `NX`. Whichever runs first (ready or tim
 
 | File | Change |
 |---|---|
-| `application/feast_repo/readiness.py` | **new**: `ReadinessCoordinator`, `ReadinessStatus`, `TimedOut` |
-| `application/feast_repo/readiness_arrive.lua`, `readiness_sweep.lua` | **new**: replace `redis_coordination.lua` |
-| `application/feast_repo/redis_coordination.lua` | delete |
-| `application/feast_repo/stream_processor.py` | use the coordinator; publish only on `READY_FIRST_TIME`; add the sweeper thread; remove the inline `== 3` logic |
+| `services/feature-store/feast_repo/readiness.py` | **new**: `ReadinessCoordinator`, `ReadinessStatus`, `TimedOut` |
+| `services/feature-store/feast_repo/readiness_arrive.lua`, `readiness_sweep.lua` | **new**: replace `redis_coordination.lua` |
+| `services/feature-store/feast_repo/redis_coordination.lua` | delete |
+| `services/feature-store/feast_repo/stream_processor.py` | use the coordinator; publish only on `READY_FIRST_TIME`; add the sweeper thread; remove the inline `== 3` logic |
 | `platform/data/k8s/message-broker/04-kafka-init.yaml` | add `hc.feature_timeout` |
 | `pyproject.toml` (test extra) | `fakeredis[lua]` |
 | `docs/architecture/c4/workspace.dsl` | built: drop `Planned`; close F-03, F-15 |

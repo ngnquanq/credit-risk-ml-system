@@ -33,8 +33,8 @@ CDC_CONNECTOR="postgres-application-connector"
 EXPECTED_FLINK_JOB_COUNT=2
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FLINK_CDC_JOB="$REPO_ROOT/platform/data/k8s/stream-processing/02-flink-submit-cdc.yaml"
-FLINK_BUREAU_JOB="$REPO_ROOT/platform/data/k8s/stream-processing/03-flink-submit-bureau.yaml"
+FLINK_CDC_JOB="$REPO_ROOT/services/stream-features/deploy/02-flink-submit-cdc.yaml"
+FLINK_BUREAU_JOB="$REPO_ROOT/services/stream-features/deploy/03-flink-submit-bureau.yaml"
 DEBEZIUM_MANIFEST="$REPO_ROOT/platform/data/k8s/cdc/01-debezium.yaml"
 
 # ───────────────────────────── Flags ──────────────────────────────────────

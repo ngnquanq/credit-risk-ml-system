@@ -1,5 +1,5 @@
 # Flink Stream Processing - Session cluster (JobManager + TaskManager)
-# Image: flink-pyflink:latest (built from application/flink/Dockerfile)
+# Image: flink-pyflink:latest (built from services/stream-features/flink/Dockerfile)
 #
 # IMPORTANT: Both JobManager and TaskManager use the same image with PyFlink
 # pre-installed. The submit jobs (02/03) use -pyexec to avoid uploading the

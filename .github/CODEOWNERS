@@ -2,7 +2,7 @@
 # placeholders for the teams that would review each area once required reviews are enabled.
 
 # Data engineering: producers, transforms, warehouse
-/application/flink/                     @credit-risk/data-engineering
+/services/stream-features/flink/                     @credit-risk/data-engineering
 /application/entrypoints/*consumer*.py  @credit-risk/data-engineering
 /platform/data/                         @credit-risk/data-engineering
 /ml_data_mart/                          @credit-risk/data-engineering
