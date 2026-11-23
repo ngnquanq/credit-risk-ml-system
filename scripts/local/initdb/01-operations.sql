@@ -1,4 +1,4 @@
--- Same schema as the cluster (platform/core/schemas), applied in order.
+-- Same schema as the cluster (services/loan-api/schema), applied in order.
 \i /schemas/001_create_loan_applications.sql
 \i /schemas/002_create_application_status_log.sql
 \i /schemas/003_status_log_event_id.sql

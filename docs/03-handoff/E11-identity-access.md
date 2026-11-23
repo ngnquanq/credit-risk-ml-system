@@ -234,7 +234,7 @@ Existing rows keep `channel='staff'` and null owners. They are readable only by 
 | `services/loan-api/src/entrypoints/api/main.py` | every `/api/v1` route: `Depends(TokenVerifier)` and an `authorize` call; submit sets `channel`, `created_by_sub`/`applicant_sub`, `branch_id` from the principal, never from the body |
 | `services/loan-api/src/entrypoints/api/review_routes.py` | **new** (with E5): reviews and policy-change routes |
 | `services/loan-api/src/core/config.py` | settings above; startup fails when `APP_OIDC_ISSUERS` is empty and `debug` is false |
-| `platform/core/schemas/004_ownership_and_policy.sql` | **new** |
+| `services/loan-api/schema/004_ownership_and_policy.sql` | **new** |
 | `tests/test_load/locustfile.py` | keeps `X-API-Key` (load-test client) |
 
 ## 7. Acceptance criteria → tests

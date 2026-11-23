@@ -25,7 +25,7 @@ services:
       POSTGRES_DB: operations
     ports: ["5433:5432"]
     volumes:
-      - ../../platform/core/schemas:/schemas:ro
+      - ../../services/loan-api/schema:/schemas:ro
       - ./initdb:/docker-entrypoint-initdb.d:ro
       - ./.generated/seed:/generated:ro   # encrypted demo identities (generate.py)
     healthcheck:

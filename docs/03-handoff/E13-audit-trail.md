@@ -177,7 +177,7 @@ GRANT SELECT ON audit_trace TO audit_reader;
 
 | File | Change |
 |---|---|
-| `platform/core/schemas/audit/001_audit_event.sql` | **new** |
+| `services/loan-api/schema/audit/001_audit_event.sql` | **new** |
 | `services/loan-api/src/audit/{__init__,writer,sanitizer}.py` | **new** |
 | `services/loan-api/src/audit/verify_job.py`, CronJob in `platform/core/k8s/09-decision-recorder.yaml` | **new**: daily CronJob; Prometheus metric `audit_chain_ok` |
 | `services/loan-api/src/entrypoints/api/*.py` | call `record` on every allowed or denied action (E11) |

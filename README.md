@@ -128,7 +128,7 @@ cp .env.example .env
 # 3. Start PostgreSQL (Kafka is optional for the API: a failed publish is logged, not raised)
 docker run -d --name ops-postgres -p 5432:5432 \
   -e POSTGRES_DB=operations -e POSTGRES_USER=ops_admin -e POSTGRES_PASSWORD="$OPS_DB_PASSWORD" \
-  -v "$PWD/platform/core/schemas:/docker-entrypoint-initdb.d:ro" postgres:15-alpine
+  -v "$PWD/services/loan-api/schema:/docker-entrypoint-initdb.d:ro" postgres:15-alpine
 # or point .env at existing services
 
 # 4. Run the API

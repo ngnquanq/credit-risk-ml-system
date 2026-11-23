@@ -197,7 +197,7 @@ Constraint, checked at startup: `0 < approve_below ≤ reject_above < 1`. Both b
 }
 ```
 
-**Migration `platform/core/schemas/003_status_log_event_id.sql`**
+**Migration `services/loan-api/schema/003_status_log_event_id.sql`**
 
 ```sql
 ALTER TABLE application_status_log ADD COLUMN IF NOT EXISTS event_id VARCHAR(64);
@@ -225,7 +225,7 @@ Row written: `status` (above), `created_by = 'decision-recorder'`, `metadata = {
 | `services/loan-api/src/infrastructure/persistence/status_log.py` | **new**: `StatusLogWriter` port, Postgres adapter |
 | `services/loan-api/src/infrastructure/persistence/models/sqlalchemy_models.py` | `event_id` column |
 | `services/loan-api/src/entrypoints/api/main.py` | status route: `submitted` fallback; new review-queue route |
-| `platform/core/schemas/003_status_log_event_id.sql`, `platform/data/k8s/operational-db/03-db-init.yaml` | migration, include in init |
+| `services/loan-api/schema/003_status_log_event_id.sql`, `platform/data/k8s/operational-db/03-db-init.yaml` | migration, include in init |
 | `platform/data/k8s/query-services/04-decision-recorder.yaml` | **new** Deployment (consumers image, `command: python entrypoints/decision_recorder.py`) |
 | `platform/data/k8s/message-broker/04-kafka-init.yaml` | topic `hc.decisions.dlq` |
 | `tests/test_load/locustfile_e2e_prediction.py` | measure latency to the status row, not only to `hc.scoring` |
