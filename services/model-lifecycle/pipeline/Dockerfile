@@ -1,6 +1,6 @@
 ARG BASE_IMAGE=python:3.11-slim
 FROM ${BASE_IMAGE}
-COPY application/training/feature_preprocessing.py /opt/credit-risk/feature_preprocessing.py
+COPY services/model-lifecycle/training/feature_preprocessing.py /opt/credit-risk/feature_preprocessing.py
 ENV PYTHONPATH=/opt/credit-risk
 
 COPY contracts/feature_catalog/ /opt/credit-risk/feature_catalog/

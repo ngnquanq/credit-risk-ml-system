@@ -22,7 +22,7 @@ The Feast materialiser decides an application is complete when a Redis set reach
 
 ## 3. Today
 
-As-built views: [`L3-Feast-Materialiser`](../architecture/c4/docs/images/L3-Feast-Materialiser.svg) and [`D3c-Feast-Coordination`](../architecture/c4/docs/images/D3c-Feast-Coordination.svg).
+As-built view: [`L3-Feast-Materialiser`](../architecture/c4/docs/images/L3-Feast-Materialiser.svg). The step-by-step coordination is in [sequence S2](../architecture/c4/docs/04-runtime-sequences.md).
 
 ```mermaid
 sequenceDiagram

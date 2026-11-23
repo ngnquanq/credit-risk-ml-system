@@ -54,7 +54,7 @@ Container view [`T-E6-Governed-Model`](../architecture/c4/docs/images/T-E6-Gover
 classDiagram
     direction LR
     class TrainingRecipe {
-        <<application/training/recipe.py>>
+        <<services/model-lifecycle/training/recipe.py>>
         +build_dataset(snapshot_uri) Dataset
         +fit(ds: Dataset, cfg: TrainingConfig) FittedModel
         +evaluate(model, ds) Evaluation
@@ -85,7 +85,7 @@ classDiagram
         +proxy_scan: dict
     }
     class RegistrationGate {
-        <<application/training/gate.py>>
+        <<services/model-lifecycle/training/gate.py>>
         +check(eval, prod_auc, catalog_check) GateResult
     }
     TrainingRecipe ..> Dataset
@@ -168,10 +168,10 @@ Builder SQL: `mart_application` ⋈ `mart_application_train` ⋈ `external_score
 
 | File | Change |
 |---|---|
-| `application/training/recipe.py`, `gate.py`, `fairness.py`, `model_card.py`, `train.py` (CLI) | **new** |
-| `application/training/train_register.py` | delete (replaced by `train.py`, which uses the recipe) |
-| `notebook/model_pipeline.py` | tuning only; calls `recipe.fit/evaluate`; writes `TrainingConfig` YAML |
-| `platform/ml/k8s/training-pipeline/pipeline.py` | `train_and_register` calls the recipe; recompile `training_pipeline.yaml` |
+| `services/model-lifecycle/training/recipe.py`, `gate.py`, `fairness.py`, `model_card.py`, `train.py` (CLI) | **new** |
+| `services/model-lifecycle/training/train_register.py` | delete (replaced by `train.py`, which uses the recipe) |
+| `services/model-lifecycle/training/model_pipeline.py` | tuning only; calls `recipe.fit/evaluate`; writes `TrainingConfig` YAML |
+| `services/model-lifecycle/pipeline/pipeline.py` | `train_and_register` calls the recipe; recompile `training_pipeline.yaml` |
 | `Makefile` `k8s-export-training-snapshot` | builder SQL; parquet + manifest; `ds` parameter instead of the hard-coded date |
 | `README.md` Results, Quick Start | 23 features, gender-free, snapshot-based quick start |
 

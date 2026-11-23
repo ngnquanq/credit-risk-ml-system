@@ -90,7 +90,7 @@ Key artifacts:
 
 **Container:** `python:3.11-slim`, one-shot Job with `ttlSecondsAfterFinished: 1800`
 
-**Source of truth:** The deployed script lives in ConfigMap `bento-builder-script` (`platform/ml/k8s/kserve/bento-builder/configmap.yaml`), not the standalone `build_and_upload.py` — the ConfigMap version includes additional logic for Feast repo copying and feast_metadata download.
+**Source of truth:** The deployed script lives in ConfigMap `bento-builder-script` (`services/model-lifecycle/bento-builder/configmap.yaml`), not the standalone `build_and_upload.py` — the ConfigMap version includes additional logic for Feast repo copying and feast_metadata download.
 
 ### Step-by-step
 
@@ -109,7 +109,7 @@ Two options, checked in order:
 1. **Local mount** (`APP_LOCAL_PATH`): If `/repo-src` exists (hostPath mount), copy it to a temp directory. Used in development.
 2. **Git clone**: `git clone --depth 1 --branch feature/the-grand-migration <APP_REPO>`. Used in production.
 
-The branch is configured via `APP_REF` in the builder job template (`platform/ml/k8s/mlflow-watcher/builder-configmap.yaml:34`).
+The branch is configured via `APP_REF` in the builder job template (`services/model-lifecycle/mlflow-watcher/builder-configmap.yaml:34`).
 
 **Step 3 — Copy Feast repo and tracing module**
 
@@ -193,7 +193,7 @@ Final storage URI: `s3://bentoml-bundles/bentos/credit_risk_model/v12/`
 
 **Container:** `docker:27-dind` with a privileged Docker daemon sidecar. The watcher installs Python + dependencies at pod startup (`apk add python3 py3-pip && pip3 install kubernetes pyyaml boto3`).
 
-**Source of truth:** `platform/ml/k8s/kserve/serving-watcher/watcher.py`, mounted via ConfigMap `serving-watcher`.
+**Source of truth:** `services/model-lifecycle/serving-watcher/watcher.py`, mounted via ConfigMap `serving-watcher`.
 
 ### Step-by-step
 
@@ -313,7 +313,7 @@ If `env/python/requirements.txt` doesn't exist (can happen with certain BentoML 
 
 ### Bento Builder Job
 
-Configured in `platform/ml/k8s/mlflow-watcher/builder-configmap.yaml` (job template).
+Configured in `services/model-lifecycle/mlflow-watcher/builder-configmap.yaml` (job template).
 
 | Variable | Default | Description |
 |----------|---------|-------------|

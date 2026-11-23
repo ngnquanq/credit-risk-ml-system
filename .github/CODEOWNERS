@@ -8,7 +8,7 @@
 /ml_data_mart/                          @credit-risk/data-engineering
 
 # Data science: training, feature sets, notebooks
-/application/training/                  @credit-risk/data-science
+/services/model-lifecycle/training/                  @credit-risk/data-science
 /notebook/                              @credit-risk/data-science
 
 # Feature definitions need both producers and consumers (E2 governance plan)

@@ -619,7 +619,7 @@ def ensure_model_loaded() -> None:
                 f"Model '{name}' is missing feast_metadata.yaml. "
                 "This file must be generated during training with fields: "
                 "'selected_features', 'feast_feature_refs', 'feature_mapping', 'num_features', 'training_date'. "
-                "The training scripts in application/training write it next to the model."
+                "The training scripts in services/model-lifecycle/training write it next to the model."
             )
 
         if not feast_metadata.get("selected_features"):

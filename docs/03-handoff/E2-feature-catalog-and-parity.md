@@ -124,7 +124,7 @@ classDiagram
     Catalog ..> CatalogCheck
 ```
 
-`FeatureSet` and `load_feature_set()` already exist in `application/training/feature_preprocessing.py`. `Catalog` adds the definitions and the checks; it does not change how training resolves a set.
+`FeatureSet` and `load_feature_set()` already exist in `services/model-lifecycle/training/feature_preprocessing.py`. `Catalog` adds the definitions and the checks; it does not change how training resolves a set.
 
 ### 4.3 Behaviour
 
@@ -203,7 +203,7 @@ Initial definitions: import the 43 + 57 + 156 fields from today's `feature_schem
 | `application/feast_repo/generate_schemas_from_kafka.py` | delete (replaced by the exporter) |
 | `application/flink/jobs/generated_columns.py` | **new, generated**; `cdc_application_etl.py` builds sink DDL and SELECT from it |
 | `application/flink/jobs/application_transforms.py`, `cdc_udfs.py` | **done** (2026-11-22): `days_employed` is a pure function (≤ 0, `365243` when not employed) and the UDF delegates to it; tests in `tests/unit/flink/` |
-| `application/training/train_register.py`, `notebook/model_pipeline.py`, KFP `pipeline.py` | **done**: resolve inputs with `load_feature_set()`; log `feature_set.json` |
+| `services/model-lifecycle/training/train_register.py`, `services/model-lifecycle/training/model_pipeline.py`, KFP `pipeline.py` | **done**: resolve inputs with `load_feature_set()`; log `feature_set.json` |
 | `application/scoring/service.py` (startup) | compare the model's `feature_set.json` with the generated Feast schema shipped in the Bento |
 | `platform/data/k8s/data-warehouse/02-clickhouse-init.yaml`, `ml_data_mart/models/mart/*.sql` | ordering keys |
 | `tests/fixtures/golden_applicants.csv`, `golden_bureau_rows.json`, `golden_mart_bureau.csv` | **new**: 50 applicants exported once from the cluster |

@@ -153,7 +153,7 @@ CREDIT_AMOUNT_HIGH: {en: "Requested credit amount is high for the profile", vi: 
 | `application/scoring/bentofile.yaml`, requirements | add `shap` (pinned) |
 | `contracts/feature_catalog/definitions/*.yaml`, `reasons.yaml` | `reason_code`, `proxy_for`, texts |
 | bento builder (E7) | ship `reason_map.json` generated from the catalog next to the model |
-| `application/training/` recipe (E6) | global SHAP summary, stability check, model card section |
+| `services/model-lifecycle/training/` recipe (E6) | global SHAP summary, stability check, model card section |
 | `portals/` (E12) | applicant: texts only; staff: contribution bar chart |
 
 ## 7. Acceptance criteria → tests

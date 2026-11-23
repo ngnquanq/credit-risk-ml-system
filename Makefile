@@ -415,19 +415,19 @@ k8s-kserve: ## Deploy KServe for model serving infrastructure
 	@kubectl wait --for=condition=available --timeout=120s deployment/kserve-controller-manager -n kserve || true
 	@echo ""
 	@echo "Deploying bento-builder ConfigMap..."
-	kubectl apply -f platform/ml/k8s/kserve/bento-builder/configmap.yaml
+	kubectl apply -f services/model-lifecycle/bento-builder/configmap.yaml
 	@echo "Configuring Kafka DNS resolution for scoring pods..."
 	kubectl apply -f platform/ml/k8s/kserve/kafka-broker-service.yaml
 	@echo "KServe deployed (namespace: kserve)"
 
 k8s-mlflow-watcher: ## Deploy MLflow watcher (auto-triggers Bento builds on model promotion)
 	@echo "Deploying MLflow watcher..."
-	kubectl apply -f platform/ml/k8s/mlflow-watcher/rbac.yaml
+	kubectl apply -f services/model-lifecycle/mlflow-watcher/rbac.yaml
 	kubectl -n model-registry apply \
-		-f platform/ml/k8s/mlflow-watcher/poller-values.yaml \
-		-f platform/ml/k8s/mlflow-watcher/poller-configmap.yaml \
-		-f platform/ml/k8s/mlflow-watcher/builder-configmap.yaml \
-		-f platform/ml/k8s/mlflow-watcher/deployment.yaml
+		-f services/model-lifecycle/mlflow-watcher/poller-values.yaml \
+		-f services/model-lifecycle/mlflow-watcher/poller-configmap.yaml \
+		-f services/model-lifecycle/mlflow-watcher/builder-configmap.yaml \
+		-f services/model-lifecycle/mlflow-watcher/deployment.yaml
 	kubectl -n model-registry rollout status deploy/mlflow-watcher
 	@echo "MLflow watcher deployed (namespace: model-registry)"
 
@@ -447,25 +447,25 @@ k8s-model-serving: ## Deploy model serving components (bundle storage + serving 
 	kubectl apply -f platform/ml/k8s/model-serving/registry-deployment.yaml
 	kubectl apply -f platform/ml/k8s/model-serving/watcher-rbac.yaml
 	@echo "Generating serving-watcher ConfigMap from source files..."
-	kubectl create configmap serving-watcher -n model-serving --from-file=platform/ml/k8s/kserve/serving-watcher/watcher.py --from-file=platform/ml/k8s/kserve/serving-watcher/isvc-template-serverless.yaml --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create configmap serving-watcher -n model-serving --from-file=services/model-lifecycle/serving-watcher/watcher.py --from-file=services/model-lifecycle/serving-watcher/isvc-template-serverless.yaml --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply -f platform/ml/k8s/model-serving/watcher-deployment.yaml
 	kubectl rollout restart -n model-serving deployment/serving-watcher
 	@echo "Model serving deployed (namespace: model-serving)"
 
 k8s-sync-watcher-config: ## Sync serving-watcher ConfigMap from source files (use after editing watcher.py or isvc templates)
 	kubectl create configmap serving-watcher -n model-serving \
-		--from-file=platform/ml/k8s/kserve/serving-watcher/watcher.py \
-		--from-file=platform/ml/k8s/kserve/serving-watcher/isvc-template-serverless.yaml \
+		--from-file=services/model-lifecycle/serving-watcher/watcher.py \
+		--from-file=services/model-lifecycle/serving-watcher/isvc-template-serverless.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 	kubectl rollout restart -n model-serving deployment/serving-watcher
 
 k8s-sync-bento-builder-config: ## Sync bento-builder ConfigMap (use after editing build_and_upload.py)
-	kubectl apply -f platform/ml/k8s/kserve/bento-builder/configmap.yaml
+	kubectl apply -f services/model-lifecycle/bento-builder/configmap.yaml
 	@echo "Bento-builder ConfigMap synced"
 
 k8s-sync-mlflow-watcher-config: ## Sync mlflow-watcher builder config + restart (use after editing builder-configmap.yaml)
 	kubectl -n model-registry apply \
-		-f platform/ml/k8s/mlflow-watcher/builder-configmap.yaml
+		-f services/model-lifecycle/mlflow-watcher/builder-configmap.yaml
 	kubectl -n model-registry rollout restart deployment/mlflow-watcher
 	@echo "MLflow watcher builder config synced and restarted"
 

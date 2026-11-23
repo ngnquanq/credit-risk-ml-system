@@ -12,7 +12,7 @@ Usage (with MLflow stack up):
   export AWS_ACCESS_KEY_ID=<set-local-minio-access-key>
   export AWS_SECRET_ACCESS_KEY=<set-local-minio-secret>
 
-  python application/training/train_register.py \
+  python services/model-lifecycle/training/train_register.py \
     --data data/complete_feature_dataset.csv \
     --register-name credit_risk_model \
     --experiment credit-risk \
@@ -46,7 +46,7 @@ from xgboost import XGBClassifier
 from loguru import logger
 
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "contracts"))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "contracts"))
     from feature_catalog.catalog import Catalog, load_set_status
     from feature_preprocessing import build_preprocessor, ece_score, load_feature_set, select_training_data
 else:
@@ -67,7 +67,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--data", required=True, help="Path to complete_feature_dataset.csv")
     p.add_argument("--feature-set", help="Packaged feature-set version (default: legacy-v1)")
     p.add_argument("--config", default=None,
-                   help="Path to best_model_config.json from notebook/model_pipeline.py. "
+                   help="Path to best_model_config.json from services/model-lifecycle/training/model_pipeline.py. "
                         "When provided, overrides hardcoded hyperparameters.")
     p.add_argument("--experiment", default="credit-risk", help="MLflow experiment name")
     p.add_argument("--register-name", default="credit_risk_model", help="MLflow registered model name")
@@ -83,7 +83,7 @@ def main() -> int:
     args = build_parser().parse_args()
 
     model_config = {}
-    # ── Load model config (from notebook/model_pipeline.py output) ──────────
+    # ── Load model config (from services/model-lifecycle/training/model_pipeline.py output) ──────────
     if args.config:
         model_config = json.loads(Path(args.config).read_text())
         MODEL_TYPE        = model_config.get("model_type", "xgboost")
@@ -106,7 +106,7 @@ def main() -> int:
         THRESHOLD          = 0.3
         logger.warning(
             "⚠️  No --config provided. Using hardcoded fallback XGBoost params.\n"
-            "   Run notebook/model_pipeline.py first to generate best_model_config.json.\n"
+            "   Run services/model-lifecycle/training/model_pipeline.py first to generate best_model_config.json.\n"
         )
 
     logger.info(f"📥 Loading data from: {args.data}\n")

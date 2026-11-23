@@ -182,7 +182,7 @@ GRANT SELECT ON audit_trace TO audit_reader;
 | `application/audit/verify_job.py`, CronJob in `platform/core/k8s/09-decision-recorder.yaml` | **new**: daily CronJob; Prometheus metric `audit_chain_ok` |
 | `application/entrypoints/api/*.py` | call `record` on every allowed or denied action (E11) |
 | decision recorder (E5) | `decision` and `decision_fallback` events |
-| `platform/ml/k8s/mlflow-watcher/poller-configmap.yaml` (watcher script) | `model_promoted` event |
+| `services/model-lifecycle/mlflow-watcher/poller-configmap.yaml` (watcher script) | `model_promoted` event |
 | `platform/ops/k8s/logging/` | Logstash JDBC pipeline `audit_event` → index `audit-*`; Keycloak event log shipping |
 
 ## 7. Acceptance criteria → tests

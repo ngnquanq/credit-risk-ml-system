@@ -1,6 +1,6 @@
 # Kubeflow Pipelines - Training Prototype
 
-This prototype pipeline snapshots training data from MinIO, tunes hyperparameters, and registers the best model to MLflow. Treat `application/training/train_register.py` as the validated local training and MLflow registration path unless you have a verified KFP run artifact.
+This prototype pipeline snapshots training data from MinIO, tunes hyperparameters, and registers the best model to MLflow. Treat `services/model-lifecycle/training/train_register.py` as the validated local training and MLflow registration path unless you have a verified KFP run artifact.
 
 Components
 - fetch_minio_snapshot: downloads a CSV from MinIO/S3 to the pipeline workspace (auditable snapshot).
@@ -15,10 +15,10 @@ Quick Start
 1) Build both recipe images from the repository root, then compile the pipeline.
 
    ```bash
-   docker build -f platform/ml/k8s/training-pipeline/Dockerfile -t credit-risk-kfp-trainer:dev .
-   docker build -f platform/ml/k8s/training-pipeline/Dockerfile \
+   docker build -f services/model-lifecycle/pipeline/Dockerfile -t credit-risk-kfp-trainer:dev .
+   docker build -f services/model-lifecycle/pipeline/Dockerfile \
      --build-arg BASE_IMAGE=python:3.9-slim -t credit-risk-kfp-ray:dev .
-   python platform/ml/k8s/training-pipeline/compile_pipeline.py
+   python services/model-lifecycle/pipeline/compile_pipeline.py
    ```
 
    The compiler writes `training_pipeline.yaml`. Load both images into the trial cluster or

@@ -84,7 +84,7 @@ pip install -r requirements.txt
 jupyter notebook notebook/08_prepare_data.ipynb
 
 # Step 2: train and register the model
-python application/training/train_register.py \
+python services/model-lifecycle/training/train_register.py \
     --data data/complete_feature_dataset.csv \
     --experiment credit-risk \
     --register-name credit_risk_model

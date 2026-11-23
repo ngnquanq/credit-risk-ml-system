@@ -14,7 +14,7 @@ End-to-end model development workflow that mirrors enterprise DS practice:
   Phase 8 — Artifact export (best_model_config.json)
 
 The output ``data/best_model_config.json`` is consumed by
-``application/training/train_register.py`` to reproduce the winning model
+``services/model-lifecycle/training/train_register.py`` to reproduce the winning model
 in the production MLflow registry.
 
 Environment
@@ -25,13 +25,13 @@ Environment
 Usage
 -----
     # Full run (~3-4 h with default Optuna budget on 307 K rows)
-    python notebook/model_pipeline.py
+    python services/model-lifecycle/training/model_pipeline.py
 
     # Skip Optuna search — reload cached JSON checkpoints
-    python notebook/model_pipeline.py --skip-tuning
+    python services/model-lifecycle/training/model_pipeline.py --skip-tuning
 
     # Quick smoke test (2 trials each model)
-    python notebook/model_pipeline.py --n-trials 2
+    python services/model-lifecycle/training/model_pipeline.py --n-trials 2
 """
 
 from __future__ import annotations
@@ -77,9 +77,10 @@ except ImportError:
     CATBOOST_AVAILABLE = False
 
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # services/model-lifecycle
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "contracts"))
 
-from application.training.feature_preprocessing import (
+from training.feature_preprocessing import (
     build_preprocessor as _build_preprocessor,
     ece_score,
     load_feature_set,
@@ -765,7 +766,7 @@ def export_config(
     logger.info(f"    ✓ Threshold {threshold} validated on PR curve")
     logger.info(f"    ✓ {len(FEATURES)} features match serving pipeline contract")
     logger.info("\n  Next step — register to MLflow Production:")
-    logger.info("    python application/training/train_register.py \\")
+    logger.info("    python services/model-lifecycle/training/train_register.py \\")
     logger.info("      --data data/complete_feature_dataset.csv \\")
     logger.info(f"      --config {config_out} \\")
     logger.info("      --register-name credit_risk_model --stage Production")

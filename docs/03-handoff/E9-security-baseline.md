@@ -134,7 +134,7 @@ sequenceDiagram
 | Portal BFF API client and deployment configuration | Review the planned gateway controls against the OIDC token relay in [E11](E11-identity-access.md) and [E12](E12-portals.md) |
 | `Makefile` (`k8s-secrets`, new `check`), `.env.example` | key provisioning; local gate |
 | `.pre-commit-config.yaml` | **new**: gitleaks (and `check-added-large-files`) |
-| `application/training/train_register.py:230`, `platform/ml/k8s/training-pipeline/pipeline.py:361` | `input_example = synthetic_example(X_train)` |
+| `services/model-lifecycle/training/train_register.py:230`, `services/model-lifecycle/pipeline/pipeline.py:361` | `input_example = synthetic_example(X_train)` |
 | `.github/workflows/test.yml` | `branches: [master]` |
 | `docs/security/risk-acceptance.md` | **new** |
 | `tests/load` | `locustfile.py` sends `X-API-Key` |
