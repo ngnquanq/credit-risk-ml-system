@@ -40,6 +40,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: flink-config
+            - configMapRef:
+                name: shared-endpoints
           resources:
             requests:
               memory: 512Mi

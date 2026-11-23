@@ -9,6 +9,10 @@ commonLabels:
   project: home-credit
   tier: ml-platform
 
+# Shared service addresses (KAFKA_BOOTSTRAP_SERVERS): platform/config/endpoints
+components:
+  - ../../../platform/config/endpoints
+
 # Resources to deploy
 resources:
   - redis-deployment.yaml

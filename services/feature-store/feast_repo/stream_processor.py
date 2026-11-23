@@ -22,7 +22,8 @@ import pandas as pd
 import redis
 
 # Use same environment variables as generate_config.py for consistency
-KAFKA_BROKERS = os.getenv("FEAST_KAFKA_BROKERS", "broker:29092")
+# FEAST_KAFKA_BROKERS overrides the shared KAFKA_BOOTSTRAP_SERVERS (platform/config/endpoints) when set.
+KAFKA_BROKERS = os.getenv("FEAST_KAFKA_BROKERS") or os.getenv("KAFKA_BOOTSTRAP_SERVERS", "broker:29092")
 TOPICS = {
     "application": "hc.application_features",  # From Flink
     "external": "hc.application_ext",         # From external service

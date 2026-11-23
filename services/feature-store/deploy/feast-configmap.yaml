@@ -6,7 +6,6 @@ metadata:
     component: feature-store
 data:
   # Kafka connection - in-cluster Kafka service
-  FEAST_KAFKA_BROKERS: "kafka-broker.data-services.svc.cluster.local:9092"
 
   # Feast project name (using k8s-specific project to avoid registry conflicts)
   FEAST_PROJECT: "hc_k8s"

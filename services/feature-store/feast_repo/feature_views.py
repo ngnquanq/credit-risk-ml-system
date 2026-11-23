@@ -10,7 +10,7 @@ from entities import customer
 from schema_loaders import infer_application_fields, infer_external_fields, infer_dwh_fields_from_json
 
 # Environment-driven configuration (single source of truth via env)
-BOOTSTRAP = os.getenv("FEAST_KAFKA_BROKERS", "host.minikube.internal:39092")
+BOOTSTRAP = os.getenv("FEAST_KAFKA_BROKERS") or os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.minikube.internal:39092")
 TOPIC_APP_FEATURES = os.getenv("FEAST_TOPIC_APP_FEATURES", "hc.application_features")
 TOPIC_EXTERNAL = os.getenv("FEAST_TOPIC_EXTERNAL", "hc.application_ext")
 TOPIC_DWH = os.getenv("FEAST_TOPIC_DWH", "hc.application_dwh")

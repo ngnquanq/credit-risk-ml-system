@@ -219,10 +219,8 @@ k8s-kafka-topics: ## Ensure required Kafka topics are created
 
 k8s-streaming: build-flink k8s-kafka-topics ## Deploy Streaming Infrastructure (Flink + Query Services)
 	@echo "Deploying Streaming Infrastructure..."
-	kubectl apply -f services/stream-features/deploy/
-	kubectl apply -f services/loan-api/deploy/05-api.yaml
-	kubectl apply -f services/loan-api/deploy/09-decision-recorder.yaml
-	kubectl apply -f platform/data/k8s/query-services/
+	kubectl apply -k services/stream-features/deploy/
+	kubectl apply -k platform/data/k8s/query-services/
 	@echo "✅ Streaming Infrastructure deployed."
 	@echo "  API: http://$$(minikube -p $(MINIKUBE_PROFILE) ip)/api/docs"
 	@echo "  DB: ops-postgres.data-services.svc.cluster.local:5432"

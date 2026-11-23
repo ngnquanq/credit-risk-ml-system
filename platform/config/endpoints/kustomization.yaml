@@ -1,0 +1,12 @@
+# Component: add this to a service's kustomization to give its namespace the shared-endpoints ConfigMap.
+#   components:
+#     - ../../../platform/config/endpoints
+# Pods read it with envFrom (every key) or valueFrom.configMapKeyRef (one key).
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+generatorOptions:
+  disableNameSuffixHash: true   # a stable name, so manifests can refer to it
+configMapGenerator:
+  - name: shared-endpoints
+    envs:
+      - endpoints.env

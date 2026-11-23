@@ -12,7 +12,6 @@ metadata:
   name: flink-config
   namespace: data-services
 data:
-  KAFKA_BOOTSTRAP_SERVERS: "kafka-broker.data-services.svc.cluster.local:9092"
   CDC_SOURCE_TOPIC: "hc.applications.public.loan_applications"
   SINK_TOPIC_PII: "hc.application_pii"
   SINK_TOPIC_FEATURES: "hc.application_features"
@@ -68,6 +67,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: flink-config
+            - configMapRef:
+                name: shared-endpoints
           resources:
             requests:
               memory: 1Gi
@@ -162,6 +163,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: flink-config
+            - configMapRef:
+                name: shared-endpoints
           resources:
             requests:
               memory: 2Gi

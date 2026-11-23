@@ -25,7 +25,8 @@ spec:
         command: ["python", "entrypoints/bureau_consumer.py"]
         env:
         - name: KAFKA_BOOTSTRAP_SERVERS
-          value: "kafka-broker.data-services.svc.cluster.local:9092"
+          valueFrom:
+            configMapKeyRef: {name: shared-endpoints, key: KAFKA_BOOTSTRAP_SERVERS}
         - name: CDC_SOURCE_TOPIC
           value: "hc.applications.public.loan_applications"
         - name: RAW_TOPIC_EXT
@@ -76,7 +77,8 @@ spec:
         command: ["python", "entrypoints/feature_consumer.py"]
         env:
         - name: KAFKA_BOOTSTRAP_SERVERS
-          value: "kafka-broker.data-services.svc.cluster.local:9092"
+          valueFrom:
+            configMapKeyRef: {name: shared-endpoints, key: KAFKA_BOOTSTRAP_SERVERS}
         - name: CDC_SOURCE_TOPIC
           value: "hc.applications.public.loan_applications"
         - name: SINK_TOPIC_DWH

@@ -30,6 +30,8 @@ spec:
         envFrom:
         - configMapRef:
             name: feast-config
+        - configMapRef:
+            name: shared-endpoints
         env:
         - name: FEAST_REGISTRY_URI
           value: s3://feast-registry/feature_repo/registry.db
