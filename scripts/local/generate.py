@@ -91,8 +91,8 @@ def localize_client(client: dict, origin: str, secret: str) -> None:
 
 
 def _pii_cipher_class():
-    """application/identity/crypto.py, loaded by path so the generator needs no PYTHONPATH."""
-    spec = importlib.util.spec_from_file_location("_local_pii_crypto", ROOT / "application" / "identity" / "crypto.py")
+    """services/loan-api/src/identity/crypto.py, loaded by path so the generator needs no PYTHONPATH."""
+    spec = importlib.util.spec_from_file_location("_local_pii_crypto", ROOT / "services" / "loan-api" / "src" / "identity" / "crypto.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.PiiCipher

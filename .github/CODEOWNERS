@@ -3,7 +3,7 @@
 
 # Data engineering: producers, transforms, warehouse
 /services/stream-features/flink/                     @credit-risk/data-engineering
-/application/entrypoints/*consumer*.py  @credit-risk/data-engineering
+/services/loan-api/src/entrypoints/*consumer*.py  @credit-risk/data-engineering
 /platform/data/                         @credit-risk/data-engineering
 /ml_data_mart/                          @credit-risk/data-engineering
 
@@ -15,10 +15,10 @@
 /contracts/feature_catalog/definitions/  @credit-risk/data-engineering @credit-risk/data-science
 
 # Risk and compliance: who may do what, decisions, explanations, audit
-/application/authz/                     @credit-risk/risk @credit-risk/security
+/services/loan-api/src/authz/                     @credit-risk/risk @credit-risk/security
 /services/scoring/policy.py          @credit-risk/risk
 /contracts/feature_catalog/reasons.yaml  @credit-risk/risk
-/application/audit/                     @credit-risk/security
+/services/loan-api/src/audit/                     @credit-risk/security
 /docs/security/                         @credit-risk/security
 /docs/release/                          @credit-risk/risk @credit-risk/platform
 

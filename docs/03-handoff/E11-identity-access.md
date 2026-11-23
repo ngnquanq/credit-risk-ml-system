@@ -23,7 +23,7 @@
   - Client `applicant-portal` (confidential, authorization code + PKCE).
 - **Shared token rules.** Both realms put audience `credit-api` in access tokens and use 5-minute access tokens.
 - **API: token verification** (`entrypoints/api/security.py`) builds a `Principal`.
-- **API: one policy module** (`application/authz/policy.py`) used by every route. Deny by default.
+- **API: one policy module** (`services/loan-api/src/authz/policy.py`) used by every route. Deny by default.
 - **Migration 004:** ownership columns on `loan_applications`, and the `policy_change` table.
 - **Service identities.** Keycloak client credentials for the decision recorder, which calls no API today but is ready for it. The E9 API key stays only for the load-test client.
 
@@ -86,7 +86,7 @@ classDiagram
         +branch_id: str or None
     }
     class Policy {
-        <<application/authz/policy.py>>
+        <<services/loan-api/src/authz/policy.py>>
         +authorize(p: Principal, action: Action, r: Resource) AuthzDecision
     }
     class Rule {
@@ -229,11 +229,11 @@ Existing rows keep `channel='staff'` and null owners. They are readable only by 
 |---|---|
 | `platform/core/k8s/identity/` | **new**: Keycloak StatefulSet (2 replicas), CloudNativePG cluster, Service, Ingress host `auth.credit.local`, realm exports `staff.json`, `customers.json` |
 | `Makefile` | `k8s-identity` target; `k8s-secrets` creates client secrets from env, never from files in git |
-| `application/entrypoints/api/security.py` | **new**: `TokenVerifier`, `JwksCache`, `Principal` |
-| `application/authz/{__init__,policy,rules}.py` | **new**: `authorize`, rule table from §5 |
-| `application/entrypoints/api/main.py` | every `/api/v1` route: `Depends(TokenVerifier)` and an `authorize` call; submit sets `channel`, `created_by_sub`/`applicant_sub`, `branch_id` from the principal, never from the body |
-| `application/entrypoints/api/review_routes.py` | **new** (with E5): reviews and policy-change routes |
-| `application/core/config.py` | settings above; startup fails when `APP_OIDC_ISSUERS` is empty and `debug` is false |
+| `services/loan-api/src/entrypoints/api/security.py` | **new**: `TokenVerifier`, `JwksCache`, `Principal` |
+| `services/loan-api/src/authz/{__init__,policy,rules}.py` | **new**: `authorize`, rule table from §5 |
+| `services/loan-api/src/entrypoints/api/main.py` | every `/api/v1` route: `Depends(TokenVerifier)` and an `authorize` call; submit sets `channel`, `created_by_sub`/`applicant_sub`, `branch_id` from the principal, never from the body |
+| `services/loan-api/src/entrypoints/api/review_routes.py` | **new** (with E5): reviews and policy-change routes |
+| `services/loan-api/src/core/config.py` | settings above; startup fails when `APP_OIDC_ISSUERS` is empty and `debug` is false |
 | `platform/core/schemas/004_ownership_and_policy.sql` | **new** |
 | `tests/test_load/locustfile.py` | keeps `X-API-Key` (load-test client) |
 

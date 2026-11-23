@@ -4,18 +4,20 @@ on:
   push:
     branches: [main, feature/**]
     paths:
-      - "application/**"
+      - "services/**"
+      - "contracts/**"
       - "tests/**"
       - "pyproject.toml"
   pull_request:
     branches: [main]
     paths:
-      - "application/**"
+      - "services/**"
+      - "contracts/**"
       - "tests/**"
       - "pyproject.toml"
 
 env:
-  PYTHONPATH: application
+  PYTHONPATH: services/loan-api/src:services:contracts:services/model-lifecycle:services/stream-features:services/feature-store
 
 jobs:
   # ── Gate 1: Domain logic (pure business rules, zero I/O) ──────────────

@@ -29,7 +29,7 @@ The vocabulary and the core objects of the credit decisioning domain. Use these 
 | **Principal** | The verified caller of one request: subject, realm, roles, branch | built from the JWT by the API (E11) |
 | **Realm** | Keycloak identity domain: `staff` or `customers`. A principal belongs to exactly one | Keycloak |
 | **Role** | `applicant`, `loan_officer`, `underwriter`, `risk_manager`, `auditor`, `admin` | Keycloak realm roles |
-| **Permission** | An action on a resource type, granted to roles under conditions (own, same branch, not own submission) | policy table in `application/authz/policy.py` (E11) |
+| **Permission** | An action on a resource type, granted to roles under conditions (own, same branch, not own submission) | policy table in `services/loan-api/src/authz/policy.py` (E11) |
 | **Override** | A reviewer's decision on an `under_review` application, with a mandatory reason | decision record + audit event (E5, E13) |
 | **Policy change** | A proposed new threshold or review band; active only after a second risk manager approves | `policy_change` table (E11) |
 | **Audit event** | One immutable record of who did what to which resource, when, and the outcome | `audit_event` table, append-only, hash-chained (E13) |
@@ -285,7 +285,7 @@ classDiagram
         +branch_id: str or None
     }
     class Policy {
-        <<module: application/authz/policy.py>>
+        <<module: services/loan-api/src/authz/policy.py>>
         +authorize(principal, action, resource) AuthzDecision
     }
     class AuthzDecision {

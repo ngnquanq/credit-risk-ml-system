@@ -22,7 +22,7 @@ Application logs are not an audit trail:
 
 **In**
 - **Storage.** A separate PostgreSQL database `audit` holding `audit_event`. It is append-only by privilege and hash-chained.
-- **Writer.** `application/audit/` with one function, `record(...)`, used by the API (E11), the decision recorder (E5) and the MLflow promotion watcher (E7).
+- **Writer.** `services/loan-api/src/audit/` with one function, `record(...)`, used by the API (E11), the decision recorder (E5) and the MLflow promotion watcher (E7).
 - **What is recorded** (§5): sign-in events from Keycloak, every allowed and denied API action on applications, decisions, reviews, policy changes, and model promotions.
 - **Reading.** A read view for auditors and `GET /api/v1/audit?resource=…` (auditor only).
 - **Verification.** A daily job `audit-verify` that re-computes the chain and alerts on a break.
@@ -55,7 +55,7 @@ Review and trace flow [`T-D13-Review-and-Audit`](../architecture/c4/docs/images/
 classDiagram
     direction LR
     class AuditWriter {
-        <<application/audit/writer.py>>
+        <<services/loan-api/src/audit/writer.py>>
         +record(actor, action, resource, outcome, trace_id, details) int
     }
     class Actor {
@@ -79,7 +79,7 @@ classDiagram
         +hash: bytea
     }
     class ChainVerifier {
-        <<application/audit/verify_job.py>>
+        <<services/loan-api/src/audit/verify_job.py>>
         +verify(from_id) VerifyResult
     }
     class DetailsSanitizer {
@@ -178,9 +178,9 @@ GRANT SELECT ON audit_trace TO audit_reader;
 | File | Change |
 |---|---|
 | `platform/core/schemas/audit/001_audit_event.sql` | **new** |
-| `application/audit/{__init__,writer,sanitizer}.py` | **new** |
-| `application/audit/verify_job.py`, CronJob in `platform/core/k8s/09-decision-recorder.yaml` | **new**: daily CronJob; Prometheus metric `audit_chain_ok` |
-| `application/entrypoints/api/*.py` | call `record` on every allowed or denied action (E11) |
+| `services/loan-api/src/audit/{__init__,writer,sanitizer}.py` | **new** |
+| `services/loan-api/src/audit/verify_job.py`, CronJob in `platform/core/k8s/09-decision-recorder.yaml` | **new**: daily CronJob; Prometheus metric `audit_chain_ok` |
+| `services/loan-api/src/entrypoints/api/*.py` | call `record` on every allowed or denied action (E11) |
 | decision recorder (E5) | `decision` and `decision_fallback` events |
 | `services/model-lifecycle/mlflow-watcher/poller-configmap.yaml` (watcher script) | `model_promoted` event |
 | `platform/ops/k8s/logging/` | Logstash JDBC pipeline `audit_event` → index `audit-*`; Keycloak event log shipping |

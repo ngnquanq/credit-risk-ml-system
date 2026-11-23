@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS applicant_identity (
     id               BIGSERIAL PRIMARY KEY,
     customer_ref     VARCHAR(255) NOT NULL UNIQUE,  -- internal customer key (loan_applications.sk_id_curr)
     citizen_id_hmac  CHAR(64)     NOT NULL UNIQUE,  -- HMAC-SHA256 with a separate key: exact-match lookup only
-    full_name_enc    TEXT         NOT NULL,         -- envelope-encrypted (AES-256-GCM), see application/identity
+    full_name_enc    TEXT         NOT NULL,         -- envelope-encrypted (AES-256-GCM), see services/loan-api/src/identity
     citizen_id_enc   TEXT         NOT NULL,
     phone_enc        TEXT         NOT NULL,
     citizen_id_last3 CHAR(3)      NOT NULL,         -- for masked display only

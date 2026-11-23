@@ -179,7 +179,7 @@ Applicants never see the raw score, band thresholds or contributions. Staff deta
 | `portals/` | **new** pnpm workspace: `apps/staff-portal`, `apps/applicant-portal`, `packages/api-client`, `packages/session`, `packages/ui` |
 | `contracts/openapi/loan-api.json`, `portals/packages/api-client` | schema exported by `make contracts`; client generated from it (`openapi-typescript`); both checked in, CI regenerates and diffs ([ADR-0011](../adr/0011-monorepo-layout-for-portals-contracts-and-environments.md)) |
 | `platform/core/k8s/portals/` | **new**: Deployments (2 replicas each), Services, Ingresses (public with `limit-rps`, internal with source allow-list), Redis for sessions, NetworkPolicies |
-| `application/entrypoints/api/main.py` | `GET /api/v1/applications/{id}/decision`; CORS no longer needed (calls come from the BFF server) |
+| `services/loan-api/src/entrypoints/api/main.py` | `GET /api/v1/applications/{id}/decision`; CORS no longer needed (calls come from the BFF server) |
 | Legacy Streamlit source, Deployment, Service and Ingress | Removed from the repository |
 | `Makefile` | `portals-build`, `k8s-portals`; `check` runs `pnpm -r lint test` |
 

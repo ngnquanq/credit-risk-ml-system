@@ -18,7 +18,7 @@ OUT = ROOT / "contracts" / "openapi" / "loan-api.json"
 
 
 def main() -> int:
-    sys.path.insert(0, str(ROOT / "application"))
+    sys.path.insert(0, str(ROOT / "services" / "loan-api" / "src"))
     os.environ.setdefault("OTEL_SDK_DISABLED", "true")
     # Importing the app must not reach MinIO or a trace collector.
     with patch("minio.Minio", MagicMock()):

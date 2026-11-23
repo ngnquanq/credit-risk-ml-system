@@ -1,5 +1,5 @@
 # Query Services - Consumer services that bridge Kafka and ClickHouse
-# Image: ngnquanq/credit-risk-consumers:latest (built from application/entrypoints/Dockerfile)
+# Image: ngnquanq/credit-risk-consumers:latest (built from services/loan-api/src/entrypoints/Dockerfile)
 ---
 apiVersion: apps/v1
 kind: Deployment

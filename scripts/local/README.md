@@ -8,7 +8,7 @@ Try both portals on your machine with real sign-in, the real API and permission 
 | PostgreSQL (`operations` with demo data, `audit`) | localhost:5433 | Docker |
 | Redis (portal sessions, estimator drafts) | localhost:6380 | Docker |
 | MinIO (applicant documents, 90-day expiry) | http://localhost:9000 (console :9001) | Docker |
-| Loan API | http://localhost:8000 | `make local-api` (your Python env with `application/requirements-api.txt`) |
+| Loan API | http://localhost:8000 | `make local-api` (your Python env with `services/loan-api/requirements-api.txt`) |
 | Staff portal | http://localhost:3002 | `cd portals && pnpm dev:staff` |
 | Applicant portal | http://localhost:3001 | `cd portals && pnpm dev:applicant` |
 

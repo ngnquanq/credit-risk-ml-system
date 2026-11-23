@@ -53,7 +53,7 @@ test = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["application", "contracts", "services/model-lifecycle", "services/stream-features", "services/feature-store"]
+where = ["services/loan-api/src", "contracts", "services/model-lifecycle", "services/stream-features", "services/feature-store"]
 
 [tool.setuptools.package-data]
 feature_catalog = ["sets/*.json", "definitions/*.yaml", "reasons.yaml"]
@@ -83,7 +83,7 @@ line_length = 88
 multi_line_output = 3
 include_trailing_comma = true
 known_third_party = ["celery", "django", "environ", "pyquery", "pytz", "redis", "requests", "rest_framework", "fastapi"]
-src_paths = ["application"]
+src_paths = ["services/loan-api/src"]
 
 # --- Static Type Checking ---
 
@@ -112,7 +112,7 @@ testpaths = [
 ]
 python_files = "test_*.py"
 asyncio_mode = "auto"
-pythonpath = ["application", "services", "contracts", "services/model-lifecycle", "services/stream-features", "services/feature-store"]
+pythonpath = ["services/loan-api/src", "services", "contracts", "services/model-lifecycle", "services/stream-features", "services/feature-store"]
 markers = [
     "unit: Unit tests (no I/O)",
     "integration: Integration tests (in-memory DB, httpx)",
