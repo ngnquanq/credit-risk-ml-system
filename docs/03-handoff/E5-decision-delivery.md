@@ -61,7 +61,7 @@ Component view inside the scoring service, [`T-E5-Scoring-Policy`](../architectu
 classDiagram
     direction LR
     class DecisionPolicy {
-        <<application/scoring/policy.py>>
+        <<services/scoring/policy.py>>
         +approve_below: float = 0.25
         +reject_above: float = 0.35
         +decide(score: float) Decision
@@ -217,10 +217,10 @@ Row written: `status` (above), `created_by = 'decision-recorder'`, `metadata = {
 
 | File | Change |
 |---|---|
-| `application/scoring/policy.py` | **new**: `DecisionPolicy`, `Decision`, `DecisionBand` |
-| `application/scoring/pipeline.py` | delete `postprocess` (replaced) |
-| `application/scoring/service.py` | call the policy; build the event above; `event_id` = incoming `ce-id` |
-| `application/scoring/config.py` | `approve_below`, `reject_above` (+ validator); remove `prediction_threshold` |
+| `services/scoring/policy.py` | **new**: `DecisionPolicy`, `Decision`, `DecisionBand` |
+| `services/scoring/pipeline.py` | delete `postprocess` (replaced) |
+| `services/scoring/service.py` | call the policy; build the event above; `event_id` = incoming `ce-id` |
+| `services/scoring/config.py` | `approve_below`, `reject_above` (+ validator); remove `prediction_threshold` |
 | `application/entrypoints/decision_recorder.py` | **new**: consumer loop + `DecisionRecorder` |
 | `application/infrastructure/persistence/status_log.py` | **new**: `StatusLogWriter` port, Postgres adapter |
 | `application/infrastructure/persistence/models/sqlalchemy_models.py` | `event_id` column |

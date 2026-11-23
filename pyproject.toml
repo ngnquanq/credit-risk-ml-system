@@ -112,7 +112,7 @@ testpaths = [
 ]
 python_files = "test_*.py"
 asyncio_mode = "auto"
-pythonpath = ["application", "contracts", "services/model-lifecycle", "services/stream-features", "services/feature-store"]
+pythonpath = ["application", "services", "contracts", "services/model-lifecycle", "services/stream-features", "services/feature-store"]
 markers = [
     "unit: Unit tests (no I/O)",
     "integration: Integration tests (in-memory DB, httpx)",

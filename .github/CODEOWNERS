@@ -16,14 +16,14 @@
 
 # Risk and compliance: who may do what, decisions, explanations, audit
 /application/authz/                     @credit-risk/risk @credit-risk/security
-/application/scoring/policy.py          @credit-risk/risk
+/services/scoring/policy.py          @credit-risk/risk
 /contracts/feature_catalog/reasons.yaml  @credit-risk/risk
 /application/audit/                     @credit-risk/security
 /docs/security/                         @credit-risk/security
 /docs/release/                          @credit-risk/risk @credit-risk/platform
 
 # ML platform: serving, deployment, identity, portals
-/application/scoring/                   @credit-risk/platform
+/services/scoring/                   @credit-risk/platform
 /platform/                              @credit-risk/platform
 /portals/                               @credit-risk/platform
 /contracts/                             @credit-risk/platform

@@ -18,7 +18,7 @@ data:
         app_repo     = os.environ["APP_REPO"]
         app_ref      = os.environ.get("APP_REF", "feature/the-grand-migration")
         app_local    = os.environ.get("APP_LOCAL_PATH")
-        app_subpath  = os.environ.get("APP_SUBPATH", "application/scoring")
+        app_subpath  = os.environ.get("APP_SUBPATH", "services/scoring")
         bkt          = os.environ["BENTO_BUCKET"]
         prefix       = os.environ.get("BENTO_PREFIX", "bentos")
         region       = os.environ.get("AWS_REGION", "us-east-1")
@@ -35,7 +35,7 @@ data:
         svc_dir = os.path.join(repo_dir, app_subpath)
         # Copy Feast repo instead of symlink (BentoML doesn't follow symlinks during include)
         # Using feast_repo to avoid Python namespace collision with feast package
-        feast_src = os.path.join(repo_dir, "application", "feast_repo")
+        feast_src = os.path.join(repo_dir, "services", "feature-store", "feast_repo")
         feast_dst = os.path.join(svc_dir, "feast_repo")
         if os.path.exists(feast_src):
             import shutil

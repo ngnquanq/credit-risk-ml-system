@@ -200,7 +200,7 @@ features = fs.get_online_features(
 ```
 
 ### **Feature Mapping**: 
-The BentoML service in `application/scoring/service.py` maps Feast feature names to ML model column names using the `_map_feast_features()` function.
+The BentoML service in `services/scoring/service.py` maps Feast feature names to ML model column names using the `_map_feast_features()` function.
 
 ---
 

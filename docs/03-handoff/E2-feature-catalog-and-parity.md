@@ -54,7 +54,7 @@ Container view [`T-E2-Feature-Catalog`](../architecture/c4/docs/images/T-E2-Feat
 
 ![T-E2-Feature-Catalog](../architecture/c4/docs/images/T-E2-Feature-Catalog.svg)
 
-Because Flink, Feast and scoring are built from **separate Docker contexts** (`services/stream-features/flink`, `services/feature-store/feast_repo`, `application/scoring`), the catalog is not imported at runtime by those images. A generator writes small artifacts **into** each context; they are committed, and CI regenerates them and fails on any diff.
+Because Flink, Feast and scoring are built from **separate Docker contexts** (`services/stream-features/flink`, `services/feature-store/feast_repo`, `services/scoring`), the catalog is not imported at runtime by those images. A generator writes small artifacts **into** each context; they are committed, and CI regenerates them and fails on any diff.
 
 ```mermaid
 flowchart LR
@@ -204,7 +204,7 @@ Initial definitions: import the 43 + 57 + 156 fields from today's `feature_schem
 | `services/stream-features/flink/jobs/generated_columns.py` | **new, generated**; `cdc_application_etl.py` builds sink DDL and SELECT from it |
 | `services/stream-features/flink/jobs/application_transforms.py`, `cdc_udfs.py` | **done** (2026-11-22): `days_employed` is a pure function (≤ 0, `365243` when not employed) and the UDF delegates to it; tests in `tests/unit/flink/` |
 | `services/model-lifecycle/training/train_register.py`, `services/model-lifecycle/training/model_pipeline.py`, KFP `pipeline.py` | **done**: resolve inputs with `load_feature_set()`; log `feature_set.json` |
-| `application/scoring/service.py` (startup) | compare the model's `feature_set.json` with the generated Feast schema shipped in the Bento |
+| `services/scoring/service.py` (startup) | compare the model's `feature_set.json` with the generated Feast schema shipped in the Bento |
 | `platform/data/k8s/data-warehouse/02-clickhouse-init.yaml`, `ml_data_mart/models/mart/*.sql` | ordering keys |
 | `tests/fixtures/golden_applicants.csv`, `golden_bureau_rows.json`, `golden_mart_bureau.csv` | **new**: 50 applicants exported once from the cluster |
 

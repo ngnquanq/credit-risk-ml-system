@@ -53,7 +53,7 @@ The scoring service returns `{probability, prediction, threshold}`. No explanati
 classDiagram
     direction LR
     class Explainer {
-        <<application/scoring/explain.py>>
+        <<services/scoring/explain.py>>
         +from_pipeline(pipeline, feature_set, reason_map) Explainer
         +explain(row: DataFrame) Explanation
     }
@@ -148,9 +148,9 @@ CREDIT_AMOUNT_HIGH: {en: "Requested credit amount is high for the profile", vi: 
 
 | File | Change |
 |---|---|
-| `application/scoring/explain.py` | **new**: `Explainer`, `ReasonMap` |
-| `application/scoring/service.py` | build the explainer at model load; call it per request; add fields to the response |
-| `application/scoring/bentofile.yaml`, requirements | add `shap` (pinned) |
+| `services/scoring/explain.py` | **new**: `Explainer`, `ReasonMap` |
+| `services/scoring/service.py` | build the explainer at model load; call it per request; add fields to the response |
+| `services/scoring/bentofile.yaml`, requirements | add `shap` (pinned) |
 | `contracts/feature_catalog/definitions/*.yaml`, `reasons.yaml` | `reason_code`, `proxy_for`, texts |
 | bento builder (E7) | ship `reason_map.json` generated from the catalog next to the model |
 | `services/model-lifecycle/training/` recipe (E6) | global SHAP summary, stability check, model card section |

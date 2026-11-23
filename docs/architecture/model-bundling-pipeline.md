@@ -113,11 +113,11 @@ The branch is configured via `APP_REF` in the builder job template (`services/mo
 
 **Step 3 — Copy Feast repo and tracing module**
 
-BentoML's `include` directive does not follow symlinks. Since `application/scoring/feast_repo` and `application/scoring/tracing` may be symlinks, the builder physically copies them:
+BentoML's `include` directive does not follow symlinks. Since `services/scoring/feast_repo` and `services/scoring/tracing` may be symlinks, the builder physically copies them:
 
 ```
-services/feature-store/feast_repo/  →  application/scoring/feast_repo/
-application/tracing/     →  application/scoring/tracing/
+services/feature-store/feast_repo/  →  services/scoring/feast_repo/
+application/tracing/     →  services/scoring/tracing/
 ```
 
 Existing symlinks or directories at the destination are removed first to ensure a clean copy.
@@ -141,7 +141,7 @@ The `model_uri` is typically `models:/credit_risk_model/12` (specific version) i
 **Step 5 — Serialize model to joblib**
 
 ```python
-joblib.dump(mdl, "application/scoring/bundle/model.joblib")
+joblib.dump(mdl, "services/scoring/bundle/model.joblib")
 ```
 
 The `bundle/` directory is created if it doesn't exist. This file becomes the model artifact inside the Bento.
@@ -153,7 +153,7 @@ The builder extracts the MLflow run ID from the model URI, then downloads `feast
 ```python
 client = mlflow.tracking.MlflowClient()
 metadata_tmp = client.download_artifacts(run_id, "feast_metadata.yaml", work_dir)
-shutil.copy(metadata_tmp, "application/scoring/bundle/feast_metadata.yaml")
+shutil.copy(metadata_tmp, "services/scoring/bundle/feast_metadata.yaml")
 ```
 
 This file is logged during training (`train_register.py`) and contains:
@@ -166,7 +166,7 @@ If the download fails, the scoring service falls back to discovering features fr
 **Step 7 — Build the Bento**
 
 ```bash
-cd application/scoring
+cd services/scoring
 bentoml build --version v12
 ```
 
@@ -324,7 +324,7 @@ Configured in `services/model-lifecycle/mlflow-watcher/builder-configmap.yaml` (
 | `APP_REPO` | `https://github.com/ngnquanq/credit-risk-ml-system.git` | Git repository URL |
 | `APP_REF` | `feature/the-grand-migration` | Git branch to clone |
 | `APP_LOCAL_PATH` | *(unset)* | Optional: local repo mount path (skips git clone) |
-| `APP_SUBPATH` | `application/scoring` | Scoring service directory relative to repo root |
+| `APP_SUBPATH` | `services/scoring` | Scoring service directory relative to repo root |
 | `BENTO_BUCKET` | `bentoml-bundles` | MinIO bucket for Bento storage |
 | `BENTO_PREFIX` | `bentos` | Key prefix within bucket |
 | `AWS_S3_ENDPOINT` | `http://serving-minio.model-serving.svc.cluster.local:9000` | MinIO endpoint |

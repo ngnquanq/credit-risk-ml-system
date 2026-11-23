@@ -31,10 +31,10 @@ def _mock_bentoml_and_import():
     #    from schemas import ScoreRequest, ...
     #    from policy import DecisionPolicy
     #    from logger import configure_logger
-    #    These resolve to application/scoring/{config,schemas,pipeline,logger}.py
+    #    These resolve to services/scoring/{config,schemas,pipeline,logger}.py
     #    when PYTHONPATH=application, "config" resolves to core.config. We need
     #    the scoring-specific ones. Add scoring/ to sys.path temporarily.
-    scoring_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "application", "scoring")
+    scoring_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "services", "scoring")
     scoring_dir = os.path.abspath(scoring_dir)
     sys.path.insert(0, scoring_dir)
 

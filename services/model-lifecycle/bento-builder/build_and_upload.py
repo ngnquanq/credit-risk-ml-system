@@ -1,6 +1,6 @@
 """
 Flow:
-- Clone application repo and cd into the scoring service (convention: application/scoring).
+- Clone application repo and cd into the scoring service (convention: services/scoring).
 - Load the promoted model from MLflow (MODEL_URI).
 - Serialize it into bundle/model.joblib inside the scoring service directory.
 - Build a Bento with bentoml build --version <VERSION_TAG>.
@@ -13,7 +13,7 @@ Required env:
 - VERSION_TAG: e.g. v12 (tag to use for Bento and storage)
 - APP_REPO: git URL to this repo
 - APP_REF: git ref/branch (default: main)
-- APP_SUBPATH: subdir of scoring service (default: application/scoring)
+- APP_SUBPATH: subdir of scoring service (default: services/scoring)
 - BENTO_BUCKET: destination bucket (e.g., bento-bundles)
 - BENTO_PREFIX: prefix under bucket (default: bentos)
 - AWS_REGION: default us-east-1
@@ -75,7 +75,7 @@ def main() -> None:
     app_repo = os.environ.get("APP_REPO")
     app_local_path = os.environ.get("APP_LOCAL_PATH")  # Optional: use a pre-mounted local repo path
     app_ref = os.environ.get("APP_REF", "feature/the-grand-migration")
-    app_subpath = os.environ.get("APP_SUBPATH", "application/scoring")
+    app_subpath = os.environ.get("APP_SUBPATH", "services/scoring")
 
     bkt = os.environ.get("BENTO_BUCKET")
     prefix = os.environ.get("BENTO_PREFIX", "bentos")
