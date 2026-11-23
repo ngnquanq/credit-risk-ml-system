@@ -1,7 +1,14 @@
-# Application Directory Map
+# loan-api
 
-This directory contains the source code for the Credit Risk Scoring Application.
-It is currently being migrated to **Clean Architecture**.
+The Loan API, the decision recorder and the Kafka consumers. They share the audit, authz, identity, decisions, domain, infrastructure and workflows code, so they are one service built into two images (API; consumers and decision recorder).
+
+- Code: `src/` (import names are unchanged: `domain`, `workflows`, `infrastructure`, `entrypoints`, ...)
+- Schema: `schema/` holds the SQL that creates the operational database. It is idempotent, so applying it again is safe. The cluster ConfigMap is generated from it: `python scripts/render_db_init_configmap.py` (a unit test fails if they differ)
+- Images: `Dockerfile` (API), `src/entrypoints/Dockerfile` (consumers and decision recorder)
+- Deploy: `deploy/` (API, decision recorder, audit verification CronJob)
+- Contract it publishes: `contracts/openapi/loan-api.json` (`make contracts`)
+- Test: `pytest tests/unit tests/integration`
+- Run locally: `make local-ui-up`, then `make local-api`
 
 ## 1. Clean Architecture (New Structure)
 The goal is to decouple business logic from frameworks.

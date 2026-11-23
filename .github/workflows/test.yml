@@ -20,6 +20,20 @@ env:
   PYTHONPATH: services/loan-api/src:services:contracts:services/model-lifecycle:services/stream-features:services/feature-store
 
 jobs:
+  # ── Gate 0: Service boundaries (low coupling) ─────────────────────────
+  boundaries:
+    name: "Service boundaries"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - run: pip install import-linter
+      - name: A service must not import another service (use contracts/ instead)
+        run: lint-imports
+
   # ── Gate 1: Domain logic (pure business rules, zero I/O) ──────────────
   domain:
     name: "Domain & Workflows"

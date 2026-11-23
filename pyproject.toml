@@ -50,6 +50,7 @@ test = [
     "httpx>=0.27",
     "aiosqlite>=0.20",
     "greenlet>=3.0",
+    "import-linter>=2.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -120,3 +121,48 @@ markers = [
     "kafka: Tests involving Kafka mocks",
     "db: Tests involving database",
 ]
+# --- Service boundaries (see docs/adr, services layout) ---
+# Services talk through contracts/ (OpenAPI, feature_catalog, Kafka topics), never by importing each other.
+[tool.importlinter]
+root_packages = [
+    # loan-api
+    "audit", "authz", "core", "decisions", "domain", "entrypoints", "identity", "infrastructure", "workflows",
+    # other services
+    "scoring", "training", "flink", "feast_repo",
+    # shared contract
+    "feature_catalog",
+]
+include_external_packages = false
+
+[[tool.importlinter.contracts]]
+name = "loan-api does not import the other services"
+type = "forbidden"
+source_modules = ["audit", "authz", "core", "decisions", "domain", "entrypoints", "identity", "infrastructure", "workflows"]
+forbidden_modules = ["scoring", "training", "flink", "feast_repo"]
+
+[[tool.importlinter.contracts]]
+name = "scoring does not import the other services"
+type = "forbidden"
+source_modules = ["scoring"]
+forbidden_modules = ["audit", "authz", "core", "decisions", "domain", "entrypoints", "identity", "infrastructure", "workflows", "training", "flink", "feast_repo"]
+# Known exception: tracing is optional. service.py wraps this import in try/except and runs without it
+# inside the Bento, where core does not exist. Give scoring its own tracing helper to remove it.
+ignore_imports = ["scoring.service -> core.tracing"]
+
+[[tool.importlinter.contracts]]
+name = "model-lifecycle does not import the other services"
+type = "forbidden"
+source_modules = ["training"]
+forbidden_modules = ["audit", "authz", "core", "decisions", "domain", "entrypoints", "identity", "infrastructure", "workflows", "scoring", "flink", "feast_repo"]
+
+[[tool.importlinter.contracts]]
+name = "streaming services do not import the other services"
+type = "forbidden"
+source_modules = ["flink", "feast_repo"]
+forbidden_modules = ["audit", "authz", "core", "decisions", "domain", "entrypoints", "identity", "infrastructure", "workflows", "scoring", "training"]
+
+[[tool.importlinter.contracts]]
+name = "the shared catalog does not depend on any service"
+type = "forbidden"
+source_modules = ["feature_catalog"]
+forbidden_modules = ["audit", "authz", "core", "decisions", "domain", "entrypoints", "identity", "infrastructure", "workflows", "scoring", "training", "flink", "feast_repo"]
