@@ -3,4 +3,4 @@ FROM ${BASE_IMAGE}
 COPY application/training/feature_preprocessing.py /opt/credit-risk/feature_preprocessing.py
 ENV PYTHONPATH=/opt/credit-risk
 
-COPY application/training/feature_catalog/ /opt/credit-risk/feature_catalog/
+COPY contracts/feature_catalog/ /opt/credit-risk/feature_catalog/

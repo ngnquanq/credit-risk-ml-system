@@ -5,7 +5,9 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-_REASONS = Path(__file__).resolve().parents[1] / "training" / "feature_catalog" / "reasons.yaml"
+from feature_catalog import REASONS_FILE
+
+_REASONS = REASONS_FILE
 _FALLBACK = {
     "en": "Your application needs further review",
     "vi": "Hồ sơ của bạn cần được xem xét thêm",

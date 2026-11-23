@@ -44,7 +44,7 @@ COPY application/domain /app/domain
 COPY application/identity /app/identity
 COPY application/infrastructure /app/infrastructure
 COPY application/workflows /app/workflows
-COPY application/training/feature_catalog/reasons.yaml /app/training/feature_catalog/reasons.yaml
+COPY contracts/feature_catalog/__init__.py contracts/feature_catalog/reasons.yaml /app/feature_catalog/
 
 # Create non-root user and set permissions
 RUN useradd --create-home --shell /bin/bash app && \

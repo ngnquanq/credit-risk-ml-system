@@ -5,8 +5,8 @@ import json
 import pytest
 
 from scoring.explain import Explanation, ReasonMap, reason_codes_from_contributions
-from training.feature_catalog.catalog import Catalog
-from training.feature_catalog.export import reason_map
+from feature_catalog.catalog import Catalog
+from feature_catalog.export import reason_map
 
 MAP = ReasonMap({
     "EXT_SOURCE_1": "EXT_SCORE_LOW",

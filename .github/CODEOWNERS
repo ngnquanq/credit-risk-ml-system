@@ -12,12 +12,12 @@
 /notebook/                              @credit-risk/data-science
 
 # Feature definitions need both producers and consumers (E2 governance plan)
-/application/training/feature_catalog/definitions/  @credit-risk/data-engineering @credit-risk/data-science
+/contracts/feature_catalog/definitions/  @credit-risk/data-engineering @credit-risk/data-science
 
 # Risk and compliance: who may do what, decisions, explanations, audit
 /application/authz/                     @credit-risk/risk @credit-risk/security
 /application/scoring/policy.py          @credit-risk/risk
-/application/training/feature_catalog/reasons.yaml  @credit-risk/risk
+/contracts/feature_catalog/reasons.yaml  @credit-risk/risk
 /application/audit/                     @credit-risk/security
 /docs/security/                         @credit-risk/security
 /docs/release/                          @credit-risk/risk @credit-risk/platform

@@ -31,9 +31,9 @@ def test_select_training_data_rejects_incomplete_snapshot(column):
 
 
 def test_alternative_feature_set_controls_selection_and_preprocessing(tmp_path, monkeypatch):
-    sets = tmp_path / "feature_catalog" / "sets"
+    sets = tmp_path / "sets"
     sets.mkdir(parents=True)
-    monkeypatch.setattr(feature_preprocessing, "__file__", str(tmp_path / "feature_preprocessing.py"))
+    monkeypatch.setattr(feature_preprocessing, "_sets_dir", lambda: sets)
     path = sets / "challenger-v1.json"
     config = {
         "version": "challenger-v1",
@@ -58,9 +58,9 @@ def test_alternative_feature_set_controls_selection_and_preprocessing(tmp_path, 
 
 @pytest.mark.parametrize("name", ["SK_ID_CURR", "TARGET", "VALID"])
 def test_feature_set_rejects_reserved_or_duplicate_columns(tmp_path, monkeypatch, name):
-    sets = tmp_path / "feature_catalog" / "sets"
+    sets = tmp_path / "sets"
     sets.mkdir(parents=True)
-    monkeypatch.setattr(feature_preprocessing, "__file__", str(tmp_path / "feature_preprocessing.py"))
+    monkeypatch.setattr(feature_preprocessing, "_sets_dir", lambda: sets)
     features = [{"name": column, "preprocessing_group": "num_other"} for column in ["VALID", name]]
     (sets / "bad.json").write_text(json.dumps({"version": "bad", "features": features}))
 

@@ -44,13 +44,19 @@ class FeatureSet:
         }
 
 
+def _sets_dir() -> Path:
+    from feature_catalog import SETS_DIR
+
+    return SETS_DIR
+
+
 def load_feature_set(version: str | None = None) -> FeatureSet:
     """Resolve a versioned, ordered training contract from the packaged catalog."""
     if version is None:
         version = os.environ.get("CRQ_FEATURE_SET", "legacy-v1")
     if not isinstance(version, str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", version):
         raise ValueError(f"Invalid feature set version: {version!r}")
-    path = Path(__file__).with_name("feature_catalog") / "sets" / f"{version}.json"
+    path = _sets_dir() / f"{version}.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:

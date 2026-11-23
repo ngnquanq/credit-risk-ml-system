@@ -151,7 +151,7 @@ CREDIT_AMOUNT_HIGH: {en: "Requested credit amount is high for the profile", vi: 
 | `application/scoring/explain.py` | **new**: `Explainer`, `ReasonMap` |
 | `application/scoring/service.py` | build the explainer at model load; call it per request; add fields to the response |
 | `application/scoring/bentofile.yaml`, requirements | add `shap` (pinned) |
-| `application/training/feature_catalog/definitions/*.yaml`, `reasons.yaml` | `reason_code`, `proxy_for`, texts |
+| `contracts/feature_catalog/definitions/*.yaml`, `reasons.yaml` | `reason_code`, `proxy_for`, texts |
 | bento builder (E7) | ship `reason_map.json` generated from the catalog next to the model |
 | `application/training/` recipe (E6) | global SHAP summary, stability check, model card section |
 | `portals/` (E12) | applicant: texts only; staff: contribution bar chart |

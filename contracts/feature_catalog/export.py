@@ -1,7 +1,7 @@
 """Generate artifacts that other build contexts need from the feature catalog (E2, E14).
 
 Usage:
-    python application/training/feature_catalog/export.py reason-map OUT.json
+    python contracts/feature_catalog/export.py reason-map OUT.json
 
 The scoring Bento cannot import the catalog (separate Docker context), so the builder
 writes ``reason_map.json`` next to the model: feature -> reason code, for explainable

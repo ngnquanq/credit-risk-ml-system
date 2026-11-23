@@ -53,10 +53,10 @@ test = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["application"]
+where = ["application", "contracts"]
 
 [tool.setuptools.package-data]
-training = ["feature_catalog/sets/*.json", "feature_catalog/definitions/*.yaml", "feature_catalog/reasons.yaml"]
+feature_catalog = ["sets/*.json", "definitions/*.yaml", "reasons.yaml"]
 
 # --- Formatting & Linting ---
 
@@ -112,7 +112,7 @@ testpaths = [
 ]
 python_files = "test_*.py"
 asyncio_mode = "auto"
-pythonpath = ["application"]
+pythonpath = ["application", "contracts"]
 markers = [
     "unit: Unit tests (no I/O)",
     "integration: Integration tests (in-memory DB, httpx)",

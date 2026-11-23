@@ -22,6 +22,7 @@ Usage (with MLflow stack up):
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -45,10 +46,11 @@ from xgboost import XGBClassifier
 from loguru import logger
 
 if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "contracts"))
     from feature_catalog.catalog import Catalog, load_set_status
     from feature_preprocessing import build_preprocessor, ece_score, load_feature_set, select_training_data
 else:
-    from .feature_catalog.catalog import Catalog, load_set_status
+    from feature_catalog.catalog import Catalog, load_set_status
     from .feature_preprocessing import build_preprocessor, ece_score, load_feature_set, select_training_data
 
 

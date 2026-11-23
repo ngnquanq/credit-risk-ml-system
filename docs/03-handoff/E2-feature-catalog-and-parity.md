@@ -16,7 +16,7 @@ The model is trained on one feature definition and served with another:
 ## 2. Scope
 
 **In**
-- **Feature definitions**: `application/training/feature_catalog/definitions/{application,external,dwh}.yaml`, one entry per feature (meaning, dtype, producer, training column, valid range, sentinel, `protected`, `reason_code`).
+- **Feature definitions**: `contracts/feature_catalog/definitions/{application,external,dwh}.yaml`, one entry per feature (meaning, dtype, producer, training column, valid range, sentinel, `protected`, `reason_code`).
 - **Model feature sets**: `feature_catalog/sets/<version>.json`, an ordered list of definition names with a preprocessing group. **Done:** `legacy-v1`, `load_feature_set()` with a SHA-256 digest, and the version and digest logged with every model (CLI, notebook, Kubeflow).
 - A check that every set entry resolves to exactly one definition and that no `protected` definition is in a new approved set.
 - A generator that writes the derived artifacts, plus a CI check that fails when they are stale.
@@ -97,7 +97,7 @@ classDiagram
         +manifest() dict
     }
     class Catalog {
-        <<training/feature_catalog/catalog.py, new>>
+        <<contracts/feature_catalog/catalog.py, new>>
         +load(root) Catalog
         +definition(name) FeatureDefinition
         +check_set(columns, status) CatalogCheck
@@ -194,10 +194,10 @@ Initial definitions: import the 43 + 57 + 156 fields from today's `feature_schem
 
 | File | Change |
 |---|---|
-| `application/training/feature_catalog/catalog.py`, `definitions/{application,external,dwh}.yaml` (the 24 model inputs), `reasons.yaml` | **done** (2026-11-22); `train_register.py` refuses a non-legacy set with a protected input |
-| `application/training/feature_catalog/sets/v2-no-gender.json` | **done**: candidate set for E6 |
-| `application/training/feature_catalog/export.py`; definitions for the remaining Feast-only fields | **new** (pending) |
-| `application/training/feature_catalog/sets/legacy-v1.json`, `feature_preprocessing.load_feature_set` | **done** |
+| `contracts/feature_catalog/catalog.py`, `definitions/{application,external,dwh}.yaml` (the 24 model inputs), `reasons.yaml` | **done** (2026-11-22); `train_register.py` refuses a non-legacy set with a protected input |
+| `contracts/feature_catalog/sets/v2-no-gender.json` | **done**: candidate set for E6 |
+| `contracts/feature_catalog/export.py`; definitions for the remaining Feast-only fields | **new** (pending) |
+| `contracts/feature_catalog/sets/legacy-v1.json`, `feature_preprocessing.load_feature_set` | **done** |
 | `Makefile` | `features` target (runs the exporter); `check` runs it and `git diff --exit-code` |
 | `application/feast_repo/feature_schema/*.json` | now generated |
 | `application/feast_repo/generate_schemas_from_kafka.py` | delete (replaced by the exporter) |

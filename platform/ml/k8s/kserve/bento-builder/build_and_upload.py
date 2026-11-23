@@ -144,7 +144,7 @@ def main() -> None:
 
     # Reason codes for explanations (E14): generated from the feature catalog in the same commit.
     sh(
-        f"python application/training/feature_catalog/export.py reason-map {os.path.join(bundle_dir, 'reason_map.json')}",
+        f"python contracts/feature_catalog/export.py reason-map {os.path.join(bundle_dir, 'reason_map.json')}",
         cwd=repo_dir,
     )
 

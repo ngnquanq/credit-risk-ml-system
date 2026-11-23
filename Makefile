@@ -22,7 +22,7 @@ PYTHON := python
 # ─── Contracts and local quality gate (ADR-0011) ───────────────────────────────
 contracts: ## Regenerate cross-language contracts (OpenAPI for the portals, reason map)
 	$(PYTHON) scripts/export_openapi.py
-	$(PYTHON) application/training/feature_catalog/export.py reason-map contracts/reason_map.json
+	$(PYTHON) contracts/feature_catalog/export.py reason-map contracts/reason_map.json
 
 check: ## Local gate: lint, tests, and contracts unchanged
 	ruff check --select F application tests scripts

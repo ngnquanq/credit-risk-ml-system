@@ -12,8 +12,8 @@ The vocabulary and the core objects of the credit decisioning domain. Use these 
 | **Applicant data** | Fields the applicant types in (income, credit, dates, flags) | the application row |
 | **Feature** | One model input with a name, type, source group and transform | **Feature catalog** (target); today scattered (F-07) |
 | **Feature group** | Features produced together: `application`, `external` (bureau), `dwh` (history) | Kafka topic + Feast view per group |
-| **Feature definition** | What one feature means, its type, producer, valid range and sentinel | `training/feature_catalog/definitions/*.yaml` (target, E2) |
-| **Feature set** | An immutable, ordered list of definitions that one model uses, with a SHA-256 digest | `training/feature_catalog/sets/<version>.json` (`legacy-v1` built) |
+| **Feature definition** | What one feature means, its type, producer, valid range and sentinel | `contracts/feature_catalog/definitions/*.yaml` (target, E2) |
+| **Feature set** | An immutable, ordered list of definitions that one model uses, with a SHA-256 digest | `contracts/feature_catalog/sets/<version>.json` (`legacy-v1` built) |
 | **Protected attribute** | A feature that must not be a model input (for example gender) | catalog tag `protected` (target) |
 | **Readiness** | All three feature groups for an application are in the online store | Redis DB 1 (E3) |
 | **Score** | Model output P(default) in [0, 1]. Higher means riskier | decision event |

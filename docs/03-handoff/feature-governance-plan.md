@@ -38,7 +38,7 @@ Extract the catalog into a dedicated Git repository when multiple independently 
 
 ## First rollout
 
-The initial ordered set is [legacy-v1](../../application/training/feature_catalog/sets/legacy-v1.json). Its JSON format works in both training images using the Python standard library. The training package ships the set alongside the loader. Producer definitions and the Feast mapping are follow-up work.
+The initial ordered set is [legacy-v1](../../contracts/feature_catalog/sets/legacy-v1.json). Its JSON format works in both training images using the Python standard library. The training package ships the set alongside the loader. Producer definitions and the Feast mapping are follow-up work.
 
 - Local CLI accepts `--feature-set <version>`. When using notebook output as `--config`, it takes the recorded feature-set version and checks its digest.
 - Notebook runs select a packaged set with `CRQ_FEATURE_SET=<version>`. Rerun tuning when changing the set or using an old cache without a digest.
