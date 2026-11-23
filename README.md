@@ -132,10 +132,10 @@ docker run -d --name ops-postgres -p 5432:5432 \
 # or point .env at existing services
 
 # 4. Run the API
-PYTHONPATH=application uvicorn entrypoints.api.main:app --reload --port 8000
+(cd services/loan-api/src && uvicorn entrypoints.api.main:app --reload --port 8000)
 
 # 5. Run tests (no infrastructure needed — uses SQLite in-memory)
-PYTHONPATH=application pytest tests/unit tests/integration -v
+pytest tests/unit tests/integration -v   # paths come from pyproject.toml
 ```
 
 > **What you can do locally**: submit loans via the REST API, run the training script, explore all notebooks, and run the full test suite. What requires K8s: Kafka CDC pipeline, Flink jobs, Feast materialization, KServe inference.
@@ -402,26 +402,23 @@ The application flows through: **API → PostgreSQL → Debezium CDC → Kafka �
 
 ```
 .
-├── application/                  # Python source; each deployable runs with PYTHONPATH=application
-│   ├── core/                     #   Settings (Pydantic), tracing, database session
-│   ├── domain/                   #   Loan application entity and repository/scoring ports
-│   ├── workflows/                #   Use cases (submit loan)
-│   ├── infrastructure/           #   Postgres repository, Kafka publisher, ClickHouse clients
-│   ├── entrypoints/              #   FastAPI API + bureau/DWH Kafka consumers   (image: credit-risk-api / -consumers)
-│   ├── scoring/                  #   BentoML scoring service                    (Bento → KServe)
-│   ├── feast_repo/               #   Feast definitions + stream materialiser     (image: feast-repo)
-│   ├── flink/                    #   PyFlink CDC and bureau aggregation jobs    (image: flink-pyflink)
-│   └── training/                 #   XGBoost training + MLflow registration
-├── portals/                      # Next.js applicant and staff portals
-├── ml_data_mart/                 # dbt project for the ClickHouse marts           (image: dbt-clickhouse)
-├── platform/                     # Kubernetes manifests and Helm values, by plane
-│   ├── core/                     #   API, identity, portals, ingress, DB schemas and PgBouncer
-│   ├── data/                     #   Postgres, Kafka, Debezium, ClickHouse, Flink, consumers
-│   ├── ml/                       #   MLflow, KServe/Knative, Feast, Kubeflow, Ray, watchers
-│   └── ops/                      #   Prometheus/Grafana, ECK logging, tracing, cert-manager
-├── notebook/                     # EDA and modelling notebooks; model_pipeline.py (tuning)
+├── services/                     # One folder per deployable (see services/README.md)
+│   ├── loan-api/                 #   API, decision recorder, consumers; src/, schema/, deploy/   (images: credit-risk-api / -consumers)
+│   ├── stream-features/          #   PyFlink CDC and bureau jobs, Kafka topic and connector scripts (image: flink-pyflink)
+│   ├── feature-store/            #   Feast definitions + stream materialiser, Redis online store     (image: feast-repo)
+│   ├── scoring/                  #   BentoML scoring service and its Knative wiring                  (Bento -> KServe)
+│   └── model-lifecycle/          #   Training, KFP pipeline, MLflow/serving watchers, bento builder
+├── contracts/                    # What services share: OpenAPI, reason map, feature_catalog/
+├── portals/                      # Next.js applicant and staff portals (and their manifests)
+├── ml_data_mart/                 # dbt project for the ClickHouse marts                              (image: dbt-clickhouse)
+├── platform/                     # Infrastructure the services run on: Kafka, ClickHouse, Prometheus, operators, identity
+│   ├── core/                     #   Ingress, Keycloak, PgBouncer, API config
+│   ├── data/                     #   Postgres, Kafka, Debezium, ClickHouse, query services
+│   ├── ml/                       #   MLflow, KServe/Knative, Kubeflow, Ray, storage
+│   └── ops/                      #   Prometheus/Grafana, ECK logging, tracing
+├── notebook/                     # EDA and modelling notebooks (production code never imports from here)
 ├── tests/                        # unit/, integration/ (in-memory SQLite), test_load/ (Locust)
-├── scripts/                      # Platform restart and load-test cleanup helpers
+├── scripts/                      # Local stack, chaos and UAT drills, restart and cleanup helpers
 ├── docs/                         # C4 model, ADRs, data and business docs (see docs/README.md)
 ├── assets/                       # Images and diagrams used by the README
 └── Makefile                      # Build, deploy (k8s-*), and port-forward targets
@@ -431,7 +428,8 @@ The application flows through: **API → PostgreSQL → Debezium CDC → Kafka �
 
 ```bash
 # Run unit and integration tests
-PYTHONPATH=application pytest tests/ --ignore=tests/test_load -v
+make check   # lint, import boundaries, tests, contracts unchanged
+# or: pytest tests/unit tests/integration   (paths come from pyproject.toml)
 
 # Load test (requires running infrastructure)
 locust -f tests/test_load/locustfile_e2e_prediction.py --web-host=0.0.0.0 --web-port=8089

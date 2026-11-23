@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. The feature catalog location in decision 1 is superseded by [ADR-0015](0015-services-layout-high-cohesion-low-coupling.md).
 
 ## Date
 

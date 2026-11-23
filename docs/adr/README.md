@@ -20,6 +20,7 @@ Records of significant architectural decisions. Each ADR captures **why** a deci
 | [0012](0012-keycloak-realms-and-bff-portals.md) | Keycloak with two realms, and backend-for-frontend portals | Accepted |
 | [0013](0013-role-based-data-and-explanation-visibility.md) | Role-based visibility of customer data and explanations; officers do not decide | Accepted |
 | [0014](0014-applicant-personal-data-and-opaque-ids.md) | Applicant personal data is kept apart and encrypted; URLs carry opaque ids only | Accepted |
+| [0015](0015-services-layout-high-cohesion-low-coupling.md) | One folder per deployable service; services share only contracts | Accepted |
 
 ## Creating a New ADR
 
