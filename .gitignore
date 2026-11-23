@@ -16,7 +16,7 @@ __pycache__/
 
 # Model bundles (generated during build)
 bundle/
-application/scoring/bundle/
+services/scoring/bundle/
 
 # Distribution / packaging
 .Python
@@ -267,12 +267,12 @@ CLAUDE.md
 managed_context/
 test_suite_analysis/
 
-# Root-level legacy infrastructure folder; do not ignore application/infrastructure.
+# Root-level legacy infrastructure folder; do not ignore services/loan-api/src/infrastructure.
 /infrastructure/
 
 # Feast data
 application/feast/data/
-application/scoring/mlflow.env
+services/scoring/mlflow.env
 
 # Jenkins CI/CD artifacts
 jenkins_home/

@@ -25,7 +25,8 @@ contracts: ## Regenerate cross-language contracts (OpenAPI for the portals, reas
 	$(PYTHON) contracts/feature_catalog/export.py reason-map contracts/reason_map.json
 
 check: ## Local gate: lint, tests, and contracts unchanged
-	ruff check --select F application tests scripts
+	ruff check --select F services/loan-api/src services tests scripts
+	lint-imports
 	OTEL_SDK_DISABLED=true $(PYTHON) -m pytest tests/unit tests/integration -q
 	$(MAKE) contracts
 	git diff --exit-code contracts/
@@ -38,19 +39,19 @@ local-ui-up: ## Keycloak + PostgreSQL (demo data) + Redis in Docker; then run th
 	@echo "Demo users and passwords: scripts/local/.generated/credentials.txt"
 
 local-api: ## Run the Loan API against the local stack on :8000
-	cd application && set -a && . ../scripts/local/.generated/api.env && set +a && $(PYTHON) -m uvicorn entrypoints.api.main:app --port 8000 --reload
+	cd services/loan-api/src && set -a && . ../../../scripts/local/.generated/api.env && set +a && $(PYTHON) -m uvicorn entrypoints.api.main:app --port 8000 --reload
 
 local-ui-down: ## Stop the local stack and delete its data (demo data is re-seeded on the next up)
 	docker compose -f scripts/local/docker-compose.yml down -v
 
 # ─── Release readiness: portals, decisions, high availability, drills (E5, E12, E15) ──
 k8s-decision-recorder: ## Deploy the decision recorder and the daily audit verification job
-	kubectl apply -f platform/core/k8s/09-decision-recorder.yaml
+	kubectl apply -f services/loan-api/deploy/09-decision-recorder.yaml
 
 k8s-portals: ## Deploy both portals, the session Redis, ingresses and NetworkPolicies
 	@test -n "$(STAFF_PORTAL_CLIENT_SECRET)" || (echo "STAFF_PORTAL_CLIENT_SECRET is required" && exit 2)
 	@test -n "$(APPLICANT_PORTAL_CLIENT_SECRET)" || (echo "APPLICANT_PORTAL_CLIENT_SECRET is required" && exit 2)
-	kubectl apply -f platform/core/k8s/portals/portals.yaml
+	kubectl apply -f portals/deploy/portals.yaml
 	kubectl create secret generic portal-secrets -n portals --from-literal=staff-portal="$(STAFF_PORTAL_CLIENT_SECRET)" --from-literal=applicant-portal="$(APPLICANT_PORTAL_CLIENT_SECRET)" --dry-run=client -o yaml | kubectl apply -f -
 
 k8s-kafka-ha: ## Replace the single broker with three (RF 3, min ISR 2); topics are recreated
@@ -117,13 +118,13 @@ k8s-up: ## Start Minikube profile for ML platform (with addons)
 build-api: ## Build the API Docker image for K8s (loads into Minikube if driver=docker)
 	@echo "Building API image for System..."
 	@eval $$(minikube -p $(MINIKUBE_PROFILE) docker-env) && \
-	docker build -t ngnquanq/credit-risk-api:latest -f application/Dockerfile .
+	docker build -t ngnquanq/credit-risk-api:latest -f services/loan-api/Dockerfile .
 	@echo "✅ API image built and loaded into Minikube"
 
 build-consumers: ## Build Consumer Services image for K8s
 	@echo "Building Consumers image for System..."
 	@eval $$(minikube -p $(MINIKUBE_PROFILE) docker-env) && \
-	docker build -t ngnquanq/credit-risk-consumers:latest -f application/entrypoints/Dockerfile .
+	docker build -t ngnquanq/credit-risk-consumers:latest -f services/loan-api/src/entrypoints/Dockerfile .
 	@echo "✅ Consumers image built and loaded into Minikube"
 
 build-dbt: ## Build dbt-clickhouse image into Minikube (required before k8s-core deploys the dbt Job)
@@ -135,12 +136,12 @@ build-dbt: ## Build dbt-clickhouse image into Minikube (required before k8s-core
 build-flink: ## Build PyFlink image into Minikube (required before k8s-streaming)
 	@echo "Building PyFlink image for System..."
 	@eval $$(minikube -p $(MINIKUBE_PROFILE) docker-env) && \
-	docker build -t flink-pyflink:latest -f application/flink/Dockerfile application/flink
+	docker build -t flink-pyflink:latest -f services/stream-features/flink/Dockerfile services/stream-features/flink
 	@echo "✅ PyFlink image built and loaded into Minikube"
 
 build-feast-repo: ## Build and push Feast repo image to DockerHub (required before k8s-feature-registry)
 	@echo "Building and pushing Feast repo image..."
-	docker build -t ngnquanq/feast-repo:v18 ./application/feast_repo/
+	docker build -t ngnquanq/feast-repo:v18 ./services/feature-store/feast_repo/
 	docker push ngnquanq/feast-repo:v18
 	@echo "✅ Feast repo image pushed to DockerHub"
 
@@ -218,7 +219,9 @@ k8s-kafka-topics: ## Ensure required Kafka topics are created
 
 k8s-streaming: build-flink k8s-kafka-topics ## Deploy Streaming Infrastructure (Flink + Query Services)
 	@echo "Deploying Streaming Infrastructure..."
-	kubectl apply -f platform/data/k8s/stream-processing/
+	kubectl apply -f services/stream-features/deploy/
+	kubectl apply -f services/loan-api/deploy/05-api.yaml
+	kubectl apply -f services/loan-api/deploy/09-decision-recorder.yaml
 	kubectl apply -f platform/data/k8s/query-services/
 	@echo "✅ Streaming Infrastructure deployed."
 	@echo "  API: http://$$(minikube -p $(MINIKUBE_PROFILE) ip)/api/docs"
@@ -363,10 +366,10 @@ k8s-knative-stack: k8s-knative-serving k8s-knative-eventing k8s-knative-kafka ##
 
 k8s-scoring-pipeline: ## Deploy scoring event pipeline (Sequence + KafkaSource + KafkaSinks)
 	@echo "Deploying scoring pipeline..."
-	kubectl apply -f platform/ml/k8s/kserve/kafka-sink.yaml
-	kubectl apply -f platform/ml/k8s/kserve/kafka-dlq-sink.yaml
-	kubectl apply -f platform/ml/k8s/kserve/scoring-sequence.yaml
-	kubectl apply -f platform/ml/k8s/kserve/kafka-source.yaml
+	kubectl apply -f services/scoring/deploy/kafka-sink.yaml
+	kubectl apply -f services/scoring/deploy/kafka-dlq-sink.yaml
+	kubectl apply -f services/scoring/deploy/scoring-sequence.yaml
+	kubectl apply -f services/scoring/deploy/kafka-source.yaml
 	@echo "✅ Scoring pipeline deployed (KafkaSource → Sequence → InferenceService → KafkaSink)"
 
 k8s-knative-complete: k8s-knative-stack k8s-kserve k8s-scoring-pipeline ## Complete Knative stack deployment
@@ -472,7 +475,7 @@ k8s-sync-mlflow-watcher-config: ## Sync mlflow-watcher builder config + restart 
 k8s-feature-registry: build-feast-repo ## Deploy Feast feature registry + Redis online store
 	@echo "Deploying Feast feature registry..."
 	kubectl create ns feature-registry || true
-	kubectl apply -k ./platform/ml/k8s/feature-store/
+	kubectl apply -k ./services/feature-store/deploy/
 	@echo "Feast feature registry deployed (namespace: feature-registry)"
 
 k8s-monitoring: ## Deploy Prometheus + Grafana monitoring stack
