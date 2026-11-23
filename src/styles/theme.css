@@ -21,7 +21,7 @@
   --sl-color-black: #0f0f10;
 
   --crs-red: #c8102e;
-  --sl-content-width: 48rem;
+  --sl-content-width: 58rem;
   --sl-line-height: 1.7;
 }
 
@@ -79,3 +79,33 @@ ol.references li { margin-bottom: 0.6rem; }
 }
 .hero { padding-block: 3rem 2rem; }
 .hero > .stack, .hero .copy { max-width: 46rem; }
+
+/* Zoomable figures and the full-screen viewer. */
+.zoomable-figure { margin: 1rem 0; }
+.zoomable-figure img { width: 100%; height: auto; cursor: zoom-in; }
+.zoomable-figure figcaption { font-size: var(--sl-text-sm); color: var(--sl-color-gray-3); margin-top: 0.25rem; }
+.zoom-hint { opacity: 0.8; }
+.sl-markdown-content pre.mermaid svg, .sl-markdown-content img { cursor: zoom-in; }
+.sl-markdown-content pre.mermaid svg { max-width: 100%; height: auto; }
+.sl-markdown-content details { border: 1px solid var(--sl-color-gray-5); border-radius: 12px; padding: 0.75rem 1rem; margin: 0.75rem 0; }
+.sl-markdown-content details > summary { cursor: pointer; font-weight: 500; }
+.zoom-overlay { position: fixed; inset: 0; z-index: 1000; background: var(--sl-color-black); display: flex; flex-direction: column; }
+.zoom-overlay[hidden] { display: none; }
+.zoom-bar { display: flex; gap: 0.5rem; align-items: center; padding: 0.6rem 1rem; border-bottom: 1px solid var(--sl-color-gray-5); }
+.zoom-bar button { font: inherit; padding: 0.35rem 0.9rem; border-radius: 10px; border: 1px solid var(--sl-color-gray-4); background: var(--sl-color-gray-6);
+  color: var(--sl-color-white); cursor: pointer; }
+.zoom-bar button:last-child { margin-left: auto; background: var(--crs-red); border-color: var(--crs-red); color: #fff; }
+.zoom-note { color: var(--sl-color-gray-3); font-size: var(--sl-text-sm); }
+.zoom-stage { flex: 1; overflow: auto; padding: 1rem; background: #fff; cursor: grab; }
+.zoom-stage.grabbing { cursor: grabbing; }
+.zoom-stage > * { display: block; margin: 0 auto; background: #fff; }
+body.zoom-open { overflow: hidden; }
+
+/* A visible "Expand" label on every diagram; the whole block is clickable. */
+.sl-markdown-content pre.mermaid, .zoomable-figure { position: relative; cursor: zoom-in; }
+.sl-markdown-content pre.mermaid::after, .zoomable-figure::after {
+  content: "\2922  Expand"; position: absolute; top: 0.5rem; right: 0.6rem; font-size: 0.8rem; line-height: 1;
+  padding: 0.35rem 0.65rem; border-radius: 8px; background: var(--sl-color-gray-6); border: 1px solid var(--sl-color-gray-4);
+  color: var(--sl-color-gray-1); pointer-events: none; opacity: 0.92;
+}
+.sl-markdown-content pre.mermaid:hover::after, .zoomable-figure:hover::after { background: var(--crs-red); border-color: var(--crs-red); color: #fff; opacity: 1; }

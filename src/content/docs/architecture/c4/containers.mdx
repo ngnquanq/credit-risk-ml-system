@@ -1,0 +1,65 @@
+---
+title: "Level 2 · Containers"
+description: The deployable parts of the platform, by plane, with a zoomable full view of each.
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+import Zoom from "../../../../components/Zoom.astro";
+
+Level 2 opens the box. A container here is something that runs on its own: a service, a database, a job. Start with the map below, then open the plane you care about.
+
+## Map by plane
+
+<pre class="mermaid">{`flowchart LR
+  P[Portals] --> API[Loan API] --> DB[(Database)] --> FE["Change capture<br/>and features"] --> SC["Feature store<br/>and scoring"] --> REC["Decision<br/>recorder"]
+  ID[Sign-in] -.-> P
+  API --> AUD[(Audit trail)]
+  WH[(Warehouse)] --> FE
+  WH --> ML["Model<br/>lifecycle"]
+  ML -->|promoted model| SC
+  REC --> DB
+  classDef added fill:#fdecee,stroke:#c8102e,color:#111;
+  class P,ID,AUD,REC added;`}</pre>
+
+Red boxes were added by the release-readiness work (sign-in, portals, audit, decision recorder). The rest is the original pipeline. Monitoring and logging sit beside every plane and are left out to keep the map readable.
+
+## Zoom into one plane
+
+Each tab gives one sentence and the full generated view. Click a view to enlarge it.
+
+<Tabs>
+  <TabItem label="Intake">
+    Requests come in through the ingress to the Loan API, which validates them and writes the application to the operational database.
+    <Zoom src="L2-1-Intake.svg" alt="Intake plane" caption="Intake plane" />
+  </TabItem>
+  <TabItem label="Features">
+    Three branches turn one change event into three groups of features: the application itself, the credit bureau history, and the lender's own history.
+    <Zoom src="L2-2-Feature-Pipeline.svg" alt="Feature pipeline plane" caption="Feature pipeline plane" />
+  </TabItem>
+  <TabItem label="Scoring">
+    When all three feature groups are present, an event triggers the model, which returns a score on a Kafka topic.
+    <Zoom src="L2-3-Scoring.svg" alt="Scoring plane" caption="Scoring plane" />
+  </TabItem>
+  <TabItem label="Warehouse">
+    ClickHouse holds the bureau and history data; dbt builds the marts that the feature services and training read.
+    <Zoom src="L2-4-Warehouse.svg" alt="Warehouse plane" caption="Warehouse plane" />
+  </TabItem>
+  <TabItem label="Models">
+    Models are trained, registered, and promoted to serving; promotion builds a new serving image and re-points the scoring pipeline.
+    <Zoom src="L2-5-Model-Lifecycle.svg" alt="Model lifecycle plane" caption="Model lifecycle plane" />
+  </TabItem>
+  <TabItem label="Ops">
+    Metrics, dashboards and logs for the whole cluster.
+    <Zoom src="L2-6-Ops.svg" alt="Operations plane" caption="Operations plane" />
+  </TabItem>
+  <TabItem label="Kafka">
+    Which service writes and which services read each topic.
+    <Zoom src="L2-7-Kafka-Topology.svg" alt="Kafka topology" caption="Kafka topology" />
+  </TabItem>
+  <TabItem label="All">
+    All planes together. It is deliberately dense; enlarge it and pan, or use the plane tabs.
+    <Zoom src="L2-All.svg" alt="All containers" caption="All containers" />
+  </TabItem>
+</Tabs>
+
+Each container's technology, workload, owner and source file is in the [container catalogue](/credit-risk-ml-system/architecture/reference/context-and-containers/).

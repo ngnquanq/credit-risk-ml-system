@@ -1,0 +1,67 @@
+---
+title: "Level 3 · Components"
+description: What is inside the services that have real structure.
+---
+
+import Zoom from "../../../../components/Zoom.astro";
+
+Level 3 only matters for services with internal structure. The rest of the platform is off-the-shelf software, so it stops at level 2. Open a service to see its parts.
+
+<details>
+<summary><strong>Loan API</strong>: routes, use cases, domain, adapters</summary>
+
+The FastAPI service is layered: entrypoints call workflows, workflows use ports defined in the domain, and infrastructure adapters (database, Kafka, warehouse) implement those ports.
+
+<Zoom src="L3-API.svg" alt="Loan API components" caption="Loan API components" />
+</details>
+
+<details>
+<summary><strong>Stream processing</strong>: the PyFlink jobs</summary>
+
+The change-data job derives application features; the bureau job aggregates credit-bureau history.
+
+<Zoom src="L3-Flink.svg" alt="Flink components" caption="PyFlink jobs" />
+</details>
+
+<details>
+<summary><strong>Bureau and warehouse feature services</strong></summary>
+
+Two Python services look up an applicant in ClickHouse and publish the result to Kafka.
+
+<Zoom src="L3-Bureau-Service.svg" alt="Bureau service components" caption="Bureau service" />
+<Zoom src="L3-DWH-Service.svg" alt="Warehouse feature service components" caption="Warehouse feature service" />
+</details>
+
+<details>
+<summary><strong>Feature store materialiser</strong></summary>
+
+Writes the three feature groups to Redis and tracks which groups have arrived for each application.
+
+<Zoom src="L3-Feast-Materialiser.svg" alt="Feast materialiser components" caption="Feast materialiser" />
+</details>
+
+<details>
+<summary><strong>Scoring service</strong></summary>
+
+Loads the registered model, reads the features, and returns a score.
+
+<Zoom src="L3-Scoring-Service.svg" alt="Scoring service components" caption="Scoring service" />
+</details>
+
+<details>
+<summary><strong>Training pipeline</strong></summary>
+
+Trains the model and registers it.
+
+<Zoom src="L3-Training-Pipeline.svg" alt="Training pipeline components" caption="Training pipeline" />
+</details>
+
+<details>
+<summary><strong>dbt project</strong></summary>
+
+Builds the ClickHouse marts.
+
+<Zoom src="L3-dbt.svg" alt="dbt components" caption="dbt project" />
+</details>
+
+The description of each component, with its code location, is in the [component reference](/credit-risk-ml-system/architecture/reference/components/).

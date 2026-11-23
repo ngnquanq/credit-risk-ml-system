@@ -1,0 +1,87 @@
+---
+title: Runtime flows
+description: How an application travels from submission to decision, and what happens when something fails.
+---
+
+import Zoom from "../../../../components/Zoom.astro";
+
+The structure pages show what exists. These pages show what happens, in order.
+
+## From submission to decision
+
+**Part 1 · The application comes in.**
+
+<pre class="mermaid">{`sequenceDiagram
+  autonumber
+  actor U as Applicant or officer
+  participant P as Portal
+  participant API as Loan API
+  participant DB as Database
+  U->>P: fill in the application
+  P->>API: submit with the user's token
+  API->>DB: store it, identity kept apart
+  API-->>P: the application's id
+  P-->>U: confirmation`}</pre>
+
+**Part 2 · Features, score and decision.**
+
+<pre class="mermaid">{`sequenceDiagram
+  autonumber
+  participant DB as Database
+  participant K as Kafka
+  participant F as Features
+  participant S as Scoring
+  participant R as Recorder
+  DB-->>K: change event
+  K->>F: three branches build features
+  F->>S: all three ready, score it
+  S->>K: score and reasons
+  K->>R: recorder reads the result
+  R->>DB: status by decision band`}</pre>
+
+Part 1 and the recorder step are new. The path in between is the original pipeline. The applicant then reads the decision and plain-language reasons, never the score.
+
+## Review and audit
+
+<pre class="mermaid">{`sequenceDiagram
+  autonumber
+  actor UW as Underwriter
+  participant P as Staff portal
+  participant API as Loan API
+  participant A as Audit trail
+  UW->>P: open the review queue
+  P->>API: applications waiting for review
+  API->>A: record who looked, allowed or denied
+  UW->>P: evidence first, then the model explanation
+  UW->>P: decide, with a written reason
+  P->>API: record the decision
+  API->>A: append an event, hash chained`}</pre>
+
+An underwriter never decides an application they entered themselves, and every look, allowed or denied, leaves a record.
+
+## When something fails
+
+<pre class="mermaid">{`flowchart LR
+  A([Application]) --> Q{Features complete<br/>and scoring available?}
+  Q -- yes --> B{Score band}
+  B -- below 0.25 --> OK[Approve]
+  B -- 0.25 to 0.35 --> RV[Manual review]
+  B -- above 0.35 --> NO[Reject]
+  Q -- no --> RV
+  classDef review fill:#fdecee,stroke:#c8102e,color:#111;
+  class RV review;`}</pre>
+
+A failure never turns into an automatic approval: missing features or an unavailable scoring service send the case to a person.
+
+## Full detail
+
+<details>
+<summary>Generated views of the added flows</summary>
+
+<Zoom src="T-D11-Staff-Submit.svg" alt="Staff submits an application" caption="Staff submits an application" />
+<Zoom src="T-D12-Applicant-Self-Service.svg" alt="Applicant self-service" caption="Applicant self-service" />
+<Zoom src="T-D13-Review-and-Audit.svg" alt="Review and audit" caption="Review and audit" />
+<Zoom src="T-D15-Scoring-Outage.svg" alt="Scoring outage" caption="Scoring outage" />
+</details>
+
+All nine original sequences (submission, feature engineering, scoring, document upload, warehouse bootstrap, training, promotion, cold start, load test) are in the [sequence reference](/credit-risk-ml-system/architecture/reference/runtime-sequences/).

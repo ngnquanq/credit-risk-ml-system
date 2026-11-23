@@ -1,0 +1,45 @@
+---
+title: "Level 1 · Context"
+description: Who uses the platform and what it depends on.
+---
+
+import Zoom from "../../../../components/Zoom.astro";
+
+Level 1 is the view from outside. It names the people who use the platform and the other systems it relies on, and says nothing about what is inside.
+
+<pre class="mermaid">{`flowchart TB
+  APP(["Applicants and<br/>loan officers"])
+  REV(["Underwriters, risk managers<br/>and auditors"])
+  TECH(["Data scientists and<br/>platform engineers"])
+  SYS[["Credit Risk<br/>Decisioning Platform"]]
+  DATA[("Home Credit<br/>data")]
+  REG["Container<br/>registries"]
+  GH["GitHub"]
+  APP -->|submit and track| SYS
+  REV -->|review, decide, audit| SYS
+  TECH -->|train, deploy, operate| SYS
+  SYS -.-> DATA
+  SYS -.-> REG
+  SYS -.-> GH
+  classDef sys fill:#c8102e,stroke:#9b0c23,color:#fff;
+  class SYS sys;`}</pre>
+
+| Who | What they do with the platform |
+|---|---|
+| Applicant | Applies online and tracks the result |
+| Loan officer | Enters walk-in applications, adds verification notes |
+| Underwriter | Reviews borderline cases and decides them |
+| Risk manager | Proposes and approves the decision bands (two people) |
+| Auditor | Traces who did what, read-only |
+| Data scientist | Trains models and promotes them to serving |
+| Platform engineer | Deploys and operates the platform |
+
+## Reading it
+
+- **People on top** are grouped by what they do: put applications in, steer and check decisions, or build and run the platform. The table lists each role.
+- **Dashed line** means a dependency, not a user. The public dataset plays two roles at once: the lender's internal history and the external credit bureau. GitHub matters at run time too: promoting a model clones the repository to build it.
+- **Not drawn:** anything inside the platform, which is the next level.
+
+<Zoom src="L1-Context.svg" alt="Generated Level 1 view, original pipeline" caption="Generated Level 1 view" />
+
+The full table of actors and systems, with notes on each, is in the [reference](/credit-risk-ml-system/architecture/reference/context-and-containers/).

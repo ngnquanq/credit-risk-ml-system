@@ -1,0 +1,10 @@
+---
+/** A full-size generated diagram: shown fitted to the page, enlarged on click (see the viewer script in astro.config.mjs). */
+interface Props { src: string; alt: string; caption?: string }
+const { src, alt, caption } = Astro.props;
+const base = "/credit-risk-ml-system/docs-assets/architecture/c4/docs/images/";
+---
+<figure class="zoomable-figure">
+  <img class="zoomable" src={src.startsWith("/") ? src : base + src} alt={alt} loading="lazy" />
+  <figcaption>{caption ?? alt} <span class="zoom-hint">· click to enlarge</span></figcaption>
+</figure>

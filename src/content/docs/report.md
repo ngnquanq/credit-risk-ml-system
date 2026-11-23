@@ -40,7 +40,7 @@ For explanations, we use SHAP values [2]. On the engineering side, we follow [7]
 
 ## 3. System
 
-The platform is described in the [architecture section](/credit-risk-ml-system/architecture/overview/). The parts that matter for this study are:
+The platform is described in the [architecture section](/credit-risk-ml-system/architecture/at-a-glance/). The parts that matter for this study are:
 - **Versioned feature sets.** A catalog defines each feature and tags protected attributes and proxies. Training refuses a set that uses them unless the set is marked legacy.
 - **Decision policy.** Applications with a predicted default probability below 0.25 are approved, those above 0.35 are rejected, and the rest go to an underwriter. Missing features or a scoring failure also go to review, never to approval.
 - **Reason codes.** Each automated decision stores its top SHAP contributions, mapped to plain-language reasons.

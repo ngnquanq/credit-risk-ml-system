@@ -1,0 +1,35 @@
+---
+title: Deployment
+description: Which namespace runs what.
+---
+
+import Zoom from "../../../../components/Zoom.astro";
+
+Everything runs on Kubernetes. The baseline is a single Minikube node (profile `mlops`) with images built into its Docker daemon. The map groups the namespaces by what they do.
+
+<pre class="mermaid">{`flowchart LR
+  E["Entry<br/>ingress, API,<br/>portals, Keycloak"] --> D["Data services<br/>PostgreSQL, Kafka,<br/>Debezium, Flink"] --> F["Feature store<br/>Feast, Redis"] --> S["Scoring<br/>Knative, KServe"]
+  C[("Warehouse<br/>ClickHouse")] --> D
+  T["Training<br/>Kubeflow, Ray"] --> M["Registry<br/>MLflow"] --> V["Serving builds<br/>MinIO, registry"] --> S
+  O["Observability<br/>Prometheus, Grafana,<br/>Elasticsearch, Kibana"] -.-> D
+  O -.-> S`}</pre>
+
+## Reading it
+
+- **Top row** follows an application: entry, data services, feature store, scoring.
+- **Middle row** is the model path: training registers a model, promotion builds a serving image, and the scoring pipeline switches to it.
+- **Observability** watches the data and scoring namespaces and is optional on a small machine.
+
+The Streamlit UI that used to sit in `api-gateway` has been retired; the portals and Keycloak replace it.
+
+## Deployment order and sizes
+
+The order the namespaces must come up in, their ports and resource limits are in the [deployment reference](/credit-risk-ml-system/architecture/reference/deployment/). The first deployment run is walked through phase by phase in [Full stack deployment](/credit-risk-ml-system/guide/full-stack-deployment/).
+
+<details>
+<summary>Generated views</summary>
+
+<Zoom src="Deploy-Minikube-All.svg" alt="All namespaces" caption="All namespaces, baseline" />
+<Zoom src="Deploy-Minikube-RealTime.svg" alt="Real-time path" caption="Real-time path only" />
+<Zoom src="T-Deploy-Target.svg" alt="Target topology" caption="Target topology for production: separate edge, internal, core, ML and identity zones" />
+</details>
