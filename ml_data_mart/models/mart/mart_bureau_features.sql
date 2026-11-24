@@ -49,7 +49,8 @@ bureau_risk AS (
         sum(AMT_CREDIT_SUM_OVERDUE) AS BUREAU_AMT_OVERDUE_TOTAL,
         avg(AMT_CREDIT_SUM_OVERDUE) AS BUREAU_AMT_OVERDUE_MEAN,
         max(AMT_CREDIT_SUM_OVERDUE) AS BUREAU_AMT_OVERDUE_MAX,
-        max(AMT_CREDIT_MAX_OVERDUE) AS BUREAU_AMT_MAX_OVERDUE_EVER,
+        /* No recorded overdue is 0, as in the training dataset and in the Flink job */
+        ifNull(max(AMT_CREDIT_MAX_OVERDUE), 0) AS BUREAU_AMT_MAX_OVERDUE_EVER,
         countIf(AMT_CREDIT_SUM_OVERDUE > 0) AS BUREAU_AMT_OVERDUE_COUNT,
         countIf(AMT_CREDIT_SUM_OVERDUE > 0) / nullIf(toFloat64(count()), 0) AS BUREAU_AMT_OVERDUE_RATIO,
 
@@ -67,20 +68,23 @@ bureau_adv AS (
         SK_ID_CURR,
         /* Utilization and financial stress */
         sum(AMT_CREDIT_SUM_DEBT) / nullIf(sum(AMT_CREDIT_SUM_LIMIT), 0) AS BUREAU_CREDIT_UTILIZATION_RATIO,
-        sum(AMT_CREDIT_SUM_DEBT) / nullIf(sum(AMT_CREDIT_SUM), 0) AS BUREAU_DEBT_TO_CREDIT_RATIO,
+        /* A missing amount counts as 0, as in the Flink job */
+        sum(ifNull(AMT_CREDIT_SUM_DEBT, 0)) / nullIf(sum(ifNull(AMT_CREDIT_SUM, 0)), 0) AS BUREAU_DEBT_TO_CREDIT_RATIO,
         sum(AMT_CREDIT_SUM_OVERDUE) / nullIf(sum(AMT_CREDIT_SUM), 0) AS BUREAU_OVERDUE_TO_CREDIT_RATIO,
 
         /* Active portfolio */
-        sumIf(AMT_CREDIT_SUM, CREDIT_ACTIVE = 'Active') AS BUREAU_ACTIVE_CREDIT_SUM,
-        sumIf(AMT_CREDIT_SUM_DEBT, CREDIT_ACTIVE = 'Active') AS BUREAU_ACTIVE_DEBT_SUM,
-        sumIf(AMT_CREDIT_SUM_OVERDUE, CREDIT_ACTIVE = 'Active') AS BUREAU_ACTIVE_OVERDUE_SUM,
+        /* No active credit is 0, not NULL */
+        ifNull(sumIf(AMT_CREDIT_SUM, CREDIT_ACTIVE = 'Active'), 0) AS BUREAU_ACTIVE_CREDIT_SUM,
+        ifNull(sumIf(AMT_CREDIT_SUM_DEBT, CREDIT_ACTIVE = 'Active'), 0) AS BUREAU_ACTIVE_DEBT_SUM,
+        ifNull(sumIf(AMT_CREDIT_SUM_OVERDUE, CREDIT_ACTIVE = 'Active'), 0) AS BUREAU_ACTIVE_OVERDUE_SUM,
         sumIf(AMT_CREDIT_SUM_DEBT, CREDIT_ACTIVE = 'Active') / nullIf(sumIf(AMT_CREDIT_SUM_LIMIT, CREDIT_ACTIVE = 'Active'), 0) AS BUREAU_ACTIVE_UTILIZATION_RATIO,
 
         /* Maxed out / High utilization */
-        countIf(AMT_CREDIT_SUM_DEBT >= AMT_CREDIT_SUM_LIMIT) AS BUREAU_MAXED_OUT_COUNT,
-        countIf(AMT_CREDIT_SUM_DEBT >= AMT_CREDIT_SUM_LIMIT) / nullIf(toFloat64(count()), 0) AS BUREAU_MAXED_OUT_RATIO,
-        countIf(AMT_CREDIT_SUM_DEBT > AMT_CREDIT_SUM_LIMIT * 0.8) AS BUREAU_HIGH_UTIL_COUNT,
-        countIf(AMT_CREDIT_SUM_DEBT > AMT_CREDIT_SUM_LIMIT * 0.8) / nullIf(toFloat64(count()), 0) AS BUREAU_HIGH_UTIL_RATIO
+        /* Only credits that have a limit can be maxed out (a 0 debt against a 0 limit is not) */
+        countIf(AMT_CREDIT_SUM_LIMIT > 0 AND AMT_CREDIT_SUM_DEBT >= AMT_CREDIT_SUM_LIMIT) AS BUREAU_MAXED_OUT_COUNT,
+        countIf(AMT_CREDIT_SUM_LIMIT > 0 AND AMT_CREDIT_SUM_DEBT >= AMT_CREDIT_SUM_LIMIT) / nullIf(toFloat64(count()), 0) AS BUREAU_MAXED_OUT_RATIO,
+        countIf(AMT_CREDIT_SUM_LIMIT > 0 AND AMT_CREDIT_SUM_DEBT > AMT_CREDIT_SUM_LIMIT * 0.8) AS BUREAU_HIGH_UTIL_COUNT,
+        countIf(AMT_CREDIT_SUM_LIMIT > 0 AND AMT_CREDIT_SUM_DEBT > AMT_CREDIT_SUM_LIMIT * 0.8) / nullIf(toFloat64(count()), 0) AS BUREAU_HIGH_UTIL_RATIO
     FROM bureau_base
     GROUP BY SK_ID_CURR
 ),
@@ -127,7 +131,8 @@ bb_joined AS (
 bb_client AS (
     SELECT
         SK_ID_CURR,
-        count(SK_ID_BUREAU) AS BUREAU_WITH_BALANCE_COUNT,
+        /* Credits that have balance rows. The LEFT JOIN keeps credits without any, so count(SK_ID_BUREAU) counted them all */
+        countIf(TOTAL_MONTHS_OBSERVED > 0) AS BUREAU_WITH_BALANCE_COUNT,
         sum(TOTAL_MONTHS_OBSERVED) AS TOTAL_MONTHS_ALL_BUREAUS,
         sum(MONTHS_ON_TIME) AS TOTAL_MONTHS_ON_TIME,
         sum(TOTAL_DPD_MONTHS) AS TOTAL_DPD_ALL_BUREAUS,
@@ -166,7 +171,7 @@ bb_client_final AS (
     FROM bb_client
 )
 SELECT
-    r.SK_ID_CURR,
+    r.SK_ID_CURR AS SK_ID_CURR,  /* without the alias the column is named "r.SK_ID_CURR" */
     r.* EXCEPT (SK_ID_CURR),
     a.* EXCEPT (SK_ID_CURR),
     c.* EXCEPT (SK_ID_CURR)
