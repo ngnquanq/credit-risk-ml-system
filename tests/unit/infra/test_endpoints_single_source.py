@@ -19,7 +19,6 @@ SOURCE = {"platform/data/k8s/message-broker/01-kafka.yaml"}
 
 # Not converted yet: file -> why.
 PENDING: dict[str, str] = {
-    "platform/data/k8s/cdc/01-debezium.yaml": "Converted in the CDC work in progress; remove this line when that is committed.",
     "services/feature-store/feast_repo/feature_store.yaml": (
         "Scoring loads this file inside the Bento with no environment for it. Feast expands ${VAR} but leaves "
         "an unset name as written, which would break local runs. The deployed pods use feast-store-config instead."

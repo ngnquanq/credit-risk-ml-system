@@ -30,4 +30,4 @@ curl -X POST http://cdc-debezium:8083/connectors \
   }"
 
 echo ""
-echo "✅ Debezium connector setup completed!"
+echo "Debezium connector setup completed!"

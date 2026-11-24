@@ -1,0 +1,73 @@
+# Connector Init Job — creates the CDC connector once Debezium is ready
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cdc-connector-init
+  namespace: data-services
+data:
+  create-connectors.sh: |
+    #!/bin/sh
+    set -eu
+    echo "Waiting for Debezium Connect to be ready..."
+    until curl -sf http://debezium-connect:8083/connector-plugins >/dev/null 2>&1; do
+      echo "  Debezium not ready yet, retrying in 5s..."
+      sleep 5
+    done
+
+    echo "Debezium is ready. Creating PostgreSQL connector..."
+
+    curl --fail --silent --show-error --output /dev/null -X PUT "http://debezium-connect:8083/connectors/${CDC_CONNECTOR_NAME}/config" \
+      -H "Content-Type: application/json" \
+      -d "{
+        \"connector.class\": \"io.debezium.connector.postgresql.PostgresConnector\",
+        \"database.hostname\": \"${OPS_DB_HOST}\",
+        \"database.port\": \"${OPS_DB_PORT}\",
+        \"database.user\": \"${OPS_DB_USER}\",
+        \"database.password\": \"\${env:CDC_DB_PASSWORD}\",
+        \"database.dbname\": \"${OPS_DB_NAME}\",
+        \"database.server.name\": \"${CDC_TOPIC_PREFIX}\",
+        \"topic.prefix\": \"${CDC_TOPIC_PREFIX}\",
+        \"plugin.name\": \"${CDC_PLUGIN_NAME}\",
+        \"publication.name\": \"${CDC_PUBLICATION_NAME}\",
+        \"publication.autocreate.mode\": \"disabled\",
+        \"slot.name\": \"${CDC_SLOT_NAME}\",
+        \"table.include.list\": \"public.loan_applications\",
+        \"snapshot.mode\": \"${CDC_SNAPSHOT_MODE}\",
+        \"decimal.handling.mode\": \"double\"
+      }"
+
+    echo ""
+    echo "✅ Debezium connector setup completed!"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cdc-connector-init
+  namespace: data-services
+  labels:
+    app: cdc-connector-init
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        app: cdc-connector-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: connector-init
+          image: curlimages/curl:8.11.1
+          command: ["sh", "/scripts/create-connectors.sh"]
+          envFrom:
+            - configMapRef:
+                name: cdc-config
+            - configMapRef:
+                name: shared-endpoints
+          volumeMounts:
+            - name: init-scripts
+              mountPath: /scripts
+      volumes:
+        - name: init-scripts
+          configMap:
+            name: cdc-connector-init
+            defaultMode: 0755

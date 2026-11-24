@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: cdc-role-
+  namespace: data-services
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      containers:
+        - name: provision
+          image: postgres:15-alpine
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secrets
+                  key: POSTGRES_PASSWORD
+            - name: CDC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cdc-db-secrets
+                  key: CDC_DB_PASSWORD
+          command:
+            - sh
+            - -ec
+            - |
+              psql -X -v ON_ERROR_STOP=1 -h ops-postgres -U ops_admin -d operations <<'SQL'
+              \getenv cdc_password CDC_DB_PASSWORD
+              BEGIN;
+              DO $role$
+              BEGIN
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'debezium_cdc') THEN
+                  CREATE ROLE debezium_cdc;
+                END IF;
+              END
+              $role$;
+              ALTER ROLE debezium_cdc WITH LOGIN REPLICATION NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS PASSWORD :'cdc_password';
+              GRANT CONNECT ON DATABASE operations TO debezium_cdc;
+              GRANT USAGE ON SCHEMA public TO debezium_cdc;
+              GRANT SELECT ON TABLE public.loan_applications TO debezium_cdc;
+              COMMIT;
+              SQL

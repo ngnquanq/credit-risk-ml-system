@@ -9,7 +9,6 @@ metadata:
   namespace: data-services
 data:
   # Kafka Connect settings
-  BOOTSTRAP_SERVERS: "kafka-broker.data-services.svc.cluster.local:9092"
   GROUP_ID: "1"
   CONFIG_STORAGE_TOPIC: "connect_configs"
   OFFSET_STORAGE_TOPIC: "connect_offsets"
@@ -26,9 +25,8 @@ data:
   OFFSET_STORAGE_REPLICATION_FACTOR: "1"
   STATUS_STORAGE_REPLICATION_FACTOR: "1"
   # Postgres connection
-  OPS_DB_HOST: "ops-postgres.data-services.svc.cluster.local"
   OPS_DB_PORT: "5432"
-  OPS_DB_USER: "ops_admin"
+  OPS_DB_USER: "debezium_cdc"
   OPS_DB_NAME: "operations"
   # CDC settings
   CDC_TOPIC_PREFIX: "hc.applications"
@@ -65,14 +63,23 @@ spec:
           envFrom:
             - configMapRef:
                 name: cdc-config
-            - secretRef:
-                name: db-secrets
           env:
-            - name: POSTGRES_PASSWORD
+            # Debezium's image reads BOOTSTRAP_SERVERS; the shared key has the cluster-wide name.
+            - name: BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef: {name: shared-endpoints, key: KAFKA_BOOTSTRAP_SERVERS}
+            - name: OPS_DB_HOST
+              valueFrom:
+                configMapKeyRef: {name: shared-endpoints, key: OPS_DB_HOST}
+            - name: CONNECT_CONFIG_PROVIDERS
+              value: env
+            - name: CONNECT_CONFIG_PROVIDERS_ENV_CLASS
+              value: org.apache.kafka.common.config.provider.EnvVarConfigProvider
+            - name: CDC_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: db-secrets
-                  key: POSTGRES_PASSWORD
+                  name: cdc-db-secrets
+                  key: CDC_DB_PASSWORD
           resources:
             requests:
               memory: 512Mi
@@ -109,78 +116,3 @@ spec:
       targetPort: 8083
   selector:
     app: debezium-connect
----
-# Connector Init Job — creates the CDC connector once Debezium is ready
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: cdc-connector-init
-  namespace: data-services
-data:
-  create-connectors.sh: |
-    #!/bin/sh
-    echo "Waiting for Debezium Connect to be ready..."
-    until curl -sf http://debezium-connect:8083/connector-plugins >/dev/null 2>&1; do
-      echo "  Debezium not ready yet, retrying in 5s..."
-      sleep 5
-    done
-
-    echo "Debezium is ready. Creating PostgreSQL connector..."
-
-    curl -X POST http://debezium-connect:8083/connectors \
-      -H "Content-Type: application/json" \
-      -d "{
-        \"name\": \"${CDC_CONNECTOR_NAME}\",
-        \"config\": {
-          \"connector.class\": \"io.debezium.connector.postgresql.PostgresConnector\",
-          \"database.hostname\": \"${OPS_DB_HOST}\",
-          \"database.port\": \"${OPS_DB_PORT}\",
-          \"database.user\": \"${OPS_DB_USER}\",
-          \"database.password\": \"${POSTGRES_PASSWORD}\",
-          \"database.dbname\": \"${OPS_DB_NAME}\",
-          \"database.server.name\": \"${CDC_TOPIC_PREFIX}\",
-          \"topic.prefix\": \"${CDC_TOPIC_PREFIX}\",
-          \"plugin.name\": \"${CDC_PLUGIN_NAME}\",
-          \"publication.name\": \"${CDC_PUBLICATION_NAME}\",
-          \"slot.name\": \"${CDC_SLOT_NAME}\",
-          \"table.include.list\": \"public.loan_applications\",
-          \"snapshot.mode\": \"${CDC_SNAPSHOT_MODE}\",
-          \"decimal.handling.mode\": \"double\"
-        }
-      }"
-
-    echo ""
-    echo "✅ Debezium connector setup completed!"
----
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: cdc-connector-init
-  namespace: data-services
-  labels:
-    app: cdc-connector-init
-spec:
-  backoffLimit: 5
-  template:
-    metadata:
-      labels:
-        app: cdc-connector-init
-    spec:
-      restartPolicy: OnFailure
-      containers:
-        - name: connector-init
-          image: curlimages/curl:latest
-          command: ["sh", "/scripts/create-connectors.sh"]
-          envFrom:
-            - configMapRef:
-                name: cdc-config
-            - secretRef:
-                name: db-secrets
-          volumeMounts:
-            - name: init-scripts
-              mountPath: /scripts
-      volumes:
-        - name: init-scripts
-          configMap:
-            name: cdc-connector-init
-            defaultMode: 0755

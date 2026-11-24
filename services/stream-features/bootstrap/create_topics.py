@@ -16,7 +16,6 @@ from typing import List
 
 from confluent_kafka.admin import AdminClient, NewTopic
 
-
 def create_topics(bootstrap: str, topics: List[str], partitions: int = 8, replication_factor: int = 1) -> None:
     admin = AdminClient({"bootstrap.servers": bootstrap})
     # Fetch existing topics once
@@ -33,9 +32,9 @@ def create_topics(bootstrap: str, topics: List[str], partitions: int = 8, replic
     for t, f in fs.items():
         try:
             f.result()
-            print(f"✅ Created topic: {t}")
+            print(f"Created topic: {t}")
         except Exception as e:
-            print(f"❌ Failed to create topic {t}: {e}")
+            print(f"Failed to create topic {t}: {e}")
 
 
 def registry_topics() -> List[str]:
