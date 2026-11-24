@@ -240,6 +240,7 @@ export default defineConfig({
           label: "Security and audit",
           collapsed: true,
           items: slugs([
+            ["security/authn-authz", "Sign-in and permissions"],
             ["security/threat-model", "Threat model"],
             ["security/e9-security-baseline", "API security baseline"],
             ["security/e11-identity-access", "Identity and access"],

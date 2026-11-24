@@ -10,13 +10,13 @@ A loan application becomes a decision in a chain of small, independent steps con
 ## The system in one picture
 
 <pre class="mermaid">{`flowchart LR
-  P[Portals] --> API[Loan API] --> DB[(Database)] --> FE["Change capture<br/>and features"] --> SC["Feature store<br/>and scoring"] --> REC["Decision<br/>recorder"]
+  P[Portals] --> API[Loan API] --> DB[(Database)] --> FE["ETL pipelines<br/>for features creation"] --> SC["Feature store<br/>and scoring"] --> REC["Decision<br/>recorder"]
   REC --> DB
-  REC --> UW["Manual<br/>review"]
+  REC -. "only if the score is in the review band" .-> UW["Manual<br/>review"]
   classDef added fill:#fdecee,stroke:#c8102e,color:#111;
   class P,REC,UW added;`}</pre>
 
-Solid white boxes are the original pipeline: application intake, change-data capture, streaming feature engineering, feature store and model scoring. Red boxes were added by the release-readiness work: sign-in, portals, the decision recorder and manual review. They have manifests and tests and run in the local stack; they have not yet been deployed with the rest on the cluster.
+Solid white boxes are the original pipeline: application intake, change-data capture, streaming feature engineering, feature store and model scoring. Red boxes were added by the release-readiness work: portals, the decision recorder and manual review. The dashed line means a condition: only an application whose score falls in the review band (0.25 to 0.35), or whose features are missing, goes to a person. The others are approved or rejected automatically. They have manifests and tests and run in the local stack; they have not yet been deployed with the rest on the cluster.
 
 ## How to read the C4 pages
 
