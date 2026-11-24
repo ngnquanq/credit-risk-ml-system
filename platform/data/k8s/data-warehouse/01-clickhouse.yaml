@@ -155,6 +155,11 @@ spec:
       containers:
         - name: clickhouse
           image: clickhouse/clickhouse-server:25.6-alpine
+          env:
+            # Without this the image writes users.d/default-user.xml, which limits "default" to localhost and
+            # overrides the networks in users.xml. The init job and the consumers connect from other pods.
+            - name: CLICKHOUSE_SKIP_USER_SETUP
+              value: "1"
           ports:
             - containerPort: 8123
               name: http

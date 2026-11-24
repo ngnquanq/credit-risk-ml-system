@@ -17,12 +17,9 @@ spec:
     spec:
       containers:
       - name: minio
-        image: minio/minio:RELEASE.2024-01-16T16-07-38Z
-        args:
-        - server
-        - /data
-        - --console-address
-        - :9001
+        # minio/minio is no longer published. Same image and tag as the Helm charts in platform/ml/k8s.
+        # The Bitnami entrypoint starts the server itself (data in /bitnami/minio/data, API :9000, console :9001).
+        image: bitnamilegacy/minio:2025.7.23-debian-12-r3
         env:
         - name: MINIO_ROOT_USER
           valueFrom:
