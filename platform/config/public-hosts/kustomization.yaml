@@ -1,0 +1,10 @@
+# Component: gives a namespace the public-hosts ConfigMap (AUTH_HOST, APPLY_HOST, STAFF_HOST).
+# Read it with valueFrom.configMapKeyRef, then build URLs with $(AUTH_HOST) in later env entries.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+generatorOptions:
+  disableNameSuffixHash: true
+configMapGenerator:
+  - name: public-hosts
+    envs:
+      - hosts.env

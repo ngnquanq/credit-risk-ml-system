@@ -6,7 +6,8 @@ resources:
   - ../../core/k8s/identity/00-namespace.yaml
   - ../../core/k8s/identity/01-keycloak-db.yaml
   - ../../core/k8s/identity/02-keycloak.yaml
-  - ../../../portals/deploy/portals.yaml
+  - ../../../portals/deploy
+  - ../../config/namespaces/identity
   - ../../../services/loan-api/deploy/decision-recorder
 images:
   - name: crs-applicant-portal
@@ -18,9 +19,18 @@ images:
   - name: ngnquanq/credit-risk-consumers
     digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
 patches:
-  - target: {kind: Ingress, name: applicant-portal}
+  # The public host names. Pods read them from the public-hosts ConfigMap (portals, Keycloak, API).
+  - target: {kind: ConfigMap, name: public-hosts}
     patch: |-
-      - {op: replace, path: /spec/rules/0/host, value: apply.uat.credit.local}
-  - target: {kind: Ingress, name: staff-portal}
-    patch: |-
-      - {op: replace, path: /spec/rules/0/host, value: staff.uat.credit.local}
+      - {op: replace, path: /data/AUTH_HOST, value: auth.uat.credit.local}
+      - {op: replace, path: /data/APPLY_HOST, value: apply.uat.credit.local}
+      - {op: replace, path: /data/STAFF_HOST, value: staff.uat.credit.local}
+# Ingress hosts are a field, not an environment variable, so they are filled from the same ConfigMap.
+# (Patches run before replacements, so these see the UAT values above.)
+replacements:
+  - source: {kind: ConfigMap, name: public-hosts, namespace: portals, fieldPath: data.APPLY_HOST}
+    targets: [{select: {kind: Ingress, name: applicant-portal}, fieldPaths: [spec.rules.0.host]}]
+  - source: {kind: ConfigMap, name: public-hosts, namespace: portals, fieldPath: data.STAFF_HOST}
+    targets: [{select: {kind: Ingress, name: staff-portal}, fieldPaths: [spec.rules.0.host]}]
+  - source: {kind: ConfigMap, name: public-hosts, namespace: identity, fieldPath: data.AUTH_HOST}
+    targets: [{select: {kind: Ingress, name: keycloak}, fieldPaths: [spec.rules.0.host]}]

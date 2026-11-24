@@ -5,3 +5,4 @@ resources:
   - 05-api.yaml
 components:
   - ../../../../platform/config/endpoints
+  - ../../../../platform/config/public-hosts

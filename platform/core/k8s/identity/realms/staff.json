@@ -72,14 +72,14 @@
       "implicitFlowEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "https://staff.credit.local/auth/callback"
+        "https://${STAFF_HOST}/auth/callback"
       ],
       "webOrigins": [
-        "https://staff.credit.local"
+        "https://${STAFF_HOST}"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "https://staff.credit.local/*",
+        "post.logout.redirect.uris": "https://${STAFF_HOST}/*",
         "default.acr.values": "mfa",
         "minimum.acr.value": "mfa"
       },

@@ -30,6 +30,10 @@ spec:
         - secretRef:
             name: api-secrets
         env:
+        - name: AUTH_HOST
+          valueFrom: {configMapKeyRef: {name: public-hosts, key: AUTH_HOST}}
+        - name: APP_OIDC_ISSUERS
+          value: "https://$(AUTH_HOST)/realms/staff,https://$(AUTH_HOST)/realms/customers"
         - name: MINIO_ENDPOINT
           valueFrom:
             configMapKeyRef: {name: shared-endpoints, key: DATA_MINIO_ENDPOINT}

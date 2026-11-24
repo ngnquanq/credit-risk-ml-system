@@ -4,7 +4,8 @@ resources:
   - ../../core/k8s/identity/00-namespace.yaml
   - ../../core/k8s/identity/01-keycloak-db.yaml
   - ../../core/k8s/identity/02-keycloak.yaml
-  - ../../../portals/deploy/portals.yaml
+  - ../../../portals/deploy
+  - ../../config/namespaces/identity
   - ../../../services/loan-api/deploy/decision-recorder
 # Local images built by `docker build` and loaded into Minikube.
 images:

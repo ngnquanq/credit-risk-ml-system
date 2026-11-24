@@ -4,7 +4,7 @@ const nextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   transpilePackages: ["@crs/auth", "@crs/api", "@crs/ui"],
-  experimental: { serverActions: { allowedOrigins: ["apply.credit.local"] } },
+  experimental: { serverActions: { allowedOrigins: [process.env.PORTAL_BASE_URL ? new URL(process.env.PORTAL_BASE_URL).host : "apply.credit.local"] } },
 };
 
 export default nextConfig;

@@ -45,7 +45,13 @@ spec:
               valueFrom: {secretKeyRef: {name: keycloak-db-credentials, key: username}}
             - name: KC_DB_PASSWORD
               valueFrom: {secretKeyRef: {name: keycloak-db-credentials, key: password}}
-            - {name: KC_HOSTNAME, value: "https://auth.credit.local"}
+            - name: AUTH_HOST
+              valueFrom: {configMapKeyRef: {name: public-hosts, key: AUTH_HOST}}
+            - name: APPLY_HOST
+              valueFrom: {configMapKeyRef: {name: public-hosts, key: APPLY_HOST}}
+            - name: STAFF_HOST
+              valueFrom: {configMapKeyRef: {name: public-hosts, key: STAFF_HOST}}
+            - {name: KC_HOSTNAME, value: "https://$(AUTH_HOST)"}
             - {name: KC_HTTP_ENABLED, value: "true"}          # TLS terminates at the ingress
             - {name: KC_PROXY_HEADERS, value: xforwarded}
             - {name: KC_HEALTH_ENABLED, value: "true"}

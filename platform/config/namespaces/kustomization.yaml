@@ -9,3 +9,5 @@ resources:
   - model-registry
   - model-serving
   - kserve
+  - portals
+  - identity

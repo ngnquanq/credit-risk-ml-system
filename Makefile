@@ -55,7 +55,7 @@ k8s-decision-recorder: ## Deploy the decision recorder and the daily audit verif
 k8s-portals: ## Deploy both portals, the session Redis, ingresses and NetworkPolicies
 	@test -n "$(STAFF_PORTAL_CLIENT_SECRET)" || (echo "STAFF_PORTAL_CLIENT_SECRET is required" && exit 2)
 	@test -n "$(APPLICANT_PORTAL_CLIENT_SECRET)" || (echo "APPLICANT_PORTAL_CLIENT_SECRET is required" && exit 2)
-	kubectl apply -f portals/deploy/portals.yaml
+	kubectl apply -k portals/deploy/
 	kubectl create secret generic portal-secrets -n portals --from-literal=staff-portal="$(STAFF_PORTAL_CLIENT_SECRET)" --from-literal=applicant-portal="$(APPLICANT_PORTAL_CLIENT_SECRET)" --dry-run=client -o yaml | kubectl apply -f -
 
 k8s-kafka-ha: ## Replace the single broker with three (RF 3, min ISR 2); topics are recreated
@@ -185,7 +185,7 @@ k8s-identity: k8s-identity-secrets ## Deploy Keycloak with the staff and custome
 	kubectl rollout status statefulset/keycloak -n identity --timeout=300s
 
 k8s-shared-config: ## Create the shared-endpoints ConfigMap in every namespace that reads it (public addresses only)
-	for ns in data-services api-gateway feature-registry model-registry model-serving kserve; do kubectl create ns $$ns --dry-run=client -o yaml | kubectl apply -f -; done
+	for ns in data-services api-gateway feature-registry model-registry model-serving kserve portals identity; do kubectl create ns $$ns --dry-run=client -o yaml | kubectl apply -f -; done
 	kubectl apply -k platform/config/namespaces
 
 k8s-core: build-dbt ## Deploy Core Infrastructure (Postgres + API + Ingress) to K8s

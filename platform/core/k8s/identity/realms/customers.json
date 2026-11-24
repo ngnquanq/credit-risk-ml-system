@@ -55,14 +55,14 @@
       "implicitFlowEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "https://apply.credit.local/auth/callback"
+        "https://${APPLY_HOST}/auth/callback"
       ],
       "webOrigins": [
-        "https://apply.credit.local"
+        "https://${APPLY_HOST}"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "https://apply.credit.local/*"
+        "post.logout.redirect.uris": "https://${APPLY_HOST}/*"
       },
       "protocolMappers": [
         {

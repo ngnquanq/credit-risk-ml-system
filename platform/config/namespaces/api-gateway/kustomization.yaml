@@ -3,3 +3,4 @@ kind: Kustomization
 namespace: api-gateway
 components:
   - ../../endpoints
+  - ../../public-hosts

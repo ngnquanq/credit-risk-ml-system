@@ -47,11 +47,15 @@ spec:
           image: crs-applicant-portal:dev
           ports: [{containerPort: 3000}]
           env:
-            - {name: OIDC_ISSUER, value: "https://auth.credit.local/realms/customers"}
+            - name: AUTH_HOST
+              valueFrom: {configMapKeyRef: {name: public-hosts, key: AUTH_HOST}}
+            - name: APPLY_HOST
+              valueFrom: {configMapKeyRef: {name: public-hosts, key: APPLY_HOST}}
+            - {name: OIDC_ISSUER, value: "https://$(AUTH_HOST)/realms/customers"}
             - {name: OIDC_CLIENT_ID, value: applicant-portal}
             - name: OIDC_CLIENT_SECRET
               valueFrom: {secretKeyRef: {name: portal-secrets, key: applicant-portal}}
-            - {name: PORTAL_BASE_URL, value: "https://apply.credit.local"}
+            - {name: PORTAL_BASE_URL, value: "https://$(APPLY_HOST)"}
             - {name: SESSION_REDIS_URL, value: "redis://session-redis.portals.svc:6379/0"}
             - {name: API_BASE_URL, value: "http://api-service.api-gateway.svc"}
           readinessProbe: {httpGet: {path: /, port: 3000}, periodSeconds: 10}
@@ -75,11 +79,15 @@ spec:
           image: crs-staff-portal:dev
           ports: [{containerPort: 3000}]
           env:
-            - {name: OIDC_ISSUER, value: "https://auth.credit.local/realms/staff"}
+            - name: AUTH_HOST
+              valueFrom: {configMapKeyRef: {name: public-hosts, key: AUTH_HOST}}
+            - name: STAFF_HOST
+              valueFrom: {configMapKeyRef: {name: public-hosts, key: STAFF_HOST}}
+            - {name: OIDC_ISSUER, value: "https://$(AUTH_HOST)/realms/staff"}
             - {name: OIDC_CLIENT_ID, value: staff-portal}
             - name: OIDC_CLIENT_SECRET
               valueFrom: {secretKeyRef: {name: portal-secrets, key: staff-portal}}
-            - {name: PORTAL_BASE_URL, value: "https://staff.credit.local"}
+            - {name: PORTAL_BASE_URL, value: "https://$(STAFF_HOST)"}
             - {name: SESSION_REDIS_URL, value: "redis://session-redis.portals.svc:6379/1"}
             - {name: API_BASE_URL, value: "http://api-service.api-gateway.svc"}
           readinessProbe: {httpGet: {path: /forbidden, port: 3000}, periodSeconds: 10}

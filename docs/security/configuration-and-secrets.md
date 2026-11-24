@@ -28,6 +28,17 @@ How each kind of consumer reads it:
 
 Still written out in full, with the reason, in `tests/unit/infra/test_endpoints_single_source.py`: the Feast `feature_store.yaml` used inside the scoring bundle, and the generated Kubeflow pipeline file.
 
+## Public host names
+
+The names users type (`auth.`, `apply.`, `staff.` plus the domain) are defined once in `platform/config/public-hosts/hosts.env`. They are per-environment: an overlay such as `platform/environments/uat` patches the `public-hosts` ConfigMap, and everything follows.
+
+| Used by | How it reads them |
+|---|---|
+| Portals (`OIDC_ISSUER`, `PORTAL_BASE_URL`), Keycloak (`KC_HOSTNAME`), API (`APP_OIDC_ISSUERS`) | `configMapKeyRef` on `public-hosts`, then `https://$(AUTH_HOST)/...` in the next env entry |
+| Keycloak realm files (redirect URIs) | `${APPLY_HOST}` and `${STAFF_HOST}`, which Keycloak fills from its environment the same way it already fills client secrets (the local generator overwrites these fields for localhost) |
+| Ingress hosts (a field, not an env var) | `replacements` in the environment overlay. The base manifests keep the dev default, and a test checks it equals `hosts.env` |
+| Portal `allowedOrigins` (`next.config.mjs`) | `PORTAL_BASE_URL` when it is set. Whether Next.js reads it at start-up or bakes it in at build time was not verified; behind ingress-nginx it may not be needed at all |
+
 ## Secrets today
 
 All are created by `make` targets from environment variables (`.env`, not committed). Nothing secret is in a committed manifest.
