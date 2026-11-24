@@ -6,6 +6,7 @@ on:
     paths:
       - "services/**"
       - "contracts/**"
+      - "libs/**"
       - "tests/**"
       - "pyproject.toml"
   pull_request:
@@ -13,11 +14,12 @@ on:
     paths:
       - "services/**"
       - "contracts/**"
+      - "libs/**"
       - "tests/**"
       - "pyproject.toml"
 
 env:
-  PYTHONPATH: services/loan-api/src:services:contracts:services/model-lifecycle:services/stream-features:services/feature-store
+  PYTHONPATH: services/loan-api/src:services:contracts:libs:services/model-lifecycle:services/stream-features:services/feature-store
 
 jobs:
   # ── Gate 0: Service boundaries (low coupling) ─────────────────────────

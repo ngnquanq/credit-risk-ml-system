@@ -20,6 +20,10 @@
 /contracts/feature_catalog/definitions/          @credit-risk/data-engineering @credit-risk/data-science
 /contracts/feature_catalog/reasons.yaml          @credit-risk/risk
 
+# Shared library and the telemetry contract it follows. Both change together
+/libs/                                           @credit-risk/platform
+/contracts/telemetry/                            @credit-risk/platform @credit-risk/security
+
 # Data: warehouse and the infrastructure services run on
 /ml_data_mart/                                   @credit-risk/data-engineering
 /platform/                                       @credit-risk/platform

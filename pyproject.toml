@@ -51,10 +51,11 @@ test = [
     "aiosqlite>=0.20",
     "greenlet>=3.0",
     "import-linter>=2.0",
+    "jsonschema>=4.0",
 ]
 
 [tool.setuptools.packages.find]
-where = ["services/loan-api/src", "contracts", "services/model-lifecycle", "services/stream-features", "services/feature-store"]
+where = ["services/loan-api/src", "contracts", "libs", "services/model-lifecycle", "services/stream-features", "services/feature-store"]
 
 [tool.setuptools.package-data]
 feature_catalog = ["sets/*.json", "definitions/*.yaml", "reasons.yaml"]
@@ -113,7 +114,7 @@ testpaths = [
 ]
 python_files = "test_*.py"
 asyncio_mode = "auto"
-pythonpath = ["services/loan-api/src", "services", "contracts", "services/model-lifecycle", "services/stream-features", "services/feature-store"]
+pythonpath = ["services/loan-api/src", "services", "contracts", "libs", "services/model-lifecycle", "services/stream-features", "services/feature-store"]
 markers = [
     "unit: Unit tests (no I/O)",
     "integration: Integration tests (in-memory DB, httpx)",
@@ -131,6 +132,8 @@ root_packages = [
     "scoring", "training", "flink", "feast_repo",
     # shared contract
     "feature_catalog",
+    # shared library
+    "observability",
 ]
 include_external_packages = false
 
@@ -166,3 +169,9 @@ name = "the shared catalog does not depend on any service"
 type = "forbidden"
 source_modules = ["feature_catalog"]
 forbidden_modules = ["audit", "authz", "core", "decisions", "domain", "entrypoints", "identity", "infrastructure", "workflows", "scoring", "training", "flink", "feast_repo"]
+
+[[tool.importlinter.contracts]]
+name = "the shared logging library does not depend on any service"
+type = "forbidden"
+source_modules = ["observability"]
+forbidden_modules = ["audit", "authz", "core", "decisions", "domain", "entrypoints", "identity", "infrastructure", "workflows", "scoring", "training", "flink", "feast_repo", "feature_catalog"]

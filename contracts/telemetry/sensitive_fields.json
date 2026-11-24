@@ -1,0 +1,12 @@
+{
+  "description": "Keys whose values must never reach a log. The logging library replaces them with [REDACTED]. Keys are compared in lower case.",
+  "names": [
+    "full_name", "name", "first_name", "last_name",
+    "phone", "phone_number", "email",
+    "citizen_id", "national_id", "id_number", "passport",
+    "date_of_birth", "dob", "address",
+    "password", "secret", "token", "access_token", "refresh_token", "id_token",
+    "authorization", "cookie", "api_key", "private_key"
+  ],
+  "suffixes": ["_enc", "_secret", "_password", "_token"]
+}
