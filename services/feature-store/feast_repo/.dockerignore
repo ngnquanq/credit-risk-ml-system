@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.md
+generate_schemas_from_kafka.py
+dwh_schema_static.json
+feature_store.yaml

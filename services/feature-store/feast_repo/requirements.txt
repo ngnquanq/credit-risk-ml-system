@@ -1,0 +1,5 @@
+# Runtime dependencies of the Feast image. Only what repository.py, feature_views.py and stream_processor.py import.
+feast[redis]==0.68.0
+kafka-python==2.0.2
+loguru==0.7.2
+boto3==1.35.99
