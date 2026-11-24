@@ -4,6 +4,8 @@
 |---|---|---|---|---|
 | [E6 Governed model](../02-product/epics.md#e6-fair-governed-credit-model) | [O3](../01-business/business-outcomes.md#o3-we-lend-to-good-risks-and-decline-bad-ones) risk quality; [O4](../01-business/business-outcomes.md#o4-lending-is-fair) fair lending; [O6](../01-business/business-outcomes.md#o6-model-and-platform-changes-ship-safely) safe model change | Gender is a model input; three training paths with different features; no fairness evidence, model card or lineage → no protected inputs, one recipe, `dir_gender` and a model card per version, gate on AUC regression | M | [E2 Feature parity](../02-product/epics.md#e2-feature-engineering-with-trainingserving-parity) (catalog) |
 
+> **Proposed change ([ADR-0016](../adr/0016-training-data-lineage-and-reproducible-models.md)).** This package builds around a dated snapshot in training MinIO and the tag `data_snapshot_id`. If the ADR is accepted, the training data is identified by a lineage record (dataset digest, data window, dbt run, code commit) instead, every run's de-identified frame is kept only until a staging period ends, and data is kept for good only for versions that serve. §4, §5 and AC6 then change as described in the [E7 package](E7-model-lineage.md). Nothing below has been changed yet.
+
 ## 1. Why
 
 - **Disparate treatment.** `CODE_GENDER` is one of the 24 inputs. Using it in credit decisions is disparate treatment, so it must go (NIST AI 100-1 §3.7; F-07 reversed).

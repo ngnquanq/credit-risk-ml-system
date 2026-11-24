@@ -22,7 +22,7 @@ flowchart LR
 | [O4 Fair lending](../01-business/business-outcomes.md#o4-lending-is-fair) | [E6 Governed model](#e6-fair-governed-credit-model) | No protected input; fairness evidence per version | [E6](../03-handoff/E6-fair-governed-model.md) |
 | [O5 Scale and survive](../01-business/business-outcomes.md#o5-the-platform-scales-and-survives-failures) | [E8 Reliable ops](#e8-reliable-delivery-and-operations) | Nothing is lost silently, and telemetry proves it | |
 | | [E15 Resilience and failover](#e15-resilience-and-failover) | One failing component loses nothing and approves nothing | [E15](../03-handoff/E15-resilience-failover.md) |
-| [O6 Safe change](../01-business/business-outcomes.md#o6-model-and-platform-changes-ship-safely) | [E7 Model promotion](#e7-automated-traceable-model-promotion) | Promotion is automatic and traceable to code and data | |
+| [O6 Safe change](../01-business/business-outcomes.md#o6-model-and-platform-changes-ship-safely) | [E7 Model promotion](#e7-automated-traceable-model-promotion) | Promotion is automatic and traceable to code and data | [E7](../03-handoff/E7-model-lineage.md) |
 | | [E16 UAT and release](#e16-uat-and-release-readiness) | A release ships only with sign-off and evidence | [E16](../03-handoff/E16-uat-release.md) |
 | [O7 Data protection](../01-business/business-outcomes.md#o7-applicant-data-is-protected) | [E9 Security baseline](#e9-security-baseline) | Secrets stay out of git; the edges are protected | [E9](../03-handoff/E9-security-baseline.md) |
 | | [E11 Identity and access](#e11-identity-and-access) | Every caller is identified, and the API decides what they may do | [E11](../03-handoff/E11-identity-access.md) |
@@ -113,12 +113,22 @@ Dependencies decide the order. A feature that needs another is built after it.
 
 ## E7. Automated, traceable model promotion
 
-**Goal.** Promotion is automatic and every serving version is traceable to code and data.
+| | |
+|---|---|
+| **Serves** | [O6 Safe change](../01-business/business-outcomes.md#o6-model-and-platform-changes-ship-safely), [O8 Accountable](../01-business/business-outcomes.md#o8-decisions-are-explainable-and-accountable) |
+| **Decisions** | [ADR-0009](../adr/0009-model-training-and-promotion-pipeline.md) the promotion pipeline · [ADR-0016](../adr/0016-training-data-lineage-and-reproducible-models.md) data lineage and frozen data for serving models (Proposed) |
+| **Design** | [Handoff package](../03-handoff/E7-model-lineage.md) |
+
+**Goal.** Promotion is automatic and every serving version is traceable to code and data, and its training data can be rebuilt and checked.
+
+**How.** Every training run writes a lineage record (dataset digest, data window, dbt run, code commit, feature-set digest) and a data profile. A version promoted to serve has its de-identified training data frozen, and the build refuses to start unless the frozen data matches the recorded digest.
 
 | Feature | Acceptance criteria |
 |---|---|
-| **E7.1** As compliance I trace a serving model to its source | **Given** a serving version **then** its MLflow tags give `git_commit` and `data_snapshot_id`, and the Bento was built from that commit |
+| **E7.1** As compliance I trace a serving model to its source | **Given** a serving version **then** its lineage record gives the git commit of the training code, the dbt run and the dataset and feature-set digests, and the Bento was built from that commit |
 | **E7.2** As an engineer I never route to an unready or older version | **Given** a promotion **then** the Sequence is patched only after the new InferenceService is `Ready`, and always to the highest version |
+| **E7.3** As an auditor I rebuild the training data of a serving model | **Given** a version promoted to serve **then** a de-identified extract exists whose digest equals the recorded digest, and promotion without it starts no build |
+| **E7.4** As a data scientist I see how the data of two runs differs | **Given** two training runs **then** their digests say whether the data is identical, and their profiles list which features changed and by how much |
 
 ## E8. Reliable delivery and operations
 

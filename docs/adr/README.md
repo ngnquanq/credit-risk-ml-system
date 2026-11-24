@@ -42,6 +42,7 @@ Sections follow Richards and Ford (*Fundamentals of Software Architecture*, the 
 | [0013](0013-role-based-data-and-explanation-visibility.md) | Role-based visibility of customer data and explanations; officers do not decide | Accepted |
 | [0014](0014-applicant-personal-data-and-opaque-ids.md) | Applicant personal data is kept apart and encrypted; URLs carry opaque ids only | Accepted |
 | [0015](0015-services-layout-high-cohesion-low-coupling.md) | One folder per deployable service; services share only contracts | Accepted |
+| [0016](0016-training-data-lineage-and-reproducible-models.md) | Every model run records where its data came from; the data is kept only for models that serve | Proposed |
 
 ## By epic (pilot)
 
@@ -50,6 +51,7 @@ The identity and access flow is the first slice written this way. The other epic
 | Epic | Decisions |
 |---|---|
 | [E11 Identity and access](../02-product/epics.md#e11-identity-and-access) | [0012](0012-keycloak-realms-and-bff-portals.md) Keycloak, two realms, portals as backends-for-frontend · [0013](0013-role-based-data-and-explanation-visibility.md) who sees which data · [0014](0014-applicant-personal-data-and-opaque-ids.md) personal data and opaque ids |
+| [E7 Model promotion](../02-product/epics.md#e7-automated-traceable-model-promotion) | [0009](0009-model-training-and-promotion-pipeline.md) the promotion pipeline · [0016](0016-training-data-lineage-and-reproducible-models.md) data lineage and frozen data for serving models (Proposed) |
 
 ## Creating a New ADR
 
