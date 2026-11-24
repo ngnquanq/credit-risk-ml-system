@@ -212,8 +212,11 @@ k8s-core: build-dbt ## Deploy Core Infrastructure (Postgres + API + Ingress) to 
 	kubectl apply -f platform/data/k8s/data-warehouse/01-clickhouse.yaml
 	@echo "Waiting for clickhouse-server to be ready..."
 	kubectl rollout status statefulset/clickhouse-server -n data-services --timeout=180s
+	@$(MAKE) k8s-shared-config
 	@echo "Deploying API Gateway (Namespace: api-gateway)..."
 	kubectl apply -f platform/core/k8s/
+	kubectl apply -k services/loan-api/deploy/api/
+	kubectl apply -k services/loan-api/deploy/decision-recorder/
 	@echo "✅ Core Platform deployed."
 
 k8s-kafka-topics: ## Ensure required Kafka topics are created
@@ -226,11 +229,8 @@ k8s-kafka-topics: ## Ensure required Kafka topics are created
 k8s-streaming: build-flink k8s-kafka-topics ## Deploy Streaming Infrastructure (Flink + Query Services)
 	@echo "Deploying Streaming Infrastructure..."
 	kubectl apply -k services/stream-features/deploy/
-	@$(MAKE) k8s-shared-config
 	kubectl apply -k platform/data/k8s/query-services/
 	@echo "✅ Streaming Infrastructure deployed."
-	kubectl apply -k services/loan-api/deploy/api/
-	kubectl apply -k services/loan-api/deploy/decision-recorder/
 	@echo "  API: http://$$(minikube -p $(MINIKUBE_PROFILE) ip)/api/docs"
 	@echo "  DB: ops-postgres.data-services.svc.cluster.local:5432"
 
@@ -429,6 +429,7 @@ k8s-kserve: ## Deploy KServe for model serving infrastructure
 
 k8s-mlflow-watcher: ## Deploy MLflow watcher (auto-triggers Bento builds on model promotion)
 	@echo "Deploying MLflow watcher..."
+	@$(MAKE) k8s-shared-config
 	kubectl apply -f services/model-lifecycle/mlflow-watcher/rbac.yaml
 	kubectl -n model-registry apply \
 		-f services/model-lifecycle/mlflow-watcher/poller-values.yaml \
@@ -443,9 +444,9 @@ k8s-model-serving: ## Deploy model serving components (bundle storage + serving 
 	@test -n "$(MINIO_SECRET_KEY)" || (echo "MINIO_SECRET_KEY is required. Copy .env.example to .env or export it." && exit 2)
 	@echo "Deploying model serving components..."
 	kubectl create ns model-serving || true
+	@$(MAKE) k8s-shared-config
 	kubectl create secret generic model-serving-minio-credentials -n model-serving --from-literal=AWS_ACCESS_KEY_ID="$(MINIO_ACCESS_KEY)" --from-literal=AWS_SECRET_ACCESS_KEY="$(MINIO_SECRET_KEY)" --dry-run=client -o yaml | kubectl apply -f -
 	@echo "Creating DockerHub credentials secret..."
-	@$(MAKE) k8s-shared-config
 	kubectl create secret generic dockerhub-creds \
 		--from-literal=username=$(DOCKERHUB_USERNAME) \
 		--from-literal=password=$(DOCKERHUB_PASSWORD) \
@@ -460,7 +461,6 @@ k8s-model-serving: ## Deploy model serving components (bundle storage + serving 
 	kubectl rollout restart -n model-serving deployment/serving-watcher
 	@echo "Model serving deployed (namespace: model-serving)"
 
-	@$(MAKE) k8s-shared-config
 k8s-sync-watcher-config: ## Sync serving-watcher ConfigMap from source files (use after editing watcher.py or isvc templates)
 	kubectl create configmap serving-watcher -n model-serving \
 		--from-file=services/model-lifecycle/serving-watcher/watcher.py \
