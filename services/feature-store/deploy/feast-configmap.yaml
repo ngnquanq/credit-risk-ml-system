@@ -11,9 +11,9 @@ data:
   FEAST_PROJECT: "hc_k8s"
 
   # Kafka topics for the 3 feature streams
-  FEAST_TOPIC_APP_FEATURES: "hc.application_features"    # Stream 1: Flink-processed application data
-  FEAST_TOPIC_EXTERNAL: "hc.application_ext"             # Stream 2: External bureau features
-  FEAST_TOPIC_DWH: "hc.application_dwh"                  # Stream 3: Data warehouse features
+  FEAST_TOPIC_APP_FEATURES: "set-by-kustomize"    # Stream 1: Flink-processed application data
+  FEAST_TOPIC_EXTERNAL: "set-by-kustomize"             # Stream 2: External bureau features
+  FEAST_TOPIC_DWH: "set-by-kustomize"                  # Stream 3: Data warehouse features
 
   # ClickHouse connection - in-cluster ClickHouse service
   APP_CLICKHOUSE_PORT: "8123"
@@ -32,7 +32,7 @@ data:
   FEAST_MAX_WORKERS: "20"          # 20 workers per pod for I/O-bound queueing
 
   # Feature readiness notification topic
-  FEAST_TOPIC_READY_FEATURE: "hc.feature_ready"
+  FEAST_TOPIC_READY_FEATURE: "set-by-kustomize"
 
   # Redis coordination settings (for 3-source feature aggregation)
   # Using COORD prefix to avoid conflict with K8s auto-generated FEAST_REDIS_PORT env var

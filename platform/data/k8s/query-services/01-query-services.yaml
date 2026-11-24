@@ -28,9 +28,11 @@ spec:
           valueFrom:
             configMapKeyRef: {name: shared-endpoints, key: KAFKA_BOOTSTRAP_SERVERS}
         - name: CDC_SOURCE_TOPIC
-          value: "hc.applications.public.loan_applications"
+          valueFrom:
+            configMapKeyRef: {name: shared-topics, key: TOPIC_APPLICATION_CHANGES}
         - name: RAW_TOPIC_EXT
-          value: "hc.application_ext_raw"
+          valueFrom:
+            configMapKeyRef: {name: shared-topics, key: TOPIC_EXTERNAL_RAW}
         - name: CONSUMER_GROUP_ID
           value: "bureau-consumer-group"
         - name: APP_CLICKHOUSE_HOST
@@ -81,9 +83,11 @@ spec:
           valueFrom:
             configMapKeyRef: {name: shared-endpoints, key: KAFKA_BOOTSTRAP_SERVERS}
         - name: CDC_SOURCE_TOPIC
-          value: "hc.applications.public.loan_applications"
+          valueFrom:
+            configMapKeyRef: {name: shared-topics, key: TOPIC_APPLICATION_CHANGES}
         - name: SINK_TOPIC_DWH
-          value: "hc.application_dwh"
+          valueFrom:
+            configMapKeyRef: {name: shared-topics, key: TOPIC_DWH_FEATURES}
         - name: CONSUMER_GROUP_ID
           value: "feature-consumer-group"
         - name: APP_CLICKHOUSE_HOST

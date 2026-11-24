@@ -1,0 +1,10 @@
+# Component: gives a namespace the shared-topics ConfigMap, one key per topic (TOPIC_*).
+# Fields that are not environment variables (Knative sinks, other ConfigMaps) are filled with `replacements`.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+generatorOptions:
+  disableNameSuffixHash: true
+configMapGenerator:
+  - name: shared-topics
+    envs:
+      - topics.env

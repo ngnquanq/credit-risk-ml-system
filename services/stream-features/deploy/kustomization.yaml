@@ -6,5 +6,18 @@ resources:
   - 02-flink-submit-cdc.yaml
   - 03-flink-submit-bureau.yaml
 components:
+  - ../../../contracts/topics
   - ../../../platform/config/endpoints
   - ../../../platform/config/images
+# Topic names are not environment variables here, so they are filled from the shared-topics ConfigMap.
+replacements:
+  - source: {kind: ConfigMap, name: shared-topics, fieldPath: data.TOPIC_APPLICATION_CHANGES}
+    targets: [{select: {kind: ConfigMap, name: flink-config}, fieldPaths: [data.CDC_SOURCE_TOPIC]}]
+  - source: {kind: ConfigMap, name: shared-topics, fieldPath: data.TOPIC_APPLICATION_PII}
+    targets: [{select: {kind: ConfigMap, name: flink-config}, fieldPaths: [data.SINK_TOPIC_PII]}]
+  - source: {kind: ConfigMap, name: shared-topics, fieldPath: data.TOPIC_APPLICATION_FEATURES}
+    targets: [{select: {kind: ConfigMap, name: flink-config}, fieldPaths: [data.SINK_TOPIC_FEATURES]}]
+  - source: {kind: ConfigMap, name: shared-topics, fieldPath: data.TOPIC_EXTERNAL_RAW}
+    targets: [{select: {kind: ConfigMap, name: flink-config}, fieldPaths: [data.RAW_TOPIC_EXT]}]
+  - source: {kind: ConfigMap, name: shared-topics, fieldPath: data.TOPIC_EXTERNAL_FEATURES}
+    targets: [{select: {kind: ConfigMap, name: flink-config}, fieldPaths: [data.SINK_TOPIC_EXT]}]

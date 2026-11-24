@@ -32,15 +32,17 @@ KAFKA_DLQ_SINK="$REPO_ROOT/services/scoring/deploy/kafka-dlq-sink.yaml"
 SCORING_SEQUENCE="$REPO_ROOT/services/scoring/deploy/scoring-sequence.yaml"
 KAFKA_CHANNEL_OFFSETS="$REPO_ROOT/tests/test_load/capture_kafka_channel_offsets.py"
 
+# Topic names come from contracts/topics/topics.env; this is the subset a load test resets.
+topic_name() { sed -n "s/^$1=//p" "$REPO_ROOT/contracts/topics/topics.env"; }
 TOPICS=(
-  "hc.applications.public.loan_applications"
-  "hc.application_features"
-  "hc.application_ext_raw"
-  "hc.application_ext"
-  "hc.application_dwh"
-  "hc.feature_ready"
-  "hc.scoring"
-  "hc.scoring.dlq"
+  "$(topic_name TOPIC_APPLICATION_CHANGES)"
+  "$(topic_name TOPIC_APPLICATION_FEATURES)"
+  "$(topic_name TOPIC_EXTERNAL_RAW)"
+  "$(topic_name TOPIC_EXTERNAL_FEATURES)"
+  "$(topic_name TOPIC_DWH_FEATURES)"
+  "$(topic_name TOPIC_FEATURE_READY)"
+  "$(topic_name TOPIC_SCORING)"
+  "$(topic_name TOPIC_SCORING_DLQ)"
 )
 
 DELETE_ONLY_TOPICS=(

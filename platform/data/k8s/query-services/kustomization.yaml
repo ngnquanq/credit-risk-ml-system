@@ -8,3 +8,4 @@ resources:
 components:
   - ../../../config/endpoints
   - ../../../config/images
+  - ../../../../contracts/topics

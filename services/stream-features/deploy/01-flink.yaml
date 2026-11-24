@@ -12,11 +12,11 @@ metadata:
   name: flink-config
   namespace: data-services
 data:
-  CDC_SOURCE_TOPIC: "hc.applications.public.loan_applications"
-  SINK_TOPIC_PII: "hc.application_pii"
-  SINK_TOPIC_FEATURES: "hc.application_features"
-  RAW_TOPIC_EXT: "hc.application_ext_raw"
-  SINK_TOPIC_EXT: "hc.application_ext"
+  CDC_SOURCE_TOPIC: "set-by-kustomize"
+  SINK_TOPIC_PII: "set-by-kustomize"
+  SINK_TOPIC_FEATURES: "set-by-kustomize"
+  RAW_TOPIC_EXT: "set-by-kustomize"
+  SINK_TOPIC_EXT: "set-by-kustomize"
 ---
 # Flink JobManager Deployment
 apiVersion: apps/v1

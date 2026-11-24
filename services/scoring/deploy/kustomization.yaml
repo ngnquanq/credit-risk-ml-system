@@ -7,6 +7,7 @@ resources:
   - scoring-sequence.yaml
   - kafka-source.yaml
 components:
+  - ../../../contracts/topics
   - ../../../platform/config/endpoints
 # The Knative Kafka resources take the broker list in a spec field, not an environment variable.
 replacements:
@@ -19,3 +20,9 @@ replacements:
         fieldPaths: [spec.bootstrapServers.0]
       - select: {kind: KafkaSource}
         fieldPaths: [spec.bootstrapServers.0]
+  - source: {kind: ConfigMap, name: shared-topics, fieldPath: data.TOPIC_SCORING}
+    targets: [{select: {kind: KafkaSink, name: scoring-output-sink}, fieldPaths: [spec.topic]}]
+  - source: {kind: ConfigMap, name: shared-topics, fieldPath: data.TOPIC_SCORING_DLQ}
+    targets: [{select: {kind: KafkaSink, name: scoring-dlq-sink}, fieldPaths: [spec.topic]}]
+  - source: {kind: ConfigMap, name: shared-topics, fieldPath: data.TOPIC_FEATURE_READY}
+    targets: [{select: {kind: KafkaSource, name: feature-ready-source}, fieldPaths: [spec.topics.0]}]

@@ -7,6 +7,6 @@ spec:
   bootstrapServers:
     - set-by-kustomize  # replaced with KAFKA_BOOTSTRAP_SERVERS from shared-endpoints (see kustomization.yaml)
 
-  topic: hc.scoring
+  topic: set-by-kustomize
 
   contentMode: binary  # Publish clean JSON (not CloudEvents envelope)

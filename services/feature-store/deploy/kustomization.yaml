@@ -11,6 +11,7 @@ commonLabels:
 
 # Shared service addresses (KAFKA_BOOTSTRAP_SERVERS): platform/config/endpoints
 components:
+  - ../../../contracts/topics
   - ../../../platform/config/endpoints
 
 # Resources to deploy
@@ -45,3 +46,13 @@ images:
 # Annotations applied to all resources
 commonAnnotations:
   description: "Feast feature store with Redis for Home Credit ML platform"
+# Topic names are not environment variables here, so they are filled from the shared-topics ConfigMap.
+replacements:
+  - source: {kind: ConfigMap, name: shared-topics, fieldPath: data.TOPIC_APPLICATION_FEATURES}
+    targets: [{select: {kind: ConfigMap, name: feast-config}, fieldPaths: [data.FEAST_TOPIC_APP_FEATURES]}]
+  - source: {kind: ConfigMap, name: shared-topics, fieldPath: data.TOPIC_EXTERNAL_FEATURES}
+    targets: [{select: {kind: ConfigMap, name: feast-config}, fieldPaths: [data.FEAST_TOPIC_EXTERNAL]}]
+  - source: {kind: ConfigMap, name: shared-topics, fieldPath: data.TOPIC_DWH_FEATURES}
+    targets: [{select: {kind: ConfigMap, name: feast-config}, fieldPaths: [data.FEAST_TOPIC_DWH]}]
+  - source: {kind: ConfigMap, name: shared-topics, fieldPath: data.TOPIC_FEATURE_READY}
+    targets: [{select: {kind: ConfigMap, name: feast-config}, fieldPaths: [data.FEAST_TOPIC_READY_FEATURE]}]

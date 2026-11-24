@@ -29,19 +29,9 @@ data:
             except Exception as e:
                 print(f"Failed to create topic {t}: {e}")
 
-    bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka-broker:9092")
-    topics = [
-        "hc.applications.public.loan_applications",
-        "hc.application_features",
-        "hc.application_ext_raw",
-        "hc.application_ext",
-        "hc.application_dwh",
-        "hc.scoring",
-        "hc.scoring.dlq",
-        "hc.feature_ready",
-        "hc.feature_timeout",
-        "hc.decisions.dlq"
-    ]
+    bootstrap = os.environ["KAFKA_BOOTSTRAP_SERVERS"]
+    # Every topic in contracts/topics/topics.env (the shared-topics ConfigMap) is created.
+    topics = sorted(v for k, v in os.environ.items() if k.startswith("TOPIC_"))
     create_topics(bootstrap, topics)
 ---
 apiVersion: batch/v1
@@ -60,9 +50,13 @@ spec:
           - |
             pip install confluent-kafka
             python /scripts/create_topics.py
+        envFrom:
+        - configMapRef:
+            name: shared-topics
         env:
         - name: KAFKA_BOOTSTRAP_SERVERS
-          value: "kafka-broker:9092"
+          valueFrom:
+            configMapKeyRef: {name: shared-endpoints, key: KAFKA_BOOTSTRAP_SERVERS}
         volumeMounts:
         - name: script
           mountPath: /scripts

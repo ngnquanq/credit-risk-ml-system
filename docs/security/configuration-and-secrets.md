@@ -39,6 +39,17 @@ The names users type (`auth.`, `apply.`, `staff.` plus the domain) are defined o
 | Ingress hosts (a field, not an env var) | `replacements` in the environment overlay. The base manifests keep the dev default, and a test checks it equals `hosts.env` |
 | Portal `allowedOrigins` (`next.config.mjs`) | `PORTAL_BASE_URL` when it is set. Whether Next.js reads it at start-up or bakes it in at build time was not verified; behind ingress-nginx it may not be needed at all |
 
+## Kafka topic names
+
+Topic names are a contract between services, so they live in `contracts/topics/topics.env` (one `TOPIC_*` key per topic, with the producer and consumer in a comment). A Kustomize component turns it into the `shared-topics` ConfigMap, and:
+
+- the topic-creation Job creates every topic in the list;
+- Flink's and Feast's ConfigMaps, and the Knative sinks and source, are filled by `replacements` from it;
+- the consumers read the one they need with `configMapKeyRef`;
+- the load-test cleanup script looks its subset up by key.
+
+Python code and the Flink Dockerfile keep a local default for each topic. A test checks that every topic name spelled anywhere in code, manifests or scripts is in the list (it caught a stale `hc.application_external`), and that no manifest or script writes a name out.
+
 ## Image tags
 
 Manifests name our images without a tag (`image: flink-pyflink`). `platform/config/images` is a Kustomize component that sets every tag in one place: `dev` for the images the Makefile builds (`IMAGE_TAG`, same value, checked by a test) and a pinned version for third-party ones such as Kafka UI. A test fails if a manifest uses `:latest`. For a release, the environment overlay replaces the tag with a digest, which is what gate 1.5 of the release checklist asks for.

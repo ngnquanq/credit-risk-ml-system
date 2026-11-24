@@ -3,3 +3,4 @@ kind: Kustomization
 namespace: data-services
 components:
   - ../../endpoints
+  - ../../../../contracts/topics

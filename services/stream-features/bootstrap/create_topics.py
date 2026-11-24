@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 """
-Create required Kafka topics using the Confluent Kafka Admin SDK.
+Create the Kafka topics listed in contracts/topics/topics.env, using the Confluent Kafka Admin SDK.
 
-Reads bootstrap servers from KAFKA_BOOTSTRAP_SERVERS (default: localhost:9092).
-Creates (idempotent):
- - hc.application_external
- - hc.application_dwh
- - hc.application_features
- - more and more, scroll down for more detail
+Reads bootstrap servers from KAFKA_BOOTSTRAP_SERVERS (default: localhost:9092). Topic names come from
+TOPIC_* environment variables when set (the cluster Job gets them from the shared-topics ConfigMap), and
+from contracts/topics/topics.env otherwise. Topics that already exist are skipped.
 
-Optionally pass topics via CLI args to create additional topics.
+Optionally pass more topic names as CLI arguments.
 """
 
 import os
 import sys
+from pathlib import Path
 from typing import List
 
 from confluent_kafka.admin import AdminClient, NewTopic
@@ -40,17 +38,18 @@ def create_topics(bootstrap: str, topics: List[str], partitions: int = 8, replic
             print(f"❌ Failed to create topic {t}: {e}")
 
 
+def registry_topics() -> List[str]:
+    """TOPIC_* from the environment, else the shared list in contracts/topics/topics.env."""
+    from_env = sorted(v for k, v in os.environ.items() if k.startswith("TOPIC_"))
+    if from_env:
+        return from_env
+    registry = Path(__file__).resolve().parents[3] / "contracts" / "topics" / "topics.env"
+    return sorted(line.split("=", 1)[1].strip() for line in registry.read_text().splitlines() if line.startswith("TOPIC_"))
+
+
 def main():
     bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-    default_topics = [
-        os.getenv("RAW_TOPIC_APPLICATION", "hc.applications.public.loan_applications"),
-        os.getenv("FEAST_TOPIC_APP_FEATURES", "hc.application_features"),
-        os.getenv("CLICKHOUSE_EXTERNAL", "hc.application_ext_raw"),
-        os.getenv("FEAST_TOPIC_EXTERNAL", "hc.application_ext"),
-        os.getenv("FEAST_TOPIC_DWH", "hc.application_dwh"),
-        os.getenv("BENTOML_SCORING_OUTPUT_TOPIC", "hc.scoring"),
-        os.getenv("FEAST_TOPIC_READY_FEATURE","hc.feature_ready")
-    ]
+    default_topics = registry_topics()
     extra = sys.argv[1:]
     topics = default_topics + extra
     print(f"Using Kafka bootstrap servers: {bootstrap}")
