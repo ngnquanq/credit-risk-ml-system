@@ -10,7 +10,7 @@ Accepted
 
 ## Context
 
-Staff need internal information about a customer to serve them: previous contracts with the lender, current exposure, repayment behaviour and a bureau summary. Unrestricted access to that information invites misuse, for example looking up neighbours or relatives. Separately, the platform now produces explanations (E14): plain-language reasons for applicants, and per-feature SHAP contributions with the score for experts. Three questions came up:
+Staff need internal information about a customer to serve them: previous contracts with the lender, current exposure, repayment behaviour and a bureau summary. Unrestricted access to that information invites misuse, for example looking up neighbours or relatives. Separately, the platform now produces explanations ([E14 Explainability](../02-product/epics.md#e14-explainability)): plain-language reasons for applicants, and per-feature SHAP contributions with the score for experts. Three questions came up:
 
 1. Which staff may see internal factors, and for which customers?
 2. Should the loan officer take part in the decision outcome?
@@ -25,7 +25,7 @@ Staff need internal information about a customer to serve them: previous contrac
 
 **Maker–checker.**
 - The loan officer is the maker: they capture data, verify documents and identity, attach notes and flag concerns (suspected fraud, document mismatch). They cannot approve, reject or change an outcome.
-- Underwriters decide manual reviews, and never on an application they submitted (E11).
+- Underwriters decide manual reviews, and never on an application they submitted ([E11 Identity and access](../02-product/epics.md#e11-identity-and-access)).
 
 **Explanation tiers.**
 

@@ -2,12 +2,12 @@
 
 | Epic | Outcome / KPI | Baseline → target | Size | Depends on |
 |---|---|---|---|---|
-| [E11](../02-product/epics.md#e11-identity-and-access) | O7 protect applicant data; O8 accountable decisions | Anyone on the network can call every route (F-17) → every call carries a verified identity; 100% of the permission matrix covered by allow and deny tests | M | E9 (secrets hygiene); E5 for the review routes |
+| [E11 Identity and access](../02-product/epics.md#e11-identity-and-access) | [O7](../01-business/business-outcomes.md#o7-applicant-data-is-protected) protect applicant data; [O8](../01-business/business-outcomes.md#o8-decisions-are-explainable-and-accountable) accountable decisions | Anyone on the network can call every route (F-17) → every call carries a verified identity; 100% of the permission matrix covered by allow and deny tests | M | [E9 Security baseline](../02-product/epics.md#e9-security-baseline) (secrets hygiene); [E5](../02-product/epics.md#e5-decision-delivery-and-status-tracking) for the review routes |
 
 ## 1. Why
 
 - **No identity.** The API cannot tell who is calling. An applicant can read any other applicant's file by guessing an id. Staff and applicants use the same unauthenticated form.
-- **No accountability.** Without a verified actor there is nothing to audit (E13), no separation of duties for manual review, and no way to require a second approver for policy changes.
+- **No accountability.** Without a verified actor there is nothing to audit ([E13 Audit trail](../02-product/epics.md#e13-audit-trail)), no separation of duties for manual review, and no way to require a second approver for policy changes.
 - **Two populations.** Lender staff and applicants need different sign-in rules (MFA and no self-registration for staff; self-registration with a verified email for applicants). Mixing them in one identity store is how privilege escalation starts.
 
 ## 2. Scope
@@ -25,11 +25,11 @@
 - **API: token verification** (`entrypoints/api/security.py`) builds a `Principal`.
 - **API: one policy module** (`services/loan-api/src/authz/policy.py`) used by every route. Deny by default.
 - **Migration 004:** ownership columns on `loan_applications`, and the `policy_change` table.
-- **Service identities.** Keycloak client credentials for the decision recorder, which calls no API today but is ready for it. The E9 API key stays only for the load-test client.
+- **Service identities.** Keycloak client credentials for the decision recorder, which calls no API today but is ready for it. The [E9](../02-product/epics.md#e9-security-baseline) API key stays only for the load-test client.
 
 **Out**
-- **Portals:** E12.
-- **Audit log storage:** E13. E11 calls the audit writer; until E13 lands, the writer logs to stdout.
+- **Portals:** [E12 Portals](../02-product/epics.md#e12-staff-and-applicant-portals).
+- **Audit log storage:** [E13 Audit trail](../02-product/epics.md#e13-audit-trail). [E11](../02-product/epics.md#e11-identity-and-access) calls the audit writer; until [E13](../02-product/epics.md#e13-audit-trail) lands, the writer logs to stdout.
 - **Federation** with a corporate directory (LDAP/AD); the `staff` realm stands in for it.
 - **Fine-grained consent and data-subject requests.**
 
@@ -191,7 +191,7 @@ The four-eyes rule for policy changes is a state machine: see [domain model §9]
 | `APP_OIDC_ISSUERS` | `https://auth.credit.local/realms/staff,https://auth.credit.local/realms/customers` | allow-list; any other `iss` gets 401 |
 | `APP_OIDC_AUDIENCE` | `credit-api` | |
 | `APP_OIDC_JWKS_TTL_SECONDS` | `300` | |
-| `APP_API_KEYS` | (secret) | load-test client only (E9) |
+| `APP_API_KEYS` | (secret) | load-test client only ([E9 Security baseline](../02-product/epics.md#e9-security-baseline)) |
 
 **Migration `004_ownership_and_policy.sql`**
 
@@ -232,7 +232,7 @@ Existing rows keep `channel='staff'` and null owners. They are readable only by 
 | `services/loan-api/src/entrypoints/api/security.py` | **new**: `TokenVerifier`, `JwksCache`, `Principal` |
 | `services/loan-api/src/authz/{__init__,policy,rules}.py` | **new**: `authorize`, rule table from §5 |
 | `services/loan-api/src/entrypoints/api/main.py` | every `/api/v1` route: `Depends(TokenVerifier)` and an `authorize` call; submit sets `channel`, `created_by_sub`/`applicant_sub`, `branch_id` from the principal, never from the body |
-| `services/loan-api/src/entrypoints/api/review_routes.py` | **new** (with E5): reviews and policy-change routes |
+| `services/loan-api/src/entrypoints/api/review_routes.py` | **new** (with [E5 Decision delivery](../02-product/epics.md#e5-decision-delivery-and-status-tracking)): reviews and policy-change routes |
 | `services/loan-api/src/core/config.py` | settings above; startup fails when `APP_OIDC_ISSUERS` is empty and `debug` is false |
 | `services/loan-api/schema/004_ownership_and_policy.sql` | **new** |
 | `tests/test_load/locustfile.py` | keeps `X-API-Key` (load-test client) |
@@ -249,7 +249,7 @@ Existing rows keep `channel='staff'` and null owners. They are readable only by 
 | AC6 | Given a proposed policy change, when the proposer approves it, then `403`; when a second risk manager approves it, then it becomes `active` | `tests/integration/api/test_policy_change.py` |
 | AC7 | Given a staff token without `acr=mfa`, then `401` | `test_token_verifier.py` |
 | AC8 | Given a submit body containing `branch_id` or `created_by_sub`, then the values from the token win | `tests/integration/api/test_submit_ownership.py` |
-| AC9 | Given the running cluster, when signing in as a new staff user, then Keycloak forces TOTP enrolment | manual, recorded in UAT (E16) |
+| AC9 | Given the running cluster, when signing in as a new staff user, then Keycloak forces TOTP enrolment | manual, recorded in UAT ([E16 UAT and release](../02-product/epics.md#e16-uat-and-release-readiness)) |
 | AC10 | Given a loan officer and an application they did not enter, when reading the customer profile, then `403` with rule `handling_application` | `tests/integration/api/test_customer_profile.py` |
 | AC11 | Given a lookup without a purpose, or by name instead of ID, then `422`; given a valid lookup in another branch, then only contract count and status are returned, and the lookup is audited with its purpose | `tests/integration/api/test_customer_lookup.py` |
 | AC12 | Given a loan officer token, when calling the explanation route, then `403`; the decision route returns reasons without score or contributions | `tests/integration/api/test_explanation_visibility.py` |
@@ -272,7 +272,7 @@ Existing rows keep `channel='staff'` and null owners. They are readable only by 
 
 1. Deploy Keycloak and import the realms.
 2. Run migration 004.
-3. Deploy the API with `APP_OIDC_ISSUERS` set and E12's portals together. The Streamlit form stops working at this point, which is intended.
+3. Deploy the API with `APP_OIDC_ISSUERS` set and [E12 Portals](../02-product/epics.md#e12-staff-and-applicant-portals)'s portals together. The Streamlit form stops working at this point, which is intended.
 4. Create staff users per branch. Hand out TOTP enrolment through the first sign-in.
 
 **Rollback:** redeploy the previous API image. Migration 004 only adds columns and a table, so it is backward compatible.
@@ -285,7 +285,7 @@ Existing rows keep `channel='staff'` and null owners. They are readable only by 
 
 | Item | Owner | Note |
 |---|---|---|
-| Keycloak is a new single point for sign-in | platform | 2 replicas; existing sessions keep working during an outage until the access token expires (5 min) and the BFF cannot refresh; documented in E15 |
+| Keycloak is a new single point for sign-in | platform | 2 replicas; existing sessions keep working during an outage until the access token expires (5 min) and the BFF cannot refresh; documented in [E15 Resilience and failover](../02-product/epics.md#e15-resilience-and-failover) |
 | Role explosion as the business adds functions | architect | Keep roles coarse; conditions (own, branch, SoD) live in the policy, not in new roles |
 | Backfilling ownership for existing rows | dev | Not needed for the portfolio data; documented as a migration step for real data |
 | Token lifetime vs. revocation | security | 5-minute access tokens; disabling a user takes effect within 5 minutes; no token introspection on the hot path |

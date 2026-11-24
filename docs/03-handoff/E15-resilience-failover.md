@@ -2,7 +2,7 @@
 
 | Epic | Outcome / KPI | Baseline → target | Size | Depends on |
 |---|---|---|---|---|
-| [E15](../02-product/epics.md#e15-resilience-and-failover) | O5 scale and recover without loss | Single replicas, Kafka RF 1, no backups, no drills → 0 applications lost and 0 auto-approved when any single pod fails; operational DB RPO ≤ 5 min, RTO ≤ 15 min; monthly drill report | L | E3 (timeouts), E5 (decision recorder), E8 (retries, DLQ), E11 (Keycloak) |
+| [E15 Resilience and failover](../02-product/epics.md#e15-resilience-and-failover) | [O5](../01-business/business-outcomes.md#o5-the-platform-scales-and-survives-failures) scale and recover without loss | Single replicas, Kafka RF 1, no backups, no drills → 0 applications lost and 0 auto-approved when any single pod fails; operational DB RPO ≤ 5 min, RTO ≤ 15 min; monthly drill report | L | [E3 Exactly-once readiness](../02-product/epics.md#e3-exactly-once-application-readiness) (timeouts), [E5](../02-product/epics.md#e5-decision-delivery-and-status-tracking) (decision recorder), [E8](../02-product/epics.md#e8-reliable-delivery-and-operations) (retries, DLQ), [E11](../02-product/epics.md#e11-identity-and-access) (Keycloak) |
 
 ## 1. Why
 
@@ -18,7 +18,7 @@ Wilson (*ML Engineering in Action*, §15.2 "Fallbacks and cold starts") argues f
 
 **In**
 - **A failure-mode table** (§5) with the designed behaviour for each component, and a test for each row.
-- **Fallback to manual review.** The decision recorder consumes `hc.feature_timeout` (E3) and `hc.scoring.dlq`, and turns both into `manual_review` with an explicit reason. No other component may write `approved`.
+- **Fallback to manual review.** The decision recorder consumes `hc.feature_timeout` ([E3 Exactly-once readiness](../02-product/epics.md#e3-exactly-once-application-readiness)) and `hc.scoring.dlq`, and turns both into `manual_review` with an explicit reason. No other component may write `approved`.
 - **Kafka:** 3 brokers (KRaft), RF 3, `min.insync.replicas=2`, producers `acks=all`. Topics are recreated with the new replication factor.
 - **Operational and identity databases:** CloudNativePG clusters (primary + 1 replica), synchronous replication off (RPO ≤ 5 min via WAL archiving to MinIO), automated failover. Applications connect through the cluster's `-rw` Service.
 - **Stateless services:** 2 replicas each with PodDisruptionBudgets (API, decision recorder, portals, Keycloak); readiness probes that check dependencies.
@@ -134,7 +134,7 @@ sequenceDiagram
 |---|---|---|---|---|
 | Scoring service | Sequence retries exhausted | Dead letter → recorder → `manual_review` (`scoring_unavailable`) | "Under review" | KServe restarts pods; DLQ re-drive is optional, because the human decision stands |
 | Feast / Redis online store | Fetcher error → scoring error | Same as scoring | "Under review" | Redis restarts; Flink and the materialiser replay from Kafka |
-| One feature group late | Readiness TTL (E3) | `feature_timeout` → `manual_review` (`features_incomplete`) | "Under review" | none needed |
+| One feature group late | Readiness TTL ([E3 Exactly-once readiness](../02-product/epics.md#e3-exactly-once-application-readiness)) | `feature_timeout` → `manual_review` (`features_incomplete`) | "Under review" | none needed |
 | One Kafka broker | Under-replicated partitions metric | Clients fail over; `acks=all` with min ISR 2 keeps writes durable | nothing | Broker pod restarts and catches up |
 | Ops DB primary | CloudNativePG health check | Replica promoted; `-rw` Service moves; API retries the connection | One failed submit possible; the portal retries once | Old primary rejoins as replica |
 | API pod | Readiness probe | Traffic to the other replica | nothing | restart |
@@ -163,7 +163,7 @@ backup:
 | `platform/data/k8s/operational-db/` | CloudNativePG operator + `Cluster` + `ScheduledBackup`; Debezium points at the `-rw` Service |
 | `platform/core/k8s/` | replicas 2 and PodDisruptionBudgets for API, recorder, portals; readiness probes |
 | `services/loan-api/src/decisions/fallback.py` | **new**: `FallbackPolicy` |
-| decision recorder (E5) | consume `hc.scoring.dlq` |
+| decision recorder ([E5 Decision delivery](../02-product/epics.md#e5-decision-delivery-and-status-tracking)) | consume `hc.scoring.dlq` |
 | `scripts/chaos/{drill,restore}.sh` | **new** |
 | `docs/runbooks/*.md` | **new**: five runbooks |
 | `Makefile` | `chaos-drill TARGET=…`, `restore-drill` |

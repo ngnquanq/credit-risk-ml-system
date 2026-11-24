@@ -12,7 +12,7 @@ Shared packages:
 - `packages/api`: typed calls to the Loan API with the user's access token (token relay). `pnpm generate:api` regenerates types from `contracts/openapi/loan-api.json`.
 - `packages/ui`: palette (red `#C8102E`, black, greys, white) and small components.
 
-The API is the authority on permissions (E11). The portals hide what a role cannot do, but every call is still checked by the API.
+The API is the authority on permissions ([E11 Identity and access](../docs/02-product/epics.md#e11-identity-and-access)). The portals hide what a role cannot do, but every call is still checked by the API.
 
 ## Run locally
 

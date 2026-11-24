@@ -2,7 +2,7 @@
 
 | Epic | Outcome / KPI | Baseline → target | Size | Depends on |
 |---|---|---|---|---|
-| [E16](../02-product/epics.md#e16-uat-and-release-readiness) | O6 ship safely; O7 data protection | No UAT, no release gate → every release has a UAT sign-off and a completed go/no-go checklist with evidence | M | E11–E15 (everything UAT exercises) |
+| [E16 UAT and release](../02-product/epics.md#e16-uat-and-release-readiness) | [O6](../01-business/business-outcomes.md#o6-model-and-platform-changes-ship-safely) ship safely; [O7](../01-business/business-outcomes.md#o7-applicant-data-is-protected) data protection | No UAT, no release gate → every release has a UAT sign-off and a completed go/no-go checklist with evidence | M | [E11 Identity and access](../02-product/epics.md#e11-identity-and-access)–[E15](../02-product/epics.md#e15-resilience-and-failover) (everything UAT exercises) |
 
 ## 1. Why
 
@@ -23,10 +23,10 @@ He recommends SME evaluation and dogfooding before release. For a credit platfor
 - **SME evaluation:** a risk manager reviews 50 decisions and their reasons. Disagreements are logged and triaged.
 - **Defects:** severity scale, triage, and exit criteria.
 - **Release go/no-go:** the [release checklist](../release/checklist.md) and the [UAT sign-off record](../release/uat-signoff-template.md).
-- **Security testing in UAT:** ZAP baseline against both portals; authorization tests (E11) run against UAT; scan reports attached.
+- **Security testing in UAT:** ZAP baseline against both portals; authorization tests ([E11 Identity and access](../02-product/epics.md#e11-identity-and-access)) run against UAT; scan reports attached.
 
 **Out**
-- Performance testing beyond the existing load test (E4/E8). Its report is a checklist input.
+- Performance testing beyond the existing load test ([E4 Real-time scoring](../02-product/epics.md#e4-real-time-scoring)/E8). Its report is a checklist input.
 
 ## 3. Today
 
@@ -80,20 +80,20 @@ sequenceDiagram
 
 | ID | Role | Scenario | Expected | Traces to |
 |---|---|---|---|---|
-| UAT-01 | applicant | Register, verify email, apply with two documents | Status visible within 15 s; documents listed | E1, E12, O1 |
-| UAT-02 | applicant | Declined application | Up to four reasons in plain language; no score shown | E14 AC4, O8 |
-| UAT-03 | applicant | Open another applicant's application URL | "Not found"; a denied audit event exists | E11 AC3 |
-| UAT-04 | loan_officer | First sign-in | TOTP enrolment forced | E11 AC9 |
-| UAT-05 | loan_officer | Submit for a walk-in customer; see the decision | `channel=staff`, own branch; decision shown | E1, E12 |
-| UAT-06 | loan_officer | Open an application from another branch | Refused | E11 AC4 |
-| UAT-06b | loan_officer | Look up a co-applicant by citizen ID with a purpose; try a name search | ID lookup works and is audited; name search is not offered | E11 AC11 |
-| UAT-06c | loan_officer | Open the case view of a declined application | Reasons shown; no score, contributions or decide buttons | E11 AC12, ADR-0013 |
-| UAT-07 | underwriter | Claim and decide a review with a reason | Status updated; override audited | E5, E13 AC5 |
-| UAT-08 | underwriter | Try to review an application they submitted | Refused: separation of duties | E11 AC5 |
-| UAT-09 | risk_manager | Propose a band change; approve own proposal; second manager approves | Own approval refused; second approval activates | E11 AC6 |
-| UAT-10 | auditor | Reconstruct a chosen decision | Timeline complete in ≤ 5 min; chain verified | E13 AC7, O8 |
-| UAT-11 | all | During a scoring drill, submit applications | All end in `manual_review`, none approved | E15 AC3 |
-| UAT-12 | SME | Review 50 decisions and reasons | Agreement rate recorded; every disagreement triaged | E14 AC7 |
+| UAT-01 | applicant | Register, verify email, apply with two documents | Status visible within 15 s; documents listed | [E1 Intake](../02-product/epics.md#e1-application-intake-and-document-capture), [E12](../02-product/epics.md#e12-staff-and-applicant-portals), [O1](../01-business/business-outcomes.md#o1-applicants-get-an-answer-fast) |
+| UAT-02 | applicant | Declined application | Up to four reasons in plain language; no score shown | [E14](../02-product/epics.md#e14-explainability) AC4, [O8 Accountable](../01-business/business-outcomes.md#o8-decisions-are-explainable-and-accountable) |
+| UAT-03 | applicant | Open another applicant's application URL | "Not found"; a denied audit event exists | [E11](../02-product/epics.md#e11-identity-and-access) AC3 |
+| UAT-04 | loan_officer | First sign-in | TOTP enrolment forced | [E11](../02-product/epics.md#e11-identity-and-access) AC9 |
+| UAT-05 | loan_officer | Submit for a walk-in customer; see the decision | `channel=staff`, own branch; decision shown | [E1 Intake](../02-product/epics.md#e1-application-intake-and-document-capture), [E12](../02-product/epics.md#e12-staff-and-applicant-portals) |
+| UAT-06 | loan_officer | Open an application from another branch | Refused | [E11](../02-product/epics.md#e11-identity-and-access) AC4 |
+| UAT-06b | loan_officer | Look up a co-applicant by citizen ID with a purpose; try a name search | ID lookup works and is audited; name search is not offered | [E11](../02-product/epics.md#e11-identity-and-access) AC11 |
+| UAT-06c | loan_officer | Open the case view of a declined application | Reasons shown; no score, contributions or decide buttons | [E11](../02-product/epics.md#e11-identity-and-access) AC12, ADR-0013 |
+| UAT-07 | underwriter | Claim and decide a review with a reason | Status updated; override audited | [E5 Decision delivery](../02-product/epics.md#e5-decision-delivery-and-status-tracking), [E13](../02-product/epics.md#e13-audit-trail) AC5 |
+| UAT-08 | underwriter | Try to review an application they submitted | Refused: separation of duties | [E11](../02-product/epics.md#e11-identity-and-access) AC5 |
+| UAT-09 | risk_manager | Propose a band change; approve own proposal; second manager approves | Own approval refused; second approval activates | [E11](../02-product/epics.md#e11-identity-and-access) AC6 |
+| UAT-10 | auditor | Reconstruct a chosen decision | Timeline complete in ≤ 5 min; chain verified | [E13](../02-product/epics.md#e13-audit-trail) AC7, [O8 Accountable](../01-business/business-outcomes.md#o8-decisions-are-explainable-and-accountable) |
+| UAT-11 | all | During a scoring drill, submit applications | All end in `manual_review`, none approved | [E15](../02-product/epics.md#e15-resilience-and-failover) AC3 |
+| UAT-12 | SME | Review 50 decisions and reasons | Agreement rate recorded; every disagreement triaged | [E14](../02-product/epics.md#e14-explainability) AC7 |
 
 **Severity and exit criteria**
 
@@ -127,11 +127,11 @@ sequenceDiagram
 
 ## 8. Test plan by layer
 
-UAT is the top layer. It reuses the E11 authorization suite, the E12 Playwright journeys and the E15 drills, and adds the human scenarios and the SME review.
+UAT is the top layer. It reuses the [E11](../02-product/epics.md#e11-identity-and-access) authorization suite, the [E12](../02-product/epics.md#e12-staff-and-applicant-portals) Playwright journeys and the [E15](../02-product/epics.md#e15-resilience-and-failover) drills, and adds the human scenarios and the SME review.
 
 ## 9. Rollout, rollback, observability
 
-The first UAT cycle runs once E11–E15 are built.
+The first UAT cycle runs once [E11 Identity and access](../02-product/epics.md#e11-identity-and-access)–[E15](../02-product/epics.md#e15-resilience-and-failover) are built.
 
 **Rollback:** the previous release's digests stay recorded in the last signed checklist.
 

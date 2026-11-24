@@ -2,7 +2,7 @@
 
 | Epic | Outcome / KPI | Baseline → target | Size | Depends on |
 |---|---|---|---|---|
-| [E14](../02-product/epics.md#e14-explainability) | O2 consistent decisions; O8 explainable decisions | No reasons are produced → 100% of reject and under-review decisions carry up to four reason codes; attributions additive to 1e-4; no protected attribute ever used as a reason | M | E6 (gender-free model), E5 (decision record), E2 (catalog definitions with `reason_code`) |
+| [E14 Explainability](../02-product/epics.md#e14-explainability) | [O2](../01-business/business-outcomes.md#o2-every-application-ends-in-a-clear-decision) consistent decisions; [O8](../01-business/business-outcomes.md#o8-decisions-are-explainable-and-accountable) explainable decisions | No reasons are produced → 100% of reject and under-review decisions carry up to four reason codes; attributions additive to 1e-4; no protected attribute ever used as a reason | M | [E6 Governed model](../02-product/epics.md#e6-fair-governed-credit-model) (gender-free model), [E5](../02-product/epics.md#e5-decision-delivery-and-status-tracking) (decision record), [E2](../02-product/epics.md#e2-feature-engineering-with-trainingserving-parity) (catalog definitions with `reason_code`) |
 
 ## 1. Why
 
@@ -19,10 +19,10 @@ Wilson (*ML Engineering in Action*, §15.4 "Model interpretability") makes the c
 - **Mapping back to inputs.** Attributions map back to the 23 model inputs; the preprocessing is 1:1 per column (clip, impute, ordinal encode).
 - **Reason codes.** Each risk-increasing attribution maps to a catalog `reason_code`. Contributions of features sharing a code are summed, for example `EXT_SOURCE_1/2/3` → `EXT_SCORE_LOW`. Features marked `protected` or `proxy_for` are dropped, and up to four codes are kept, largest first.
 - **Storage.** The decision event and record carry `reason_codes` (applicant-facing) and `contributions` (staff-facing).
-- **Global explanations.** A mean |SHAP| ranking and a summary plot logged with each model version and included in `model_card.md` (E6).
+- **Global explanations.** A mean |SHAP| ranking and a summary plot logged with each model version and included in `model_card.md` ([E6 Governed model](../02-product/epics.md#e6-fair-governed-credit-model)).
 - **Version stability check** at registration: top-10 global features overlap with Production by ≥ 7, or the gate tags `explanation_review_required=true`.
 
-**Visibility tiers** ([ADR-0013](../adr/0013-role-based-data-and-explanation-visibility.md)), enforced by the API (E11), not only by the portals:
+**Visibility tiers** ([ADR-0013](../adr/0013-role-based-data-and-explanation-visibility.md)), enforced by the API ([E11 Identity and access](../02-product/epics.md#e11-identity-and-access)), not only by the portals:
 
 | Role | Sees |
 |---|---|
@@ -33,11 +33,11 @@ Wilson (*ML Engineering in Action*, §15.4 "Model interpretability") makes the c
 
 **Out**
 - Counterfactual explanations ("what would change the decision"). Deferred.
-- Explanations for the hard rules of E10; rules explain themselves with `rule:<id>`.
+- Explanations for the hard rules of [E10 Pre-screening](../02-product/epics.md#e10-pre-screening-business-rules); rules explain themselves with `rule:<id>`.
 
 ## 3. Today
 
-The scoring service returns `{probability, prediction, threshold}`. No explanation exists anywhere. The decision is not stored (E5).
+The scoring service returns `{probability, prediction, threshold}`. No explanation exists anywhere. The decision is not stored ([E5 Decision delivery](../02-product/epics.md#e5-decision-delivery-and-status-tracking)).
 
 ## 4. Target design
 
@@ -118,7 +118,7 @@ sequenceDiagram
 
 ## 5. Data contracts
 
-**Catalog definition fields** (added to E2 definitions)
+**Catalog definition fields** (added to [E2](../02-product/epics.md#e2-feature-engineering-with-trainingserving-parity) definitions)
 
 ```yaml
 - {name: EXT_SOURCE_2, reason_code: EXT_SCORE_LOW}
@@ -134,7 +134,7 @@ EXT_SCORE_LOW:      {en: "External credit scores are low", vi: "Điểm tín d�
 CREDIT_AMOUNT_HIGH: {en: "Requested credit amount is high for the profile", vi: "Số tiền vay cao so với hồ sơ"}
 ```
 
-**Decision event additions** (`hc.scoring`, E5)
+**Decision event additions** (`hc.scoring`, [E5 Decision delivery](../02-product/epics.md#e5-decision-delivery-and-status-tracking))
 
 ```jsonc
 {
@@ -152,9 +152,9 @@ CREDIT_AMOUNT_HIGH: {en: "Requested credit amount is high for the profile", vi: 
 | `services/scoring/service.py` | build the explainer at model load; call it per request; add fields to the response |
 | `services/scoring/bentofile.yaml`, requirements | add `shap` (pinned) |
 | `contracts/feature_catalog/definitions/*.yaml`, `reasons.yaml` | `reason_code`, `proxy_for`, texts |
-| bento builder (E7) | ship `reason_map.json` generated from the catalog next to the model |
-| `services/model-lifecycle/training/` recipe (E6) | global SHAP summary, stability check, model card section |
-| `portals/` (E12) | applicant: texts only; staff: contribution bar chart |
+| bento builder ([E7 Model promotion](../02-product/epics.md#e7-automated-traceable-model-promotion)) | ship `reason_map.json` generated from the catalog next to the model |
+| `services/model-lifecycle/training/` recipe ([E6 Governed model](../02-product/epics.md#e6-fair-governed-credit-model)) | global SHAP summary, stability check, model card section |
+| `portals/` ([E12 Portals](../02-product/epics.md#e12-staff-and-applicant-portals)) | applicant: texts only; staff: contribution bar chart |
 
 ## 7. Acceptance criteria → tests
 
@@ -165,8 +165,8 @@ CREDIT_AMOUNT_HIGH: {en: "Requested credit amount is high for the profile", vi: 
 | AC3 | Given a feature marked `protected` or `proxy_for`, then it never appears in `reason_codes`, even when its contribution is the largest | same |
 | AC4 | Given an approve decision, then `reason_codes` is empty; given reject or under-review, then 1–4 codes, ordered by contribution | `tests/unit/scoring/test_policy_reasons.py` |
 | AC5 | Given 30 RPS for 10 minutes, then scoring p95 rises by no more than 10 ms compared with the same run without explanations | load test, recorded in `tests/test_load/RESULTS.md` |
-| AC6 | Given a candidate model whose top-10 global features overlap with Production by fewer than 7, then it is registered with `explanation_review_required=true` | `tests/unit/training/test_gate.py` (E6) |
-| AC7 | Given 50 synthetic applications reviewed by an SME in UAT, then disagreements with the stated reasons are logged and triaged | UAT (E16) |
+| AC6 | Given a candidate model whose top-10 global features overlap with Production by fewer than 7, then it is registered with `explanation_review_required=true` | `tests/unit/training/test_gate.py` ([E6 Governed model](../02-product/epics.md#e6-fair-governed-credit-model)) |
+| AC7 | Given 50 synthetic applications reviewed by an SME in UAT, then disagreements with the stated reasons are logged and triaged | UAT ([E16 UAT and release](../02-product/epics.md#e16-uat-and-release-readiness)) |
 
 ## 8. Test plan by layer
 
@@ -179,7 +179,7 @@ CREDIT_AMOUNT_HIGH: {en: "Requested credit amount is high for the profile", vi: 
 
 ## 9. Rollout, rollback, observability
 
-1. Ship with the first gender-free model (E6).
+1. Ship with the first gender-free model ([E6 Governed model](../02-product/epics.md#e6-fair-governed-credit-model)).
 2. Measure latency in the load test before enabling reasons in the applicant portal.
 
 **Rollback:** feature flag `SCORING_EXPLAIN=false` returns decisions without reasons. Reject and review then show the generic text "Your application needs further review".
@@ -194,5 +194,5 @@ CREDIT_AMOUNT_HIGH: {en: "Requested credit amount is high for the profile", vi: 
 | Item | Owner | Note |
 |---|---|---|
 | Reasons describe the model, not the world | compliance | Wording says "factors that most affected the assessment"; no causal language |
-| Proxy list is incomplete | data scientist | The E6 proxy scan feeds `proxy_for`; reviewed at each model version |
+| Proxy list is incomplete | data scientist | The [E6](../02-product/epics.md#e6-fair-governed-credit-model) proxy scan feeds `proxy_for`; reviewed at each model version |
 | Correlated features split credit between them | data scientist | Grouping by reason code reduces the effect; documented in the model card |

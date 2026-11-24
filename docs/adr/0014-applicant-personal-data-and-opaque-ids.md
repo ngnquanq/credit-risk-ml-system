@@ -44,7 +44,7 @@ The sources say nothing about Vietnamese law. That includes Decree 13/2023/NĐ-C
 | HMAC-SHA256 of the citizen ID (separate key) | `applicant_identity.citizen_id_hmac`, unique | Finding a returning customer without decrypting anything |
 | Last three digits of the citizen ID and phone | `applicant_identity` | Masked display only |
 | ID card photos, payslips | Object storage, key `<HMAC of uploader>/<folder>/doc_<random>.<ext>` | Verification; the object key never names the person |
-| Gender, ethnicity, religion | Not asked | Not needed (ADR-0013, E6) |
+| Gender, ethnicity, religion | Not asked | Not needed (ADR-0013, [E6 Governed model](../02-product/epics.md#e6-fair-governed-credit-model)) |
 
 - `applicant_identity` is not part of the Debezium publication. Names, citizen IDs and phones therefore never reach Kafka, Flink, ClickHouse, Feast or a model.
 - Model features stay derived: income, amounts, dates and bureau aggregates.

@@ -4,7 +4,7 @@
 This document defines the hard rejection criteria that automatically decline loan applications before ML scoring, ensuring regulatory compliance and optimizing system resources.
 
 ### Status
-Not implemented. These rules are the scope of epic **E10 Pre-screening rules** ([epics](../02-product/epics.md)). Thresholds below are proposals to be confirmed by credit policy.
+Not implemented. These rules are the scope of epic **[E10](../02-product/epics.md#e10-pre-screening-business-rules) Pre-screening rules** ([epics](../02-product/epics.md)). Thresholds below are proposals to be confirmed by credit policy.
 
 ### Starting points from the business
 - Requested credit should not exceed 2 x annual income.

@@ -2,7 +2,7 @@
 
 | Epic | Outcome / KPI | Baseline → target | Size | Depends on |
 |---|---|---|---|---|
-| [E12](../02-product/epics.md#e12-staff-and-applicant-portals) | O1 fast decision; O7 data protection; O8 explainable decisions | One unauthenticated Streamlit form, no decision shown → two signed-in portals; every role sees its decision, queue or trace; no token reachable from browser JavaScript | L | E11 (identity), E5 (decisions), E14 (reasons), E13 (audit trace) |
+| [E12 Portals](../02-product/epics.md#e12-staff-and-applicant-portals) | [O1](../01-business/business-outcomes.md#o1-applicants-get-an-answer-fast) fast decision; [O7](../01-business/business-outcomes.md#o7-applicant-data-is-protected) data protection; [O8](../01-business/business-outcomes.md#o8-decisions-are-explainable-and-accountable) explainable decisions | One unauthenticated Streamlit form, no decision shown → two signed-in portals; every role sees its decision, queue or trace; no token reachable from browser JavaScript | L | [E11 Identity and access](../02-product/epics.md#e11-identity-and-access) (identity), [E5](../02-product/epics.md#e5-decision-delivery-and-status-tracking) (decisions), [E14](../02-product/epics.md#e14-explainability) (reasons), [E13](../02-product/epics.md#e13-audit-trail) (audit trace) |
 
 ## 1. Why
 
@@ -100,7 +100,7 @@ classDiagram
     RoleGuard ..> SessionStore
 ```
 
-Sessions are stored in Redis (namespace `portals`, its own instance, 30-minute idle timeout, 8-hour absolute timeout). The role guard only shapes navigation; **the API remains the authority** (E11). A screen hidden by the guard must still be rejected by the API.
+Sessions are stored in Redis (namespace `portals`, its own instance, 30-minute idle timeout, 8-hour absolute timeout). The role guard only shapes navigation; **the API remains the authority** ([E11 Identity and access](../02-product/epics.md#e11-identity-and-access)). A screen hidden by the guard must still be rejected by the API.
 
 ### 4.3 Behaviour
 
@@ -191,7 +191,7 @@ Applicants never see the raw score, band thresholds or contributions. Staff deta
 | AC2 | Given a POST without the CSRF token or with a foreign `Origin`, then `403` and no API call is made | Playwright + route handler unit test |
 | AC3 | Given each role, then its scripted journey passes (applicant applies and reads reasons; officer submits; underwriter claims and decides; risk manager proposes and a second one approves; auditor traces) | Playwright `journeys/*.spec.ts` against UAT |
 | AC4 | Given an applicant, when typing another application id into the URL, then the page shows "not found" and the API logged a `403` | Playwright `idor.spec.ts` |
-| AC5 | Given response headers, then CSP, HSTS, `frame-ancestors 'none'` and `Referrer-Policy` are present | Playwright `headers.spec.ts`; ZAP baseline (E16) |
+| AC5 | Given response headers, then CSP, HSTS, `frame-ancestors 'none'` and `Referrer-Policy` are present | Playwright `headers.spec.ts`; ZAP baseline ([E16 UAT and release](../02-product/epics.md#e16-uat-and-release-readiness)) |
 | AC6 | Given 30 minutes idle, then the next request redirects to sign-in | unit test of `SessionStore` with a fake clock |
 | AC7 | Given axe-core, then no serious or critical accessibility violations on the five main screens | Playwright + `@axe-core/playwright` |
 | AC8 | Given the estimator → apply → submit journey, then no request URL contains the amount, term, citizen ID or phone | `e2e-local/applicant.spec.ts` |
@@ -210,7 +210,7 @@ Applicants never see the raw score, band thresholds or contributions. Staff deta
 ## 9. Rollout, rollback, observability
 
 1. Deploy both portals.
-2. Run UAT (E16).
+2. Run UAT ([E16 UAT and release](../02-product/epics.md#e16-uat-and-release-readiness)).
 3. Route the public host to the applicant portal.
 
 **Rollback:** Redeploy the previous portal image. Clusters that still have the retired Streamlit Deployment, Service or Ingress need a separate cleanup.
@@ -222,5 +222,5 @@ Applicants never see the raw score, band thresholds or contributions. Staff deta
 | Item | Owner | Note |
 |---|---|---|
 | Node.js is a new runtime to patch and scan | platform | Pin the base image; `npm audit` and trivy in the release checklist |
-| Session store availability | platform | Redis outage signs everyone out; acceptable, documented in E15 |
+| Session store availability | platform | Redis outage signs everyone out; acceptable, documented in [E15 Resilience and failover](../02-product/epics.md#e15-resilience-and-failover) |
 | Staff network is simulated | architect | An allow-list on the internal ingress stands in for a VPN or zero-trust proxy |

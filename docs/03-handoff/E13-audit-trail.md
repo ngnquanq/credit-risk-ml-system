@@ -2,7 +2,7 @@
 
 | Epic | Outcome / KPI | Baseline → target | Size | Depends on |
 |---|---|---|---|---|
-| [E13](../02-product/epics.md#e13-audit-trail) | O8 accountable decisions | No record of who did what → every access, decision, override, policy change and model promotion recorded; a decision reconstructed in ≤ 5 minutes; tampering detected by a daily check | M | E11 (verified actors), E5 (decisions) |
+| [E13 Audit trail](../02-product/epics.md#e13-audit-trail) | [O8](../01-business/business-outcomes.md#o8-decisions-are-explainable-and-accountable) accountable decisions | No record of who did what → every access, decision, override, policy change and model promotion recorded; a decision reconstructed in ≤ 5 minutes; tampering detected by a daily check | M | [E11 Identity and access](../02-product/epics.md#e11-identity-and-access) (verified actors), [E5](../02-product/epics.md#e5-decision-delivery-and-status-tracking) (decisions) |
 
 ## 1. Why
 
@@ -22,7 +22,7 @@ Application logs are not an audit trail:
 
 **In**
 - **Storage.** A separate PostgreSQL database `audit` holding `audit_event`. It is append-only by privilege and hash-chained.
-- **Writer.** `services/loan-api/src/audit/` with one function, `record(...)`, used by the API (E11), the decision recorder (E5) and the MLflow promotion watcher (E7).
+- **Writer.** `services/loan-api/src/audit/` with one function, `record(...)`, used by the API ([E11 Identity and access](../02-product/epics.md#e11-identity-and-access)), the decision recorder ([E5](../02-product/epics.md#e5-decision-delivery-and-status-tracking)) and the MLflow promotion watcher ([E7](../02-product/epics.md#e7-automated-traceable-model-promotion)).
 - **What is recorded** (§5): sign-in events from Keycloak, every allowed and denied API action on applications, decisions, reviews, policy changes, and model promotions.
 - **Reading.** A read view for auditors and `GET /api/v1/audit?resource=…` (auditor only).
 - **Verification.** A daily job `audit-verify` that re-computes the chain and alerts on a break.
@@ -180,8 +180,8 @@ GRANT SELECT ON audit_trace TO audit_reader;
 | `services/loan-api/schema/audit/001_audit_event.sql` | **new** |
 | `services/loan-api/src/audit/{__init__,writer,sanitizer}.py` | **new** |
 | `services/loan-api/src/audit/verify_job.py`, CronJob in `services/loan-api/deploy/decision-recorder/09-decision-recorder.yaml` | **new**: daily CronJob; Prometheus metric `audit_chain_ok` |
-| `services/loan-api/src/entrypoints/api/*.py` | call `record` on every allowed or denied action (E11) |
-| decision recorder (E5) | `decision` and `decision_fallback` events |
+| `services/loan-api/src/entrypoints/api/*.py` | call `record` on every allowed or denied action ([E11 Identity and access](../02-product/epics.md#e11-identity-and-access)) |
+| decision recorder ([E5 Decision delivery](../02-product/epics.md#e5-decision-delivery-and-status-tracking)) | `decision` and `decision_fallback` events |
 | `services/model-lifecycle/mlflow-watcher/poller-configmap.yaml` (watcher script) | `model_promoted` event |
 | `platform/ops/k8s/logging/` | Logstash JDBC pipeline `audit_event` → index `audit-*`; Keycloak event log shipping |
 
@@ -195,7 +195,7 @@ GRANT SELECT ON audit_trace TO audit_reader;
 | AC4 | Given details containing `name` or `phone`, then they are dropped before insert | `tests/unit/audit/test_sanitizer.py` |
 | AC5 | Given an application through submit → decision → override, then `GET /api/v1/audit?resource=application:{id}` returns the events in order, with actors and reasons | `tests/integration/api/test_audit_trace.py` |
 | AC6 | Given a non-auditor token, when calling `/api/v1/audit`, then `403`, and that denial is itself audited | same |
-| AC7 | Given the UAT environment, an auditor reconstructs a chosen decision in ≤ 5 minutes | UAT script (E16) |
+| AC7 | Given the UAT environment, an auditor reconstructs a chosen decision in ≤ 5 minutes | UAT script ([E16 UAT and release](../02-product/epics.md#e16-uat-and-release-readiness)) |
 
 ## 8. Test plan by layer
 
@@ -203,12 +203,12 @@ GRANT SELECT ON audit_trace TO audit_reader;
 |---|---|
 | Pure logic | canonical JSON, hash computation, sanitizer |
 | Integration | real PostgreSQL (the integration database) with the two roles; concurrency and tamper tests |
-| UAT | auditor journey (E12, E16) |
+| UAT | auditor journey ([E12 Portals](../02-product/epics.md#e12-staff-and-applicant-portals), [E16](../02-product/epics.md#e16-uat-and-release-readiness)) |
 
 ## 9. Rollout, rollback, observability
 
 1. Create the `audit` database and roles; insert a genesis row (`prev_hash` = 32 zero bytes).
-2. Deploy the writer with E11.
+2. Deploy the writer with [E11 Identity and access](../02-product/epics.md#e11-identity-and-access).
 3. Enable the verify CronJob.
 
 **Rollback:** the audit DB stays. Rolling the API back stops new events and must be recorded as an incident.

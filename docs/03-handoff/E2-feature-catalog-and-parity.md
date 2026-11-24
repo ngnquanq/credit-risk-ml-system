@@ -2,7 +2,7 @@
 
 | Epic | Outcome / KPI | Baseline → target | Size | Depends on |
 |---|---|---|---|---|
-| [E2](../02-product/epics.md#e2-feature-engineering-with-trainingserving-parity) | O3 risk quality; O4 fair lending | Feature list defined in ~6 places, one model feature missing at serving, `DAYS_EMPLOYED` sign flipped, bureau logic duplicated → one declaration, CI-enforced parity, golden-record equality | M | none (E6 builds on it) |
+| [E2 Feature parity](../02-product/epics.md#e2-feature-engineering-with-trainingserving-parity) | [O3](../01-business/business-outcomes.md#o3-we-lend-to-good-risks-and-decline-bad-ones) risk quality; [O4](../01-business/business-outcomes.md#o4-lending-is-fair) fair lending | Feature list defined in ~6 places, one model feature missing at serving, `DAYS_EMPLOYED` sign flipped, bureau logic duplicated → one declaration, CI-enforced parity, golden-record equality | M | none ([E6 Governed model](../02-product/epics.md#e6-fair-governed-credit-model) builds on it) |
 
 ## 1. Why
 
@@ -25,9 +25,9 @@ The model is trained on one feature definition and served with another:
 - ClickHouse tables ordered by their lookup key.
 
 **Out**
-- Dropping `CODE_GENDER` from the model and retraining: E6. E2 only marks it `protected` in the catalog.
-- Merging the two bureau implementations into one. This decision is deferred; E2 proves parity with a test first (open question 1).
-- Flink checkpointing (F-13): E8.
+- Dropping `CODE_GENDER` from the model and retraining: [E6 Governed model](../02-product/epics.md#e6-fair-governed-credit-model). [E2](../02-product/epics.md#e2-feature-engineering-with-trainingserving-parity) only marks it `protected` in the catalog.
+- Merging the two bureau implementations into one. This decision is deferred; [E2](../02-product/epics.md#e2-feature-engineering-with-trainingserving-parity) proves parity with a test first (open question 1).
+- Flink checkpointing (F-13): [E8 Reliable ops](../02-product/epics.md#e8-reliable-delivery-and-operations).
 
 ## 3. Today
 
@@ -172,7 +172,7 @@ sequenceDiagram
  "features": [{"name": "EXT_SOURCE_3", "preprocessing_group": "num_other"}, "... 24 entries in model order"]}
 ```
 
-A set is immutable once a model is registered with it. Changing model inputs means a new set (for example `v2-no-gender` in E6).
+A set is immutable once a model is registered with it. Changing model inputs means a new set (for example `v2-no-gender` in [E6 Governed model](../02-product/epics.md#e6-fair-governed-credit-model)).
 
 Initial definitions: import the 43 + 57 + 156 fields from today's `feature_schema/*.json` with a one-off script, then fill meaning, ranges, `protected` and `reason_code` by hand for the 24 entries of `legacy-v1`.
 
@@ -195,7 +195,7 @@ Initial definitions: import the 43 + 57 + 156 fields from today's `feature_schem
 | File | Change |
 |---|---|
 | `contracts/feature_catalog/catalog.py`, `definitions/{application,external,dwh}.yaml` (the 24 model inputs), `reasons.yaml` | **done** (2026-11-22); `train_register.py` refuses a non-legacy set with a protected input |
-| `contracts/feature_catalog/sets/v2-no-gender.json` | **done**: candidate set for E6 |
+| `contracts/feature_catalog/sets/v2-no-gender.json` | **done**: candidate set for [E6 Governed model](../02-product/epics.md#e6-fair-governed-credit-model) |
 | `contracts/feature_catalog/export.py`; definitions for the remaining Feast-only fields | **new** (pending) |
 | `contracts/feature_catalog/sets/legacy-v1.json`, `feature_preprocessing.load_feature_set` | **done** |
 | `Makefile` | `features` target (runs the exporter); `check` runs it and `git diff --exit-code` |
@@ -232,10 +232,10 @@ Initial definitions: import the 43 + 57 + 156 fields from today's `feature_schem
 ## 9. Rollout, rollback, observability
 
 1. Ship the catalog and the generated artifacts. They must equal today's JSON, apart from the explicit changes.
-2. Ship the UDF fix together with a **retrained** model (E6). A model trained on the Kaggle convention plus the fixed UDF is the correct pair; the fixed UDF with today's model is also strictly better than today.
+2. Ship the UDF fix together with a **retrained** model ([E6 Governed model](../02-product/epics.md#e6-fair-governed-credit-model)). A model trained on the Kaggle convention plus the fixed UDF is the correct pair; the fixed UDF with today's model is also strictly better than today.
 3. Recreate the ClickHouse tables with ordering keys: `make k8s-load-dwh` after dropping them, then `make k8s-dbt`.
 
-Signal: the scoring log shows "Startup validation passed" with `feature_set_version` and `feature_set_sha256`; a drift monitor on `days_employed` sign (E8) would catch regressions.
+Signal: the scoring log shows "Startup validation passed" with `feature_set_version` and `feature_set_sha256`; a drift monitor on `days_employed` sign ([E8 Reliable ops](../02-product/epics.md#e8-reliable-delivery-and-operations)) would catch regressions.
 
 ## 10. Risks and open questions
 

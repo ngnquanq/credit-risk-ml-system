@@ -10,7 +10,7 @@ Accepted
 
 ## Context
 
-Applications arrive from two populations: lender staff entering applications for walk-in customers, and applicants applying online (E1, E11). Today nobody signs in (F-17). Staff need MFA and no self-registration; applicants need self-registration with a verified email. The web UI moves from Streamlit to TypeScript (E12) and handles personal data, so tokens must not be exposed to browser JavaScript.
+Applications arrive from two populations: lender staff entering applications for walk-in customers, and applicants applying online ([E1 Intake](../02-product/epics.md#e1-application-intake-and-document-capture), [E11](../02-product/epics.md#e11-identity-and-access)). Today nobody signs in (F-17). Staff need MFA and no self-registration; applicants need self-registration with a verified email. The web UI moves from Streamlit to TypeScript ([E12](../02-product/epics.md#e12-staff-and-applicant-portals)) and handles personal data, so tokens must not be exposed to browser JavaScript.
 
 ## Decision
 
@@ -41,13 +41,13 @@ Applications arrive from two populations: lender staff entering applications for
 
 - MFA for every staff account; applicant accounts cannot gain staff roles.
 - No access or refresh token ever reaches the browser.
-- Authorization decisions live in one tested module, and every denial is audited (E13).
+- Authorization decisions live in one tested module, and every denial is audited ([E13 Audit trail](../02-product/epics.md#e13-audit-trail)).
 
 ### Negative
 
-- Keycloak and a session store are new stateful components (E15 covers their failure modes).
+- Keycloak and a session store are new stateful components ([E15 Resilience and failover](../02-product/epics.md#e15-resilience-and-failover) covers their failure modes).
 - A Node.js runtime to patch and scan.
 
 ### Risks
 
-- Keycloak outage blocks new sign-ins; existing sessions survive until the 5-minute access token cannot be refreshed. Documented in E15.
+- Keycloak outage blocks new sign-ins; existing sessions survive until the 5-minute access token cannot be refreshed. Documented in [E15 Resilience and failover](../02-product/epics.md#e15-resilience-and-failover).

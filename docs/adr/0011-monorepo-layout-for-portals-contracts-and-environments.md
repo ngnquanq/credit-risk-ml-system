@@ -10,12 +10,12 @@ Accepted. The feature catalog location in decision 1 is superseded by [ADR-0015]
 
 ## Context
 
-The release-readiness epics (E11–E16) add code of new kinds to a repository that so far held Python services, Kubernetes manifests and docs:
+The release-readiness epics ([E11 Identity and access](../02-product/epics.md#e11-identity-and-access)–[E16](../02-product/epics.md#e16-uat-and-release-readiness)) add code of new kinds to a repository that so far held Python services, Kubernetes manifests and docs:
 
-- two Next.js (TypeScript) backends-for-frontend and shared TypeScript packages (E12);
-- Keycloak realm configuration (E11);
-- Python modules for authorization and audit (E11, E13);
-- manifests for identity, portals and a UAT environment, plus release scripts (E15, E16).
+- two Next.js (TypeScript) backends-for-frontend and shared TypeScript packages ([E12 Portals](../02-product/epics.md#e12-staff-and-applicant-portals));
+- Keycloak realm configuration ([E11 Identity and access](../02-product/epics.md#e11-identity-and-access));
+- Python modules for authorization and audit ([E11 Identity and access](../02-product/epics.md#e11-identity-and-access), [E13](../02-product/epics.md#e13-audit-trail));
+- manifests for identity, portals and a UAT environment, plus release scripts ([E15 Resilience and failover](../02-product/epics.md#e15-resilience-and-failover), [E16](../02-product/epics.md#e16-uat-and-release-readiness)).
 
 One small team owns everything. We had to decide whether the portals and the deployment configuration get their own repositories, where per-environment configuration and secrets live, where shared contracts live, and how several deployables are released from one tree.
 
@@ -59,12 +59,12 @@ docs/                   unchanged chain: business → epics → architecture →
 Rules:
 
 1. **Contracts live next to their producer.** A copy goes in `contracts/` only when a consumer in another language or deployable needs it. Every copy is generated, and CI regenerates it and fails on a diff:
-   - The feature catalog stays in `application/training/feature_catalog/`, because the training image and the scoring Bento package it from there; generated schema files go into the Feast and Flink contexts (E2).
+   - The feature catalog stays in `application/training/feature_catalog/`, because the training image and the scoring Bento package it from there; generated schema files go into the Feast and Flink contexts ([E2 Feature parity](../02-product/epics.md#e2-feature-engineering-with-trainingserving-parity)).
    - The OpenAPI schema is generated from the API into `contracts/openapi/`.
    - The realm exports stay with the identity manifests.
 2. **Consumers build against the current commit.** There is no internal versioning between packages in this repo (one-version rule). Versions exist where artifacts leave the repo: image digests, MLflow model versions and feature-set digests.
-3. **No secret in Git, in any environment.** Overlays reference Secret names only. `make k8s-secrets` creates them from local environment variables. External Secrets or Sealed Secrets is a follow-up, recorded in the risk acceptance (E9).
-4. **Build once, promote digests.** Images are tagged with the git SHA. An overlay change that pins new digests is the release (E16).
+3. **No secret in Git, in any environment.** Overlays reference Secret names only. `make k8s-secrets` creates them from local environment variables. External Secrets or Sealed Secrets is a follow-up, recorded in the risk acceptance ([E9 Security baseline](../02-product/epics.md#e9-security-baseline)).
+4. **Build once, promote digests.** Images are tagged with the git SHA. An overlay change that pins new digests is the release ([E16 UAT and release](../02-product/epics.md#e16-uat-and-release-readiness)).
 5. **Ownership by path.** `.github/CODEOWNERS` maps paths to the role that reviews them (data engineering: `platform/data/`, `application/flink/`; data science: `application/training/`, `notebook/`; platform: `platform/`, `portals/`; risk: `application/authz/`, decision policy). Today one person holds every role, so the file documents intent and enables required reviews once there is a team.
 
 ## Alternatives Considered

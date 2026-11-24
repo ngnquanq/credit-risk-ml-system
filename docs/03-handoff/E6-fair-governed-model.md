@@ -2,7 +2,7 @@
 
 | Epic | Outcome / KPI | Baseline → target | Size | Depends on |
 |---|---|---|---|---|
-| [E6](../02-product/epics.md#e6-fair-governed-credit-model) | O3 risk quality; O4 fair lending; O6 safe model change | Gender is a model input; three training paths with different features; no fairness evidence, model card or lineage → no protected inputs, one recipe, `dir_gender` and a model card per version, gate on AUC regression | M | E2 (catalog) |
+| [E6 Governed model](../02-product/epics.md#e6-fair-governed-credit-model) | [O3](../01-business/business-outcomes.md#o3-we-lend-to-good-risks-and-decline-bad-ones) risk quality; [O4](../01-business/business-outcomes.md#o4-lending-is-fair) fair lending; [O6](../01-business/business-outcomes.md#o6-model-and-platform-changes-ship-safely) safe model change | Gender is a model input; three training paths with different features; no fairness evidence, model card or lineage → no protected inputs, one recipe, `dir_gender` and a model card per version, gate on AUC regression | M | [E2 Feature parity](../02-product/epics.md#e2-feature-engineering-with-trainingserving-parity) (catalog) |
 
 ## 1. Why
 
@@ -22,7 +22,7 @@
 - **Retrain and promote** the first gender-free model.
 
 **Out**
-- SHAP reason codes per decision (follow-up to E5).
+- SHAP reason codes per decision (follow-up to [E5 Decision delivery](../02-product/epics.md#e5-decision-delivery-and-status-tracking)).
 - Automated scheduled retraining.
 
 ## 3. Today
@@ -158,11 +158,11 @@ Builder SQL: `mart_application` ⋈ `mart_application_train` ⋈ `external_score
 |---|---|
 | tags | `git_commit`, `data_snapshot_id`, `feature_set_sha256`, `dir_gender`, `fairness_review_required` |
 | artifacts | `model/`, `feast_metadata.yaml` (with `feature_set_sha256`), `model_card.md`, `threshold_policy.md`, `evaluation.json` |
-| input example | synthetic row (E9) |
+| input example | synthetic row ([E9 Security baseline](../02-product/epics.md#e9-security-baseline)) |
 
 **`model_card.md` sections:** intended use and out-of-scope uses; training data (snapshot id, rows, default rate); features (count, groups, protected excluded); performance overall and by gender; calibration; threshold and bands (link to the policy); known limitations; versions.
 
-**`threshold_policy.md`:** cost assumptions (loss given default vs. lost margin), expected loss as a function of the threshold, the chosen review band (E5: 0.25–0.35) and its justification.
+**`threshold_policy.md`:** cost assumptions (loss given default vs. lost margin), expected loss as a function of the threshold, the chosen review band ([E5 Decision delivery](../02-product/epics.md#e5-decision-delivery-and-status-tracking): 0.25–0.35) and its justification.
 
 ## 6. Change list
 
@@ -201,11 +201,11 @@ Builder SQL: `mart_application` ⋈ `mart_application_train` ⋈ `external_score
 1. Export the snapshot.
 2. Retrain.
 3. Review the model card; check `fairness_review_required`.
-4. Promote in MLflow. E7 deploys it.
+4. Promote in MLflow. [E7](../02-product/epics.md#e7-automated-traceable-model-promotion) deploys it.
 
 Rollback: promote the previous version again. The watcher redeploys it.
 
-Signal: the scoring health endpoint shows the new version; decision events carry `model_version` (E5).
+Signal: the scoring health endpoint shows the new version; decision events carry `model_version` ([E5 Decision delivery](../02-product/epics.md#e5-decision-delivery-and-status-tracking)).
 
 ## 10. Risks and open questions
 

@@ -2,11 +2,11 @@
 
 | Epic | Outcome / KPI | Baseline → target | Size | Depends on |
 |---|---|---|---|---|
-| [E3](../02-product/epics.md#e3-exactly-once-application-readiness) | O1 fast decision; O5 no silent loss | Up to 3 readiness events per application, silent drop when a group is missing → exactly 1 readiness **or** 1 timeout per application | M | none |
+| [E3 Exactly-once readiness](../02-product/epics.md#e3-exactly-once-application-readiness) | [O1](../01-business/business-outcomes.md#o1-applicants-get-an-answer-fast) fast decision; [O5](../01-business/business-outcomes.md#o5-the-platform-scales-and-survives-failures) no silent loss | Up to 3 readiness events per application, silent drop when a group is missing → exactly 1 readiness **or** 1 timeout per application | M | none |
 
 ## 1. Why
 
-The Feast materialiser decides an application is complete when a Redis set reaches 3 members. The check runs on **every** write, so any later or duplicate write fires `hc.feature_ready` again, and the application is scored again (F-03). If a group never arrives, the set expires after 300 s and nothing happens: no decision, no alert (F-15). E5 (decision delivery) is unsafe until this is fixed.
+The Feast materialiser decides an application is complete when a Redis set reaches 3 members. The check runs on **every** write, so any later or duplicate write fires `hc.feature_ready` again, and the application is scored again (F-03). If a group never arrives, the set expires after 300 s and nothing happens: no decision, no alert (F-15). [E5 Decision delivery](../02-product/epics.md#e5-decision-delivery-and-status-tracking) (decision delivery) is unsafe until this is fixed.
 
 ## 2. Scope
 
@@ -17,8 +17,8 @@ The Feast materialiser decides an application is complete when a Redis set reach
 - Tests against Redis with real Lua (fakeredis with Lua, or a Redis container).
 
 **Out**
-- Making Feast consumers at-least-once (manual commit, bounded buffers): E8.
-- Removing the API's dual write: E1/E9 work. That only removes the source of duplicates; this epic makes duplicates harmless.
+- Making Feast consumers at-least-once (manual commit, bounded buffers): [E8 Reliable ops](../02-product/epics.md#e8-reliable-delivery-and-operations).
+- Removing the API's dual write: [E1 Intake](../02-product/epics.md#e1-application-intake-and-document-capture)/E9 work. That only removes the source of duplicates; this epic makes duplicates harmless.
 
 ## 3. Today
 
@@ -209,6 +209,6 @@ Signals: counters `readiness_ready_total`, `readiness_duplicate_total`, `readine
 
 | Item | Note |
 |---|---|
-| Timeout value | 300 s is today's TTL. O1 targets 15 s p95, so 300 s only catches failures, not slowness |
+| Timeout value | 300 s is today's TTL. [O1](../01-business/business-outcomes.md#o1-applicants-get-an-answer-fast) targets 15 s p95, so 300 s only catches failures, not slowness |
 | fakeredis Lua fidelity | Run AC5 against a real Redis container at least once before merging |
-| Late groups after timeout | Data lands in the online store but no rescoring happens; a reviewer handles it (E5) |
+| Late groups after timeout | Data lands in the online store but no rescoring happens; a reviewer handles it ([E5 Decision delivery](../02-product/epics.md#e5-decision-delivery-and-status-tracking)) |

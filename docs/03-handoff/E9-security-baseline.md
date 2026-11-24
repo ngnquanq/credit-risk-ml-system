@@ -2,9 +2,9 @@
 
 | Epic | Outcome / KPI | Baseline → target | Size | Depends on |
 |---|---|---|---|---|
-| [E9](../02-product/epics.md#e9-security-baseline) | O7 protect applicant data | Write endpoints are unauthenticated; credentials were committed; MLflow stores a real applicant row → API key on every `/api/v1` route, no tracked secrets, synthetic `input_example`, gitleaks before every commit | S | none |
+| [E9 Security baseline](../02-product/epics.md#e9-security-baseline) | [O7](../01-business/business-outcomes.md#o7-applicant-data-is-protected) protect applicant data | Write endpoints are unauthenticated; credentials were committed; MLflow stores a real applicant row → API key on every `/api/v1` route, no tracked secrets, synthetic `input_example`, gitleaks before every commit | S | none |
 
-> **Scope change (2026-11-22).** People now sign in through Keycloak ([E11](E11-identity-access.md)): staff with MFA and applicants with a verified account. The API key in this package is the **interim** guard until E11 ships, and afterwards protects only the load-test client. The rest of E9 (CORS, secrets hygiene, synthetic `input_example`, gitleaks, risk acceptance) stands as written. Security testing before release is in [E16](E16-uat-release.md) and the [threat model](../security/threat-model.md).
+> **Scope change (2026-11-22).** People now sign in through Keycloak ([E11](E11-identity-access.md)): staff with MFA and applicants with a verified account. The API key in this package is the **interim** guard until [E11](../02-product/epics.md#e11-identity-and-access) ships, and afterwards protects only the load-test client. The rest of [E9 Security baseline](../02-product/epics.md#e9-security-baseline) (CORS, secrets hygiene, synthetic `input_example`, gitleaks, risk acceptance) stands as written. Security testing before release is in [E16](E16-uat-release.md) and the [threat model](../security/threat-model.md).
 
 ## 1. Why
 
@@ -21,7 +21,7 @@ Anyone who can reach the ingress can submit applications, request presigned uplo
 - `docs/security/risk-acceptance.md`: Kafka PLAINTEXT inside the cluster, Kubernetes Secrets instead of Vault, and rotation of the historic credentials.
 
 **Out**
-- Per-user authentication (E11), rate limiting (E12), TLS inside the cluster, rewriting git history. NetworkPolicies are a release gate ([checklist 3.9](../release/checklist.md#3-security)).
+- Per-user authentication ([E11 Identity and access](../02-product/epics.md#e11-identity-and-access)), rate limiting ([E12](../02-product/epics.md#e12-staff-and-applicant-portals)), TLS inside the cluster, rewriting git history. NetworkPolicies are a release gate ([checklist 3.9](../release/checklist.md#3-security)).
 
 ## 3. Today
 

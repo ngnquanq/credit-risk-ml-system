@@ -2,7 +2,7 @@
 
 | Epic | Outcome / KPI | Baseline → target | Size | Depends on |
 |---|---|---|---|---|
-| [E5](../02-product/epics.md#e5-decision-delivery-and-status-tracking) | O1 fast decision; O2 consistent, explainable | No decision is ever stored or returned → p95 ≤ 15 s to a readable status; 100% of decisions stored with versions and reasons | M | E3 (exactly-once readiness), otherwise one application gets several decisions |
+| [E5 Decision delivery](../02-product/epics.md#e5-decision-delivery-and-status-tracking) | [O1](../01-business/business-outcomes.md#o1-applicants-get-an-answer-fast) fast decision; [O2](../01-business/business-outcomes.md#o2-every-application-ends-in-a-clear-decision) consistent, explainable | No decision is ever stored or returned → p95 ≤ 15 s to a readable status; 100% of decisions stored with versions and reasons | M | [E3 Exactly-once readiness](../02-product/epics.md#e3-exactly-once-application-readiness) (exactly-once readiness), otherwise one application gets several decisions |
 
 ## 1. Why
 
@@ -15,13 +15,13 @@ The pipeline scores applications and publishes the result to `hc.scoring`, but n
 **In**
 - A **decision policy** module in the scoring service: three bands with configurable boundaries and reason codes. It replaces `pipeline.postprocess`.
 - A richer **decision event** on `hc.scoring` (band, reasons, versions, event id).
-- A **decision recorder** consumer that writes one `application_status_log` row per decision, idempotently. It also writes `manual_review` rows for `hc.feature_timeout` events (from E3).
+- A **decision recorder** consumer that writes one `application_status_log` row per decision, idempotently. It also writes `manual_review` rows for `hc.feature_timeout` events (from [E3 Exactly-once readiness](../02-product/epics.md#e3-exactly-once-application-readiness)).
 - `GET /api/v1/applications/{id}/status` returns the latest decision with its reason. New `GET /api/v1/review-queue` lists applications in `manual_review`.
 
 **Out**
 - Reviewer UI and reviewer actions (approve or reject from the queue). Next increment.
 - Notifications (email, SMS, webhooks).
-- Pre-screening rules (E10).
+- Pre-screening rules ([E10 Pre-screening](../02-product/epics.md#e10-pre-screening-business-rules)).
 
 ## 3. Today
 
@@ -109,7 +109,7 @@ classDiagram
     DecisionRecorder ..> RecordResult : returns
 ```
 
-The `StatusLogWriter` seam has two adapters (Postgres in production, in-memory in unit tests), so it is a real seam. The Kafka loop around `DecisionRecorder.handle` is thin. It reuses the consumer harness from E8 when that lands; until then it follows the manual-commit pattern below.
+The `StatusLogWriter` seam has two adapters (Postgres in production, in-memory in unit tests), so it is a real seam. The Kafka loop around `DecisionRecorder.handle` is thin. It reuses the consumer harness from [E8 Reliable ops](../02-product/epics.md#e8-reliable-delivery-and-operations) when that lands; until then it follows the manual-commit pattern below.
 
 ### 4.3 Behaviour
 
@@ -178,7 +178,7 @@ Constraint, checked at startup: `0 < approve_below ≤ reject_above < 1`. Both b
 | REJECT | `rejected` | `["score_band"]` |
 | UNDER_REVIEW | `manual_review` | `["score_band"]` |
 | no online features | `manual_review` | `["feature_data_unavailable"]` |
-| readiness timeout (E3) | `manual_review` | `["features_incomplete"]` |
+| readiness timeout ([E3 Exactly-once readiness](../02-product/epics.md#e3-exactly-once-application-readiness)) | `manual_review` | `["features_incomplete"]` |
 
 **Decision event on `hc.scoring`** (JSON body; replaces today's shape, additive except `decision`)
 
@@ -268,6 +268,6 @@ Signals: recorder lag on `hc.scoring` (Kafka UI or Prometheus), count of DUPLICA
 
 | Item | Owner | Note |
 |---|---|---|
-| Review band 0.25–0.35 is a proposal | credit risk owner | Set from the cost matrix (E6 threshold document) |
-| Duplicate scoring before E3 ships | dev | Idempotency on `event_id` does not help when two *different* scoring calls happen; E3 must land first |
+| Review band 0.25–0.35 is a proposal | credit risk owner | Set from the cost matrix ([E6](../02-product/epics.md#e6-fair-governed-credit-model) threshold document) |
+| Duplicate scoring before [E3](../02-product/epics.md#e3-exactly-once-application-readiness) ships | dev | Idempotency on `event_id` does not help when two *different* scoring calls happen; [E3 Exactly-once readiness](../02-product/epics.md#e3-exactly-once-application-readiness) must land first |
 | Reason codes are coarse (`score_band`) | data scientist | Top SHAP contributors as reasons is a follow-up |
