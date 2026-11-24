@@ -30,8 +30,15 @@ The commands live in the root [`Makefile`](../Makefile) today (`make help`). Eac
 
 ## Configuration
 
-Config (addresses, per-environment values) and secrets are kept apart. Addresses of other services are defined once in `platform/config/endpoints/endpoints.env` and reach pods through the `shared-endpoints` ConfigMap. Secrets are Kubernetes Secrets created outside git.
+Config and secrets are kept apart. Config that more than one service needs is defined once and reaches pods through ConfigMaps built by Kustomize components:
 
-To use an address, add the component to the service's `deploy/kustomization.yaml` (see `stream-features`), read it with `envFrom` or `valueFrom.configMapKeyRef`, and apply with `kubectl apply -k`. A unit test fails when a manifest writes a shared address out again.
+| What | Defined in | Read as |
+|---|---|---|
+| Addresses of other services | `platform/config/endpoints/endpoints.env` | `shared-endpoints` |
+| Public host names (per environment) | `platform/config/public-hosts/hosts.env` | `public-hosts` |
+| Kafka topic names | `contracts/topics/topics.env` | `shared-topics` |
+| Image tags | `platform/config/images/kustomization.yaml` | applied by Kustomize |
 
-Full details, the table of every Secret, and the places that still pass a secret through a ConfigMap: [`docs/security/configuration-and-secrets.md`](../docs/security/configuration-and-secrets.md).
+To use one, add the component to the service's `deploy/kustomization.yaml` (see `stream-features`), read it with `envFrom`, `valueFrom.configMapKeyRef` or a `replacement`, and apply with `kubectl apply -k`. Unit tests in `tests/unit/infra` fail when a manifest writes one of these values out again. Secrets are Kubernetes Secrets created outside git.
+
+Details, the table of every Secret, and the places that still pass a secret through a ConfigMap: [`docs/security/configuration-and-secrets.md`](../docs/security/configuration-and-secrets.md).
