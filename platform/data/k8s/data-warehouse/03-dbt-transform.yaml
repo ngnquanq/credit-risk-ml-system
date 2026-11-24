@@ -25,7 +25,8 @@ spec:
           args: ["run", "--project-dir", ".", "--profiles-dir", ".", "--target", "gold"]
           env:
             - name: DBT_CLICKHOUSE_HOST
-              value: "clickhouse-server.data-services.svc.cluster.local"
+              valueFrom:
+                configMapKeyRef: {name: shared-endpoints, key: CLICKHOUSE_HOST}
           resources:
             requests:
               memory: 256Mi

@@ -1,0 +1,11 @@
+# Every namespace that reads shared-endpoints, in one apply: kubectl apply -k platform/config/namespaces
+# (kubectl creates the namespaces first with `make k8s-shared-config`.)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - data-services
+  - api-gateway
+  - feature-registry
+  - model-registry
+  - model-serving
+  - kserve

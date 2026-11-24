@@ -35,9 +35,11 @@ spec:
             - name: KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME
               value: "debezium"
             - name: KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS
-              value: "http://debezium-connect.data-services.svc.cluster.local:8083"
+              valueFrom:
+                configMapKeyRef: {name: shared-endpoints, key: DEBEZIUM_CONNECT_URL}
             - name: KAFKA_CLUSTERS_0_SCHEMAREGISTRY
-              value: "http://schema-registry.data-services.svc.cluster.local:8081"
+              valueFrom:
+                configMapKeyRef: {name: shared-endpoints, key: SCHEMA_REGISTRY_URL}
           resources:
             requests:
               memory: 128Mi

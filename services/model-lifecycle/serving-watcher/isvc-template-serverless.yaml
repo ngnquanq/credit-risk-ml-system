@@ -42,7 +42,7 @@ spec:
           - name: SCORING_FEAST_ENABLED
             value: "true"
           - name: SCORING_FEAST_REDIS_URL
-            value: feast-redis.feature-registry.svc.cluster.local:6379
+            value: ${FEAST_REDIS_HOST}:6379
           - name: SCORING_FEAST_REGISTRY_URI
             value: s3://feast-registry/feature_repo/registry.db
           - name: SCORING_FEAST_PROJECT
@@ -54,9 +54,9 @@ spec:
 
           # AWS/MinIO configuration (UNCHANGED)
           - name: FEAST_S3_ENDPOINT_URL
-            value: http://serving-minio.model-serving.svc.cluster.local:9000
+            value: ${SERVING_MINIO_URL}
           - name: AWS_S3_ENDPOINT
-            value: http://serving-minio.model-serving.svc.cluster.local:9000
+            value: ${SERVING_MINIO_URL}
           - name: AWS_ACCESS_KEY_ID
             valueFrom:
               secretKeyRef:

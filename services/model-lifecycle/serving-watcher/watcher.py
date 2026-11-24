@@ -315,7 +315,10 @@ def create_or_update_inferenceservice(version: str) -> bool:
             SERVICE_NAME=service_name,
             NAMESPACE=KSERVE_NAMESPACE,
             VERSION=version,
-            IMAGE_URI=image_uri
+            IMAGE_URI=image_uri,
+            # Addresses of other services come from the shared-endpoints ConfigMap
+            SERVING_MINIO_URL=os.environ["SERVING_MINIO_URL"],
+            FEAST_REDIS_HOST=os.environ["FEAST_REDIS_HOST"],
         )
 
         # Parse YAML to dictionary

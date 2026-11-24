@@ -21,7 +21,8 @@ spec:
             - name: KAFKA_BOOTSTRAP_SERVERS
               valueFrom: {configMapKeyRef: {name: shared-endpoints, key: KAFKA_BOOTSTRAP_SERVERS}}
             - {name: CONSUMER_GROUP_ID, value: decision-recorder}
-            - {name: OPS_DB_HOST, value: "ops-postgres.data-services.svc.cluster.local"}
+            - name: OPS_DB_HOST
+              valueFrom: {configMapKeyRef: {name: shared-endpoints, key: OPS_DB_HOST}}
             - {name: OPS_DB_NAME, value: operations}
             - {name: OPS_DB_USER, value: ops_admin}
             - name: OPS_DB_PASSWORD

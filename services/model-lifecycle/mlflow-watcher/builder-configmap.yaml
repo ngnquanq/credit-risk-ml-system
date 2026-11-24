@@ -20,7 +20,7 @@ data:
             imagePullPolicy: IfNotPresent
             env:
             - name: MLFLOW_TRACKING_URI
-              value: http://mlflow.model-registry.svc.cluster.local:80
+              value: ${MLFLOW_TRACKING_URI}
             - name: MODEL_NAME
               value: credit_risk_model
             # The poller sets per-run values below:
@@ -41,7 +41,7 @@ data:
             - name: AWS_REGION
               value: us-east-1
             - name: AWS_S3_ENDPOINT
-              value: http://serving-minio.model-serving.svc.cluster.local:9000
+              value: ${SERVING_MINIO_URL}
             - name: AWS_ACCESS_KEY_ID
               value: <set-via-MINIO_ACCESS_KEY>
             - name: AWS_SECRET_ACCESS_KEY
@@ -67,12 +67,12 @@ data:
       appRepo: https://github.com/ngnquanq/credit-risk-ml-system.git
       appRef: feature/the-grand-migration
       appSubpath: services/scoring
-      mlflowTrackingUri: http://mlflow.model-registry.svc.cluster.local:80
+      mlflowTrackingUri: ${MLFLOW_TRACKING_URI}
       modelName: credit_risk_model
       bucket: bentoml-bundles
       prefix: bentos
       s3:
-        endpoint: http://serving-minio.model-serving.svc.cluster.local:9000
+        endpoint: ${SERVING_MINIO_URL}
         region: us-east-1
         accessKeyId: <set-via-MINIO_ACCESS_KEY>
         secretAccessKey: <set-via-MINIO_SECRET_KEY>
@@ -81,7 +81,7 @@ data:
       env:
         SCORING_MODEL_SOURCE: local
         SCORING_MODEL_PATH: bundle/model.joblib
-        AWS_S3_ENDPOINT: http://serving-minio.model-serving.svc.cluster.local:9000
+        AWS_S3_ENDPOINT: ${SERVING_MINIO_URL}
         AWS_REGION: us-east-1
         AWS_S3_FORCE_PATH_STYLE: "true"
         AWS_ACCESS_KEY_ID: <set-via-MINIO_ACCESS_KEY>

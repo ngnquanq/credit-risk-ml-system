@@ -30,12 +30,8 @@ The commands live in the root [`Makefile`](../Makefile) today (`make help`). Eac
 
 ## Configuration
 
-Three kinds, kept apart:
+Config (addresses, per-environment values) and secrets are kept apart. Addresses of other services are defined once in `platform/config/endpoints/endpoints.env` and reach pods through the `shared-endpoints` ConfigMap. Secrets are Kubernetes Secrets created outside git.
 
-| Kind | Where it lives | Example |
-|---|---|---|
-| Where services find each other (public) | `platform/config/endpoints/endpoints.env`, turned into the `shared-endpoints` ConfigMap by a Kustomize component | `KAFKA_BOOTSTRAP_SERVERS` |
-| Differs per environment | an overlay in `platform/environments/<env>` | replicas, hosts, image digests |
-| Secret | a Kubernetes Secret created outside git (`make k8s-secrets`), later an external secret store | passwords, keys |
+To use an address, add the component to the service's `deploy/kustomization.yaml` (see `stream-features`), read it with `envFrom` or `valueFrom.configMapKeyRef`, and apply with `kubectl apply -k`. A unit test fails when a manifest writes a shared address out again.
 
-To use the shared addresses, add the component to the service's `deploy/kustomization.yaml` (see `stream-features`), read them with `envFrom` or `valueFrom.configMapKeyRef`, and apply with `kubectl apply -k`. A unit test fails when a manifest writes the Kafka address out again; manifests not converted yet are listed in `tests/unit/infra/test_endpoints_single_source.py`.
+Full details, the table of every Secret, and the places that still pass a secret through a ConfigMap: [`docs/security/configuration-and-secrets.md`](../docs/security/configuration-and-secrets.md).

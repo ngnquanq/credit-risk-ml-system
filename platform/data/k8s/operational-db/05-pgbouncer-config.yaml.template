@@ -11,7 +11,7 @@ data:
     ;; Sits in front of ops-postgres to multiplex connections for load tests
 
     [databases]
-    operations = host=ops-postgres.data-services.svc.cluster.local port=5432 dbname=operations user=ops_admin password=<set-via-OPS_DB_PASSWORD>
+    operations = host=<set-via-OPS_DB_HOST> port=5432 dbname=operations user=ops_admin password=<set-via-OPS_DB_PASSWORD>
 
     [pgbouncer]
     ;; Network configuration

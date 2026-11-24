@@ -74,9 +74,17 @@ spec:
         - name: AWS_DEFAULT_REGION
           value: us-east-1
         - name: AWS_S3_ENDPOINT
-          value: http://serving-minio.model-serving.svc.cluster.local:9000
+          valueFrom:
+            configMapKeyRef: {name: shared-endpoints, key: SERVING_MINIO_URL}
         - name: FEAST_S3_ENDPOINT_URL
-          value: http://serving-minio.model-serving.svc.cluster.local:9000
+          valueFrom:
+            configMapKeyRef: {name: shared-endpoints, key: SERVING_MINIO_URL}
+        - name: APP_CLICKHOUSE_HOST
+          valueFrom:
+            configMapKeyRef: {name: shared-endpoints, key: CLICKHOUSE_HOST}
+        - name: FEAST_REDIS_COORD_HOST
+          valueFrom:
+            configMapKeyRef: {name: shared-endpoints, key: FEAST_REDIS_HOST}
         volumeMounts:
         - name: feast-store-config
           mountPath: /work/feature_store.yaml

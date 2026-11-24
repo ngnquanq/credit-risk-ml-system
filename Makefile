@@ -16,7 +16,9 @@ K8S_CONTEXT ?= $(MINIKUBE_PROFILE)
 
 PYTHON := python
 # Where services find each other: one definition (platform/config/endpoints)
-KAFKA_BOOTSTRAP_SERVERS := $(shell sed -n 's/^KAFKA_BOOTSTRAP_SERVERS=//p' platform/config/endpoints/endpoints.env)
+endpoint = $(shell sed -n 's/^$(1)=//p' platform/config/endpoints/endpoints.env)
+KAFKA_BOOTSTRAP_SERVERS := $(call endpoint,KAFKA_BOOTSTRAP_SERVERS)
+OPS_DB_HOST_ENDPOINT := $(call endpoint,OPS_DB_HOST)
 
 # create-network: ## Create the platform network
 # 	docker network create $(NETWORK_NAME) || true
@@ -182,6 +184,10 @@ k8s-identity: k8s-identity-secrets ## Deploy Keycloak with the staff and custome
 	kubectl apply -f platform/core/k8s/identity/02-keycloak.yaml
 	kubectl rollout status statefulset/keycloak -n identity --timeout=300s
 
+k8s-shared-config: ## Create the shared-endpoints ConfigMap in every namespace that reads it (public addresses only)
+	for ns in data-services api-gateway feature-registry model-registry model-serving kserve; do kubectl create ns $$ns --dry-run=client -o yaml | kubectl apply -f -; done
+	kubectl apply -k platform/config/namespaces
+
 k8s-core: build-dbt ## Deploy Core Infrastructure (Postgres + API + Ingress) to K8s
 	@echo "Deploying Core Platform..."
 	kubectl create ns api-gateway || true
@@ -220,10 +226,11 @@ k8s-kafka-topics: ## Ensure required Kafka topics are created
 k8s-streaming: build-flink k8s-kafka-topics ## Deploy Streaming Infrastructure (Flink + Query Services)
 	@echo "Deploying Streaming Infrastructure..."
 	kubectl apply -k services/stream-features/deploy/
-	kubectl apply -k services/loan-api/deploy/api/
-	kubectl apply -k services/loan-api/deploy/decision-recorder/
+	@$(MAKE) k8s-shared-config
 	kubectl apply -k platform/data/k8s/query-services/
 	@echo "✅ Streaming Infrastructure deployed."
+	kubectl apply -k services/loan-api/deploy/api/
+	kubectl apply -k services/loan-api/deploy/decision-recorder/
 	@echo "  API: http://$$(minikube -p $(MINIKUBE_PROFILE) ip)/api/docs"
 	@echo "  DB: ops-postgres.data-services.svc.cluster.local:5432"
 
@@ -361,7 +368,7 @@ k8s-knative-kafka: ## Install Knative Kafka Source/Sink v1.13.6 (from vendored m
 
 k8s-knative-stack: k8s-knative-serving k8s-knative-eventing k8s-knative-kafka ## Install complete Knative stack
 	@echo "Applying Knative configuration..."
-	kubectl apply -f platform/ml/k8s/knative/serving-config.yaml
+	sed 's#<set-via-KAFKA_BOOTSTRAP_SERVERS>#$(KAFKA_BOOTSTRAP_SERVERS)#' platform/ml/k8s/knative/serving-config.yaml | kubectl apply -f -
 	@echo "✅ Knative stack installed (Serving + Eventing + Kafka)"
 
 k8s-scoring-pipeline: ## Deploy scoring event pipeline (Sequence + KafkaSource + KafkaSinks)
@@ -438,6 +445,7 @@ k8s-model-serving: ## Deploy model serving components (bundle storage + serving 
 	kubectl create ns model-serving || true
 	kubectl create secret generic model-serving-minio-credentials -n model-serving --from-literal=AWS_ACCESS_KEY_ID="$(MINIO_ACCESS_KEY)" --from-literal=AWS_SECRET_ACCESS_KEY="$(MINIO_SECRET_KEY)" --dry-run=client -o yaml | kubectl apply -f -
 	@echo "Creating DockerHub credentials secret..."
+	@$(MAKE) k8s-shared-config
 	kubectl create secret generic dockerhub-creds \
 		--from-literal=username=$(DOCKERHUB_USERNAME) \
 		--from-literal=password=$(DOCKERHUB_PASSWORD) \
@@ -452,6 +460,7 @@ k8s-model-serving: ## Deploy model serving components (bundle storage + serving 
 	kubectl rollout restart -n model-serving deployment/serving-watcher
 	@echo "Model serving deployed (namespace: model-serving)"
 
+	@$(MAKE) k8s-shared-config
 k8s-sync-watcher-config: ## Sync serving-watcher ConfigMap from source files (use after editing watcher.py or isvc templates)
 	kubectl create configmap serving-watcher -n model-serving \
 		--from-file=services/model-lifecycle/serving-watcher/watcher.py \
@@ -489,7 +498,7 @@ k8s-monitoring: ## Deploy Prometheus + Grafana monitoring stack
 k8s-pgbouncer: ## Deploy PgBouncer connection pooler in front of ops-postgres
 	@test -n "$(OPS_DB_PASSWORD)" || (echo "OPS_DB_PASSWORD is required. Copy .env.example to .env or export it." && exit 2)
 	@echo "Deploying PgBouncer..."
-	OPS_DB_PASSWORD="$(OPS_DB_PASSWORD)" python -c 'import hashlib, os, pathlib; password = os.environ["OPS_DB_PASSWORD"]; digest = "md5" + hashlib.md5((password + "ops_admin").encode()).hexdigest(); template = pathlib.Path("platform/data/k8s/operational-db/05-pgbouncer-config.yaml.template").read_text(); print(template.replace("<set-via-OPS_DB_PASSWORD>", password).replace("<set-via-OPS_DB_PASSWORD_MD5>", digest))' | kubectl apply -f -
+	OPS_DB_PASSWORD="$(OPS_DB_PASSWORD)" OPS_DB_HOST_ENDPOINT="$(OPS_DB_HOST_ENDPOINT)" python -c 'import hashlib, os, pathlib; password = os.environ["OPS_DB_PASSWORD"]; digest = "md5" + hashlib.md5((password + "ops_admin").encode()).hexdigest(); template = pathlib.Path("platform/data/k8s/operational-db/05-pgbouncer-config.yaml.template").read_text(); print(template.replace("<set-via-OPS_DB_PASSWORD>", password).replace("<set-via-OPS_DB_PASSWORD_MD5>", digest).replace("<set-via-OPS_DB_HOST>", os.environ["OPS_DB_HOST_ENDPOINT"]))' | kubectl apply -f -
 	kubectl apply -f platform/data/k8s/operational-db/06-pgbouncer.yaml
 	@echo "Waiting for PgBouncer to be ready..."
 	kubectl rollout status deployment/ops-pgbouncer -n data-services --timeout=120s

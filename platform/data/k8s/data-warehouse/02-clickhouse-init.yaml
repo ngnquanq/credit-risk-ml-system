@@ -129,7 +129,7 @@ data:
     #!/bin/bash
     set -e
 
-    CH_HOST="clickhouse-server.data-services.svc.cluster.local"
+    CH_HOST="${CLICKHOUSE_HOST:?CLICKHOUSE_HOST comes from the shared-endpoints ConfigMap}"
     DATA_DIR="/data"
     FORMAT="CSVWithNames"
     FLAGS="--date_time_input_format=best_effort --input_format_csv_empty_as_default=1"
@@ -246,16 +246,20 @@ spec:
       containers:
         - name: init-schema
           image: clickhouse/clickhouse-server:25.6-alpine
+          env:
+            - name: CLICKHOUSE_HOST
+              valueFrom:
+                configMapKeyRef: {name: shared-endpoints, key: CLICKHOUSE_HOST}
           command:
             - /bin/bash
             - -c
             - |
               echo "Waiting for ClickHouse server..."
-              until clickhouse-client --host clickhouse-server.data-services.svc.cluster.local --query "SELECT 1" >/dev/null 2>&1; do
+              until clickhouse-client --host "$CLICKHOUSE_HOST" --query "SELECT 1" >/dev/null 2>&1; do
                 sleep 3
               done
               echo "Running schema init..."
-              clickhouse-client --host clickhouse-server.data-services.svc.cluster.local -n < /scripts/init-schema.sql
+              clickhouse-client --host "$CLICKHOUSE_HOST" -n < /scripts/init-schema.sql
               echo "✅ Schema initialization complete!"
           volumeMounts:
             - name: init-scripts
@@ -285,6 +289,10 @@ spec:
       containers:
         - name: load-data
           image: clickhouse/clickhouse-server:25.6-alpine
+          env:
+            - name: CLICKHOUSE_HOST
+              valueFrom:
+                configMapKeyRef: {name: shared-endpoints, key: CLICKHOUSE_HOST}
           command: ["/bin/bash", "/scripts/load-data.sh"]
           volumeMounts:
             - name: init-scripts

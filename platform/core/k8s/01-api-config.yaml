@@ -5,7 +5,6 @@ metadata:
   namespace: api-gateway
 data:
   # DB Connection (Cross-Namespace)
-  OPS_DB_HOST: "ops-postgres.data-services.svc.cluster.local"
   OPS_DB_PORT: "5432"
   OPS_DB_NAME: "operations"
   OPS_DB_USER: "ops_admin"
@@ -16,10 +15,7 @@ data:
   DEBUG: "false"
   LOG_LEVEL: "INFO"
   
-  # Platform Services (Assuming namespace 'data-services' or 'data-platform' - check Makefile or existing)
-  # Makefile deployed MinIO to 'training-data' namespace for training, but API uses 'data-minio-server'.
-  # I'll assume 'data-services' for now, user can correct.
-  MINIO_ENDPOINT: "data-minio-server.data-services.svc.cluster.local:9000"
+  # Addresses of other services (OPS_DB_HOST, MINIO_ENDPOINT, Kafka) come from the shared-endpoints ConfigMap.
   MINIO_BUCKET: "loan-documents"
   
   # Kafka 

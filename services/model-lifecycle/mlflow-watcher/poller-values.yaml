@@ -4,7 +4,7 @@ metadata:
   name: mlflow-watcher-poller-env
 data:
   # Edit these to configure the poller without touching the Deployment
-  MLFLOW_TRACKING_URI: http://mlflow.model-registry.svc.cluster.local:80
+  # MLFLOW_TRACKING_URI comes from the shared-endpoints ConfigMap (platform/config/endpoints)
   MODEL_NAME: credit_risk_model
   POLL_INTERVAL_SECS: "10"
   REQUIRED_STAGE: Production

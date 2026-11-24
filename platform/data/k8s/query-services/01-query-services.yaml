@@ -34,7 +34,8 @@ spec:
         - name: CONSUMER_GROUP_ID
           value: "bureau-consumer-group"
         - name: APP_CLICKHOUSE_HOST
-          value: "clickhouse-server.data-services.svc.cluster.local"
+          valueFrom:
+            configMapKeyRef: {name: shared-endpoints, key: CLICKHOUSE_HOST}
         - name: APP_CLICKHOUSE_PORT
           value: "8123"
         - name: APP_CLICKHOUSE_USER
@@ -86,7 +87,8 @@ spec:
         - name: CONSUMER_GROUP_ID
           value: "feature-consumer-group"
         - name: APP_CLICKHOUSE_HOST
-          value: "clickhouse-server.data-services.svc.cluster.local"
+          valueFrom:
+            configMapKeyRef: {name: shared-endpoints, key: CLICKHOUSE_HOST}
         - name: APP_CLICKHOUSE_PORT
           value: "8123"
         - name: APP_CLICKHOUSE_USER

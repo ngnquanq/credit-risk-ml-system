@@ -18,7 +18,7 @@ metadata:
   name: config-kafka
   namespace: knative-eventing
 data:
-  bootstrapServers: "kafka-broker.data-services.svc.cluster.local:9092"
+  bootstrapServers: "<set-via-KAFKA_BOOTSTRAP_SERVERS>"   # filled by make k8s-knative-stack from endpoints.env
   default.topic.replication.factor: "1"
   default.topic.partitions: "3"
 ---

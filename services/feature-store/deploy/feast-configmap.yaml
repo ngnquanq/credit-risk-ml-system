@@ -16,7 +16,6 @@ data:
   FEAST_TOPIC_DWH: "hc.application_dwh"                  # Stream 3: Data warehouse features
 
   # ClickHouse connection - in-cluster ClickHouse service
-  APP_CLICKHOUSE_HOST: "clickhouse-server.data-services.svc.cluster.local"
   APP_CLICKHOUSE_PORT: "8123"
   APP_CLICKHOUSE_DB_DWH: "application_mart"
 
@@ -37,7 +36,6 @@ data:
 
   # Redis coordination settings (for 3-source feature aggregation)
   # Using COORD prefix to avoid conflict with K8s auto-generated FEAST_REDIS_PORT env var
-  FEAST_REDIS_COORD_HOST: "feast-redis.feature-registry.svc.cluster.local"
   FEAST_REDIS_COORD_PORT: "6379"
   FEAST_COORDINATION_DB: "1"       # Use DB 1 for coordination (Feast uses DB 0)
   FEAST_COORDINATION_TTL: "3600"   # 1 hour TTL — must exceed the throughput spread between fastest (Flink/application) and slowest (ClickHouse-dependent) source pipelines

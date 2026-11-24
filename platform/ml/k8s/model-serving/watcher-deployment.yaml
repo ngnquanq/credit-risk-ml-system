@@ -34,7 +34,14 @@ spec:
         - name: DOCKER_HOST
           value: tcp://localhost:2375
         - name: MINIO_ENDPOINT
-          value: http://serving-minio.model-serving.svc.cluster.local:9000
+          valueFrom:
+            configMapKeyRef: {name: shared-endpoints, key: SERVING_MINIO_URL}
+        - name: SERVING_MINIO_URL
+          valueFrom:
+            configMapKeyRef: {name: shared-endpoints, key: SERVING_MINIO_URL}
+        - name: FEAST_REDIS_HOST
+          valueFrom:
+            configMapKeyRef: {name: shared-endpoints, key: FEAST_REDIS_HOST}
         - name: MINIO_ACCESS_KEY
           valueFrom:
             secretKeyRef:
@@ -97,10 +104,13 @@ spec:
         env:
         - name: DOCKER_TLS_CERTDIR
           value: ""
+        - name: DOCKER_REGISTRY
+          valueFrom:
+            configMapKeyRef: {name: shared-endpoints, key: DOCKER_REGISTRY}
         command: ["dockerd"]
         args:
           - "--host=tcp://0.0.0.0:2375"
-          - "--insecure-registry=docker-registry.model-serving.svc.cluster.local:5000"
+          - "--insecure-registry=$(DOCKER_REGISTRY)"
         volumeMounts:
         - name: docker-storage
           mountPath: /var/lib/docker

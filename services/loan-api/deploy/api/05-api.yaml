@@ -29,6 +29,10 @@ spec:
             name: shared-endpoints
         - secretRef:
             name: api-secrets
+        env:
+        - name: MINIO_ENDPOINT
+          valueFrom:
+            configMapKeyRef: {name: shared-endpoints, key: DATA_MINIO_ENDPOINT}
         resources:
           limits:
             memory: "512Mi"

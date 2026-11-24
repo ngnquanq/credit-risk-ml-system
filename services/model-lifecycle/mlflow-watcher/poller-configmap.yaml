@@ -10,12 +10,13 @@ data:
     from typing import List
     from mlflow.tracking import MlflowClient
     from kubernetes import client as k8s, config as k8s_config
+    import string
     import yaml
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     log = logging.getLogger("mlflow-poller")
 
-    MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow.model-registry.svc.cluster.local:80")
+    MLFLOW_TRACKING_URI = os.environ["MLFLOW_TRACKING_URI"]  # from the shared-endpoints ConfigMap
     MODEL_NAME = os.getenv("MODEL_NAME", "credit_risk_model")
     POLL_INTERVAL_SECS = int(os.getenv("POLL_INTERVAL_SECS", "10"))
     REQUIRED_STAGE = os.getenv("REQUIRED_STAGE", "Production")  # MLflow stage name
@@ -88,8 +89,10 @@ data:
         log.info("Active (top-1) production version: %s", current_version)
 
     def _load_yaml(path: str):
+        # ${NAME} in the config files is filled from this pod's environment (the shared-endpoints
+        # ConfigMap); a name that is not set is left as written.
         with open(path, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f)
+            return yaml.safe_load(string.Template(f.read()).safe_substitute(os.environ))
 
     def _set_env(env_list, name: str, value: str):
         for e in env_list:

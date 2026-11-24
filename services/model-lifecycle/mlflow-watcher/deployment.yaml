@@ -22,6 +22,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: mlflow-watcher-poller-env
+            - configMapRef:
+                name: shared-endpoints
           command: ["bash", "-lc"]
           args: ["pip install --no-cache-dir mlflow==3.4.0 kubernetes==28.1.0 pyyaml==6.0.2 && python /app/poller.py"]
           resources:
