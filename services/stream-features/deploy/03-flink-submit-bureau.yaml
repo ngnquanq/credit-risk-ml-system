@@ -20,7 +20,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: submit-bureau
-          image: flink-pyflink:latest
+          image: flink-pyflink
           imagePullPolicy: Never
           command:
             - bash

@@ -7,3 +7,4 @@ resources:
   - 03-flink-submit-bureau.yaml
 components:
   - ../../../platform/config/endpoints
+  - ../../../platform/config/images

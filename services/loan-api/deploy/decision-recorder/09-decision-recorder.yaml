@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: recorder
-          image: ngnquanq/credit-risk-consumers:dev   # pinned by digest in platform/environments/*
+          image: ngnquanq/credit-risk-consumers   # pinned by digest in platform/environments/*
           command: ["python", "entrypoints/decision_recorder.py"]
           env:
             - name: KAFKA_BOOTSTRAP_SERVERS
@@ -56,7 +56,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: verify
-              image: ngnquanq/credit-risk-consumers:dev
+              image: ngnquanq/credit-risk-consumers
               command: ["python", "-m", "audit.verify_job"]
               env:
                 - name: AUDIT_DB_DSN

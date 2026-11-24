@@ -8,3 +8,4 @@ resources:
   - 03-schema-registry.yaml
 components:
   - ../../../config/endpoints
+  - ../../../config/images

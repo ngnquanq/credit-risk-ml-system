@@ -6,3 +6,4 @@ resources:
 components:
   - ../../../../platform/config/endpoints
   - ../../../../platform/config/public-hosts
+  - ../../../../platform/config/images

@@ -1,5 +1,5 @@
 # Flink Stream Processing - Session cluster (JobManager + TaskManager)
-# Image: flink-pyflink:latest (built from services/stream-features/flink/Dockerfile)
+# Image: flink-pyflink (built from services/stream-features/flink/Dockerfile)
 #
 # IMPORTANT: Both JobManager and TaskManager use the same image with PyFlink
 # pre-installed. The submit jobs (02/03) use -pyexec to avoid uploading the
@@ -38,7 +38,7 @@ spec:
     spec:
       containers:
         - name: jobmanager
-          image: flink-pyflink:latest
+          image: flink-pyflink
           imagePullPolicy: Never
           command: ["/docker-entrypoint.sh"]
           args: ["jobmanager"]
@@ -137,7 +137,7 @@ spec:
     spec:
       containers:
         - name: taskmanager
-          image: flink-pyflink:latest
+          image: flink-pyflink
           imagePullPolicy: Never
           command: ["/docker-entrypoint.sh"]
           args: ["taskmanager"]

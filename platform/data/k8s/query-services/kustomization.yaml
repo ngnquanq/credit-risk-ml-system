@@ -7,3 +7,4 @@ resources:
   - 03-feature-hpa.yaml
 components:
   - ../../../config/endpoints
+  - ../../../config/images

@@ -39,6 +39,10 @@ The names users type (`auth.`, `apply.`, `staff.` plus the domain) are defined o
 | Ingress hosts (a field, not an env var) | `replacements` in the environment overlay. The base manifests keep the dev default, and a test checks it equals `hosts.env` |
 | Portal `allowedOrigins` (`next.config.mjs`) | `PORTAL_BASE_URL` when it is set. Whether Next.js reads it at start-up or bakes it in at build time was not verified; behind ingress-nginx it may not be needed at all |
 
+## Image tags
+
+Manifests name our images without a tag (`image: flink-pyflink`). `platform/config/images` is a Kustomize component that sets every tag in one place: `dev` for the images the Makefile builds (`IMAGE_TAG`, same value, checked by a test) and a pinned version for third-party ones such as Kafka UI. A test fails if a manifest uses `:latest`. For a release, the environment overlay replaces the tag with a digest, which is what gate 1.5 of the release checklist asks for.
+
 ## Secrets today
 
 All are created by `make` targets from environment variables (`.env`, not committed). Nothing secret is in a committed manifest.

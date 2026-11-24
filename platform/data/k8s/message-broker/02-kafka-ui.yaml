@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: kafka-ui
-          image: provectuslabs/kafka-ui:latest
+          image: provectuslabs/kafka-ui
           ports:
             - containerPort: 8080
               name: http

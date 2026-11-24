@@ -1,0 +1,11 @@
+# Component: the tag of each image that manifests name without one. Add it to a service's kustomization.
+# `dev` is the tag the Makefile builds locally (IMAGE_TAG, same value). Releases replace these with digests in the
+# environment overlay (docs/release/checklist.md, gate 1.5). Third-party images are pinned to a version here.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+images:
+  - {name: ngnquanq/credit-risk-api, newTag: dev}
+  - {name: ngnquanq/credit-risk-consumers, newTag: dev}
+  - {name: flink-pyflink, newTag: dev}
+  - {name: dbt-clickhouse, newTag: dev}
+  - {name: provectuslabs/kafka-ui, newTag: v0.7.2}

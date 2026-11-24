@@ -1,6 +1,6 @@
 # dbt Transformation Job — Silver to Gold layer
 # Runs dbt against ClickHouse to create application_mart tables
-# Image: dbt-clickhouse:latest (built from ml_data_mart/Dockerfile)
+# Image: dbt-clickhouse (built from ml_data_mart/Dockerfile)
 ---
 apiVersion: batch/v1
 kind: Job
@@ -19,7 +19,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: dbt
-          image: dbt-clickhouse:latest
+          image: dbt-clickhouse
           imagePullPolicy: IfNotPresent
           command: ["dbt"]
           args: ["run", "--project-dir", ".", "--profiles-dir", ".", "--target", "gold"]

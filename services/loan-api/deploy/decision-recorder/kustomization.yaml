@@ -5,3 +5,4 @@ resources:
   - 09-decision-recorder.yaml
 components:
   - ../../../../platform/config/endpoints
+  - ../../../../platform/config/images

@@ -20,7 +20,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: submit-pii
-          image: flink-pyflink:latest
+          image: flink-pyflink
           imagePullPolicy: Never
           command:
             - bash

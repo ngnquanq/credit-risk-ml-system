@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: api
-        image: ngnquanq/credit-risk-api:latest
+        image: ngnquanq/credit-risk-api
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000

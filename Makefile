@@ -16,6 +16,8 @@ K8S_CONTEXT ?= $(MINIKUBE_PROFILE)
 
 PYTHON := python
 # Where services find each other: one definition (platform/config/endpoints)
+# The tag of the images built locally; platform/config/images sets the same tag in manifests.
+IMAGE_TAG ?= dev
 endpoint = $(shell sed -n 's/^$(1)=//p' platform/config/endpoints/endpoints.env)
 KAFKA_BOOTSTRAP_SERVERS := $(call endpoint,KAFKA_BOOTSTRAP_SERVERS)
 OPS_DB_HOST_ENDPOINT := $(call endpoint,OPS_DB_HOST)
@@ -122,25 +124,25 @@ k8s-up: ## Start Minikube profile for ML platform (with addons)
 build-api: ## Build the API Docker image for K8s (loads into Minikube if driver=docker)
 	@echo "Building API image for System..."
 	@eval $$(minikube -p $(MINIKUBE_PROFILE) docker-env) && \
-	docker build -t ngnquanq/credit-risk-api:latest -f services/loan-api/Dockerfile .
+	docker build -t ngnquanq/credit-risk-api:$(IMAGE_TAG) -f services/loan-api/Dockerfile .
 	@echo "✅ API image built and loaded into Minikube"
 
 build-consumers: ## Build Consumer Services image for K8s
 	@echo "Building Consumers image for System..."
 	@eval $$(minikube -p $(MINIKUBE_PROFILE) docker-env) && \
-	docker build -t ngnquanq/credit-risk-consumers:latest -f services/loan-api/src/entrypoints/Dockerfile .
+	docker build -t ngnquanq/credit-risk-consumers:$(IMAGE_TAG) -f services/loan-api/src/entrypoints/Dockerfile .
 	@echo "✅ Consumers image built and loaded into Minikube"
 
 build-dbt: ## Build dbt-clickhouse image into Minikube (required before k8s-core deploys the dbt Job)
 	@echo "Building dbt-clickhouse image for System..."
 	@eval $$(minikube -p $(MINIKUBE_PROFILE) docker-env) && \
-	docker build -t dbt-clickhouse:latest ./ml_data_mart
+	docker build -t dbt-clickhouse:$(IMAGE_TAG) ./ml_data_mart
 	@echo "✅ dbt-clickhouse image built and loaded into Minikube"
 
 build-flink: ## Build PyFlink image into Minikube (required before k8s-streaming)
 	@echo "Building PyFlink image for System..."
 	@eval $$(minikube -p $(MINIKUBE_PROFILE) docker-env) && \
-	docker build -t flink-pyflink:latest -f services/stream-features/flink/Dockerfile services/stream-features/flink
+	docker build -t flink-pyflink:$(IMAGE_TAG) -f services/stream-features/flink/Dockerfile services/stream-features/flink
 	@echo "✅ PyFlink image built and loaded into Minikube"
 
 build-feast-repo: ## Build and push Feast repo image to DockerHub (required before k8s-feature-registry)
@@ -255,7 +257,7 @@ k8s-dbt: ## Run dbt gold transformation (run after k8s-load-dwh completes)
 	@echo "Deleting any previous dbt job..."
 	kubectl delete job dbt-transform-gold -n data-services 2>/dev/null || true
 	@echo "Applying dbt transformation job..."
-	kubectl apply -f platform/data/k8s/data-warehouse/03-dbt-transform.yaml
+	kubectl apply -k platform/data/k8s/data-warehouse/dbt/
 	@echo "Waiting for dbt to complete (this may take a few minutes)..."
 	kubectl wait --for=condition=complete job/dbt-transform-gold -n data-services --timeout=600s
 	@echo "✅ dbt gold transformation complete!"
