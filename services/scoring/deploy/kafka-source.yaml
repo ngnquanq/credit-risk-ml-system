@@ -5,7 +5,7 @@ metadata:
   namespace: kserve
 spec:
   bootstrapServers:
-    - kafka-broker.data-services.svc.cluster.local:9092
+    - set-by-kustomize  # replaced with KAFKA_BOOTSTRAP_SERVERS from shared-endpoints (see kustomization.yaml)
 
   topics:
     - hc.feature_ready

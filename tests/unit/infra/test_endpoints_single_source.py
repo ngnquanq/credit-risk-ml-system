@@ -14,15 +14,10 @@ SCANNED = ["services", "platform/core", "platform/data", "portals/deploy"]
 # The broker's own definition of where it listens is the source, not a copy.
 SOURCE = {"platform/data/k8s/message-broker/01-kafka.yaml"}
 
-# Not converted yet. Each needs its own change (a different variable name, a spec field, or an open edit).
+# Not converted yet. Debezium needs a mapping from its own variable name.
 PENDING = {
-    "platform/core/k8s/01-api-config.yaml",
+    # Debezium reads BOOTSTRAP_SERVERS (its image's own name) and its Makefile target is being reworked.
     "platform/data/k8s/cdc/01-debezium.yaml",
-    "platform/data/k8s/message-broker/02-kafka-ui.yaml",
-    "services/loan-api/deploy/09-decision-recorder.yaml",
-    "services/scoring/deploy/kafka-dlq-sink.yaml",
-    "services/scoring/deploy/kafka-sink.yaml",
-    "services/scoring/deploy/kafka-source.yaml",
 }
 
 

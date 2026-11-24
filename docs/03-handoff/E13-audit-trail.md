@@ -179,7 +179,7 @@ GRANT SELECT ON audit_trace TO audit_reader;
 |---|---|
 | `services/loan-api/schema/audit/001_audit_event.sql` | **new** |
 | `services/loan-api/src/audit/{__init__,writer,sanitizer}.py` | **new** |
-| `services/loan-api/src/audit/verify_job.py`, CronJob in `services/loan-api/deploy/09-decision-recorder.yaml` | **new**: daily CronJob; Prometheus metric `audit_chain_ok` |
+| `services/loan-api/src/audit/verify_job.py`, CronJob in `services/loan-api/deploy/decision-recorder/09-decision-recorder.yaml` | **new**: daily CronJob; Prometheus metric `audit_chain_ok` |
 | `services/loan-api/src/entrypoints/api/*.py` | call `record` on every allowed or denied action (E11) |
 | decision recorder (E5) | `decision` and `decision_fallback` events |
 | `services/model-lifecycle/mlflow-watcher/poller-configmap.yaml` (watcher script) | `model_promoted` event |

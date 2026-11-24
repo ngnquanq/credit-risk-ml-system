@@ -7,7 +7,7 @@ resources:
   - ../../core/k8s/identity/01-keycloak-db.yaml
   - ../../core/k8s/identity/02-keycloak.yaml
   - ../../../portals/deploy/portals.yaml
-  - ../../../services/loan-api/deploy/09-decision-recorder.yaml
+  - ../../../services/loan-api/deploy/decision-recorder
 images:
   - name: crs-applicant-portal
     newName: docker-registry.model-serving.svc:5000/crs-applicant-portal

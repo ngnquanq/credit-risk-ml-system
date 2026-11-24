@@ -30,7 +30,8 @@ spec:
             - name: KAFKA_CLUSTERS_0_NAME
               value: "local-cluster"
             - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
-              value: "kafka-broker.data-services.svc.cluster.local:9092"
+              valueFrom:
+                configMapKeyRef: {name: shared-endpoints, key: KAFKA_BOOTSTRAP_SERVERS}
             - name: KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME
               value: "debezium"
             - name: KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS

@@ -1,0 +1,10 @@
+# Broker, Kafka UI and schema registry. 04-kafka-init.yaml is applied separately, after the broker is ready.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: data-services
+resources:
+  - 01-kafka.yaml
+  - 02-kafka-ui.yaml
+  - 03-schema-registry.yaml
+components:
+  - ../../../config/endpoints

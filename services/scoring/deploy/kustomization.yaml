@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kserve
+resources:
+  - kafka-sink.yaml
+  - kafka-dlq-sink.yaml
+  - scoring-sequence.yaml
+  - kafka-source.yaml
+components:
+  - ../../../platform/config/endpoints
+# The Knative Kafka resources take the broker list in a spec field, not an environment variable.
+replacements:
+  - source:
+      kind: ConfigMap
+      name: shared-endpoints
+      fieldPath: data.KAFKA_BOOTSTRAP_SERVERS
+    targets:
+      - select: {kind: KafkaSink}
+        fieldPaths: [spec.bootstrapServers.0]
+      - select: {kind: KafkaSource}
+        fieldPaths: [spec.bootstrapServers.0]

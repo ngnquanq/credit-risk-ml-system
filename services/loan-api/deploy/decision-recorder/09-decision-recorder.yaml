@@ -18,7 +18,8 @@ spec:
           image: ngnquanq/credit-risk-consumers:dev   # pinned by digest in platform/environments/*
           command: ["python", "entrypoints/decision_recorder.py"]
           env:
-            - {name: KAFKA_BOOTSTRAP_SERVERS, value: "kafka-broker.data-services.svc.cluster.local:9092"}
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom: {configMapKeyRef: {name: shared-endpoints, key: KAFKA_BOOTSTRAP_SERVERS}}
             - {name: CONSUMER_GROUP_ID, value: decision-recorder}
             - {name: OPS_DB_HOST, value: "ops-postgres.data-services.svc.cluster.local"}
             - {name: OPS_DB_NAME, value: operations}

@@ -15,6 +15,8 @@ MINIKUBE_DISK ?= 80g
 K8S_CONTEXT ?= $(MINIKUBE_PROFILE)
 
 PYTHON := python
+# Where services find each other: one definition (platform/config/endpoints)
+KAFKA_BOOTSTRAP_SERVERS := $(shell sed -n 's/^KAFKA_BOOTSTRAP_SERVERS=//p' platform/config/endpoints/endpoints.env)
 
 # create-network: ## Create the platform network
 # 	docker network create $(NETWORK_NAME) || true
@@ -46,7 +48,7 @@ local-ui-down: ## Stop the local stack and delete its data (demo data is re-seed
 
 # ─── Release readiness: portals, decisions, high availability, drills (E5, E12, E15) ──
 k8s-decision-recorder: ## Deploy the decision recorder and the daily audit verification job
-	kubectl apply -f services/loan-api/deploy/09-decision-recorder.yaml
+	kubectl apply -k services/loan-api/deploy/decision-recorder/
 
 k8s-portals: ## Deploy both portals, the session Redis, ingresses and NetworkPolicies
 	@test -n "$(STAFF_PORTAL_CLIENT_SECRET)" || (echo "STAFF_PORTAL_CLIENT_SECRET is required" && exit 2)
@@ -195,9 +197,7 @@ k8s-core: build-dbt ## Deploy Core Infrastructure (Postgres + API + Ingress) to 
 	@echo "Deploying Object Storage (Namespace: data-services)..."
 	kubectl apply -f platform/data/k8s/object-storage/
 	@echo "Deploying Message Broker (Namespace: data-services)..."
-	kubectl apply -f platform/data/k8s/message-broker/01-kafka.yaml
-	kubectl apply -f platform/data/k8s/message-broker/02-kafka-ui.yaml
-	kubectl apply -f platform/data/k8s/message-broker/03-schema-registry.yaml
+	kubectl apply -k platform/data/k8s/message-broker/
 	@echo "Waiting for kafka-broker to be ready..."
 	kubectl rollout status statefulset/kafka-broker -n data-services --timeout=180s
 	@echo "Deploying CDC - Debezium Connect (Namespace: data-services)..."
@@ -220,6 +220,8 @@ k8s-kafka-topics: ## Ensure required Kafka topics are created
 k8s-streaming: build-flink k8s-kafka-topics ## Deploy Streaming Infrastructure (Flink + Query Services)
 	@echo "Deploying Streaming Infrastructure..."
 	kubectl apply -k services/stream-features/deploy/
+	kubectl apply -k services/loan-api/deploy/api/
+	kubectl apply -k services/loan-api/deploy/decision-recorder/
 	kubectl apply -k platform/data/k8s/query-services/
 	@echo "✅ Streaming Infrastructure deployed."
 	@echo "  API: http://$$(minikube -p $(MINIKUBE_PROFILE) ip)/api/docs"
@@ -354,7 +356,7 @@ k8s-knative-kafka: ## Install Knative Kafka Source/Sink v1.13.6 (from vendored m
 	kubectl wait --for=condition=available --timeout=300s deployment/kafka-channel-receiver -n knative-eventing
 	@echo "Patching KafkaChannel bootstrap servers..."
 	kubectl patch configmap kafka-channel-config -n knative-eventing \
-		--type merge -p '{"data":{"bootstrap.servers":"kafka-broker.data-services.svc.cluster.local:9092"}}'
+		--type merge -p '{"data":{"bootstrap.servers":"$(KAFKA_BOOTSTRAP_SERVERS)"}}'
 	@echo "✅ Knative Kafka Source/Sink installed"
 
 k8s-knative-stack: k8s-knative-serving k8s-knative-eventing k8s-knative-kafka ## Install complete Knative stack
@@ -364,10 +366,7 @@ k8s-knative-stack: k8s-knative-serving k8s-knative-eventing k8s-knative-kafka ##
 
 k8s-scoring-pipeline: ## Deploy scoring event pipeline (Sequence + KafkaSource + KafkaSinks)
 	@echo "Deploying scoring pipeline..."
-	kubectl apply -f services/scoring/deploy/kafka-sink.yaml
-	kubectl apply -f services/scoring/deploy/kafka-dlq-sink.yaml
-	kubectl apply -f services/scoring/deploy/scoring-sequence.yaml
-	kubectl apply -f services/scoring/deploy/kafka-source.yaml
+	kubectl apply -k services/scoring/deploy/
 	@echo "✅ Scoring pipeline deployed (KafkaSource → Sequence → InferenceService → KafkaSink)"
 
 k8s-knative-complete: k8s-knative-stack k8s-kserve k8s-scoring-pipeline ## Complete Knative stack deployment

@@ -47,7 +47,8 @@ class Settings(BaseSettings):
     # Kafka configuration for streaming pipeline
     kafka_bootstrap_servers: str = Field(
         default="localhost:9092",
-        description="Kafka bootstrap servers"
+        description="Kafka bootstrap servers",
+        validation_alias=AliasChoices("KAFKA_BOOTSTRAP_SERVERS", "APP_KAFKA_BOOTSTRAP_SERVERS"),
     )
 
     # Topic for submitting loan applications (Source of Truth for DWH and Scoring)
