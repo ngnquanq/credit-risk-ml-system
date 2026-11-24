@@ -187,3 +187,54 @@ def test_calling_configure_twice_does_not_double_the_lines(out):
     configure_logging("loan-api", "api", level="DEBUG", stream=buf)
     logger.info("once")
     assert len(lines(buf)) == 1
+
+
+def test_module_is_filled_in_from_the_calling_module(out):
+    logger.info("where am i")
+    line = only(out)
+    assert list(VALIDATOR.iter_errors(line)) == []
+    assert line["module"].endswith("test_logs")
+
+
+def test_stdlib_lines_carry_the_module_of_their_caller(out):
+    logging.getLogger("some.library").info("hello")
+    assert only(out)["module"].endswith("test_logs")
+
+
+def test_security_fields_become_top_level_fields(out):
+    logger.warning(
+        "Access denied", event="authz.access.denied",
+        actor={"id": "off-1", "type": "staff", "role": "loan_officer"},
+        target={"type": "application", "id": "app-9"},
+        action="reveal_identity", status="denied", reason_code="same_branch", client_ip="10.0.0.1",
+    )
+    line = only(out)
+    assert list(VALIDATOR.iter_errors(line)) == []
+    assert line["actor"] == {"id": "off-1", "type": "staff", "role": "loan_officer"}
+    assert line["target"] == {"type": "application", "id": "app-9"}
+    assert (line["status"], line["action"], line["reason_code"], line["client_ip"]) == (
+        "DENIED", "reveal_identity", "same_branch", "10.0.0.1")
+    assert "fields" not in line
+
+
+def test_values_that_do_not_fit_stay_under_fields_and_the_line_stays_valid(out):
+    logger.info("odd", event="work.odd", actor="off-1", target={"id": "x"}, status="maybe")
+    line = only(out)
+    assert list(VALIDATOR.iter_errors(line)) == []
+    assert line["fields"] == {"actor": "off-1", "target": {"id": "x"}, "status": "maybe"}
+    assert "actor" not in line and "status" not in line
+
+
+@pytest.mark.parametrize("event", ["authn.token.invalid", "authz.access.denied", "identity.pii.accessed",
+                                   "decisions.recorded", "audit.chain.verified"])
+def test_the_schema_demands_a_status_on_audit_class_events(out, event):
+    logger.info("no status", event=event)
+    assert any("status" in e.message for e in VALIDATOR.iter_errors(only(out)))
+    out.truncate(0), out.seek(0)
+    logger.info("with status", event=event, status="SUCCESS")
+    assert list(VALIDATOR.iter_errors(only(out))) == []
+
+
+def test_other_events_do_not_need_a_status(out):
+    logger.info("fine", event="application.received")
+    assert list(VALIDATOR.iter_errors(only(out))) == []

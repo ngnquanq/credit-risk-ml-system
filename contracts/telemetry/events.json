@@ -1,0 +1,95 @@
+{
+  "description": "Named events that a reviewer or an alert depends on. A test checks that each one is emitted in the code and that the code emits no other event in these modules. Change this file and the code together.",
+  "modules": [
+    "authn",
+    "authz",
+    "identity",
+    "decisions",
+    "audit"
+  ],
+  "events": [
+    {
+      "event": "authn.token.invalid",
+      "level": "WARNING",
+      "requires": [
+        "status",
+        "reason_code"
+      ],
+      "means": "A request carried no token or a token the API refused (401). The token itself is never logged."
+    },
+    {
+      "event": "authz.access.allowed",
+      "level": "INFO",
+      "requires": [
+        "actor",
+        "target",
+        "action",
+        "status",
+        "reason_code"
+      ],
+      "means": "The permission matrix allowed an action. Also written to the audit table."
+    },
+    {
+      "event": "authz.access.denied",
+      "level": "WARNING",
+      "requires": [
+        "actor",
+        "target",
+        "action",
+        "status",
+        "reason_code"
+      ],
+      "means": "The permission matrix refused an action (403). Also written to the audit table."
+    },
+    {
+      "event": "identity.pii.accessed",
+      "level": "INFO",
+      "requires": [
+        "actor",
+        "target",
+        "action",
+        "status"
+      ],
+      "means": "Someone revealed an applicant's unmasked identity. Which fields, never their values; the reason is in the audit table."
+    },
+    {
+      "event": "decisions.recorded",
+      "level": "INFO",
+      "requires": [
+        "target",
+        "status"
+      ],
+      "means": "The decision recorder stored a scoring decision for an application."
+    },
+    {
+      "event": "decisions.fallback.applied",
+      "level": "WARNING",
+      "requires": [
+        "target",
+        "status",
+        "reason_code"
+      ],
+      "means": "No decision arrived in time or scoring failed, so the recorder stored the fallback (manual review)."
+    },
+    {
+      "event": "audit.chain.verified",
+      "level": "INFO",
+      "requires": [
+        "status",
+        "action"
+      ],
+      "means": "The daily check found the audit hash chain intact."
+    },
+    {
+      "event": "audit.chain.tamper_detected",
+      "level": "CRITICAL",
+      "requires": [
+        "status",
+        "action",
+        "target",
+        "reason_code"
+      ],
+      "means": "The daily check found a break in the audit hash chain. Alert on this."
+    }
+  ]
+}

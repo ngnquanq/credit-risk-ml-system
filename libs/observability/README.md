@@ -23,7 +23,11 @@ with log_context(application_id="A-123", sk_id_curr=100001):
 - `configure_logging` also routes the standard library's loggers (uvicorn, kafka, mlflow) through the same line.
 - `LOG_LEVEL` (default `INFO`) and `LOG_FORMAT` (`json` default, or `text` for a terminal) come from the environment.
 - `trace_id` and `span_id` are added when an OpenTelemetry span is active. The library works without OpenTelemetry installed.
+- `module` is filled in for you from the calling module.
 - Name important lines with `event=` (lower case, dots). A line without one carries `event: "log"`.
+- Security events carry `actor={"id":..., "type":..., "role":...}`, `target={"type":..., "id":...}`, `action=`, `status=` (`SUCCESS`, `DENIED`, `FAILURE`)
+  and `reason_code=`. A value that does not fit this shape is kept under `fields` instead of breaking the line.
+  See `contracts/telemetry/events.json` for the events that must be named.
 - Keys such as `phone`, `full_name`, `token` or anything ending in `_enc` are replaced with `[REDACTED]` inside `fields`.
   This is a safety net. Write the application id, never the person, in the message.
   An exception's message is also logged, so do not raise errors that contain personal data.

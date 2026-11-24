@@ -351,6 +351,10 @@ async def reveal_identity(
     revealed = await identities.reveal(row.sk_id_curr)
     if revealed is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No identity recorded")
+    logger.info("Identity revealed", event="identity.pii.accessed",
+                actor={"id": principal.sub, "type": principal.realm, "role": ",".join(sorted(principal.roles))},
+                target={"type": "application", "id": application_id}, action="reveal_identity", status="SUCCESS",
+                fields_accessed=["citizen_id", "phone"])  # the names of the fields, never their values
     return revealed
 
 

@@ -33,6 +33,8 @@ _LEVELS = {
     "WARNING": "WARNING", "ERROR": "ERROR", "CRITICAL": "CRITICAL",
 }
 _BUSINESS_FIELDS = ("application_id", "sk_id_curr", "model_version")
+_STATUSES = ("SUCCESS", "DENIED", "FAILURE")
+_MODULE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
 _EVENT = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z0-9_]+)*$")
 _TRACE_ID = re.compile(r"^[0-9a-f]{32}$")
 _SPAN_ID = re.compile(r"^[0-9a-f]{16}$")
@@ -65,8 +67,16 @@ def _active_span_ids() -> Optional[tuple[str, str]]:
     return format(ctx.trace_id, "032x"), format(ctx.span_id, "016x")
 
 
+def _party(value: Any, required: tuple[str, ...], allowed: tuple[str, ...]) -> Optional[dict[str, str]]:
+    """An actor or target as the contract wants it, or None when the caller's value does not fit."""
+    if not isinstance(value, Mapping) or any(value.get(k) in (None, "") for k in required):
+        return None
+    return {k: str(value[k]) for k in allowed if value.get(k) is not None}
+
+
 def _build(record: Mapping[str, Any], service: str, component: str) -> dict[str, Any]:
     extra = dict(record["extra"])
+    name = record["name"] or "unknown"
 
     event = str(extra.pop("event", "") or "log")
     fields: dict[str, Any] = {}
@@ -79,6 +89,7 @@ def _build(record: Mapping[str, Any], service: str, component: str) -> dict[str,
         "level": _LEVELS.get(record["level"].name, "INFO"),
         "service": service,
         "component": component,
+        "module": name if _MODULE.match(name) else "unknown",
         "event": event,
         "message": record["message"],
     }
@@ -97,6 +108,20 @@ def _build(record: Mapping[str, Any], service: str, component: str) -> dict[str,
     for name in _BUSINESS_FIELDS:
         if name in extra:
             out[name] = str(extra.pop(name))
+
+    for key, party in (("actor", (("id",), ("id", "type", "role"))), ("target", (("type", "id"), ("type", "id")))):
+        if key in extra:
+            shaped = _party(extra[key], *party)
+            if shaped is not None:
+                out[key] = shaped
+                del extra[key]
+    for key in ("action", "reason_code", "client_ip"):
+        if isinstance(extra.get(key), str) and extra[key]:
+            out[key] = extra.pop(key)
+    status = extra.get("status")
+    if isinstance(status, str) and status.upper() in _STATUSES:
+        out["status"] = status.upper()
+        del extra["status"]
 
     exc = record["exception"]
     if exc is not None and exc.type is not None:

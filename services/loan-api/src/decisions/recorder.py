@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
+from loguru import logger
+
 from . import fallback
 from .status_log import RecordResult, StatusLogWriter, StatusRow
 
@@ -52,4 +54,20 @@ class DecisionRecorder:
         if self._audit is not None:
             self._audit(action, sk_id_curr, {"status": status, "event_id": event_id, **metadata})
         row = StatusRow(event_id=event_id, sk_id_curr=sk_id_curr, status=status, created_by=CREATED_BY, metadata=metadata)
-        return self._writer.insert_once(row)
+        result = self._writer.insert_once(row)
+        self._log(result, event_id, sk_id_curr, status, metadata, action)
+        return result
+
+    @staticmethod
+    def _log(result: RecordResult, event_id: str, sk_id_curr: str, status: str, metadata: dict, action: str) -> None:
+        who = {"id": CREATED_BY, "type": "service"}
+        what = {"type": "application", "id": sk_id_curr}
+        common = dict(actor=who, target=what, action="record_decision", sk_id_curr=sk_id_curr,
+                      model_version=metadata.get("model_version"), event_id=event_id, outcome=status, result=result.value)
+        common = {k: v for k, v in common.items() if v is not None}
+        if action == "decision":
+            logger.info("Decision recorded", event="decisions.recorded", status="SUCCESS", **common)
+        else:
+            reasons = metadata.get("reasons") or ["unknown"]
+            logger.warning("Fallback decision recorded", event="decisions.fallback.applied", status="SUCCESS",
+                           reason_code=str(reasons[0])[:60], **common)

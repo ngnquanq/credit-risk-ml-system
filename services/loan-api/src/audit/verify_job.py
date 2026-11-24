@@ -42,6 +42,11 @@ def _rows(cur, from_id: int):
 
 def main() -> int:
     import psycopg
+    from loguru import logger
+    from observability import configure_logging
+
+    # stdout carries the probe lines below, so the log goes to stderr
+    configure_logging(service="loan-api", component="audit-verify", stream=sys.stderr)
 
     from_id = int(os.getenv("AUDIT_VERIFY_FROM_ID", "1"))
     with psycopg.connect(os.environ["AUDIT_DB_DSN"]) as conn, conn.cursor() as cur:
@@ -52,8 +57,11 @@ def main() -> int:
             start = bytes(found[0]) if found else GENESIS_HASH
         broken = verify_chain(_rows(cur, from_id), start)
     if broken is not None:
+        logger.critical("Audit chain is broken", event="audit.chain.tamper_detected", status="FAILURE",
+                        action="verify_chain", target={"type": "audit_event", "id": str(broken)}, reason_code="hash_mismatch")
         print(f"audit_chain_ok 0\naudit_chain_first_broken_id {broken}")
         return 1
+    logger.info("Audit chain verified", event="audit.chain.verified", status="SUCCESS", action="verify_chain")
     print("audit_chain_ok 1")
     return 0
 

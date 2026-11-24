@@ -199,3 +199,40 @@ async def test_applicant_attaches_payslips_while_the_file_is_open(api_client, ac
     act_as("cust-a", "customers", {"applicant"})
     resp = await api_client.post(url, json={"slot": 3, "document_id": upload("cust-a", 3)})
     assert resp.status_code == 403 and resp.json()["detail"]["rule"] == "own_open"
+
+
+@pytest.fixture
+def log_records():
+    records: list[dict] = []
+    sink = logger.add(lambda message: records.append(message.record), level="DEBUG")
+    yield records
+    logger.remove(sink)
+
+
+def _events(records, name):
+    return [r["extra"] for r in records if r["extra"].get("event") == name]
+
+
+async def test_revealing_identity_leaves_named_log_events_without_the_values(api_client, act_as, case, log_records):
+    act_as("off-1", "staff", {"loan_officer"}, "HN01")
+    resp = await api_client.post(f"/api/v1/applications/{case}/identity:reveal",
+                                 json={"reason": "Customer at the counter, confirming the phone number"})
+    assert resp.status_code == 200
+    (accessed,) = _events(log_records, "identity.pii.accessed")
+    assert accessed["status"] == "SUCCESS" and accessed["action"] == "reveal_identity"
+    assert accessed["actor"]["id"] == "off-1" and accessed["target"]["id"] == case
+    assert accessed["fields_accessed"] == ["citizen_id", "phone"]
+    allowed = [e for e in _events(log_records, "authz.access.allowed") if e["action"] == "reveal_identity"]
+    assert len(allowed) == 1
+    everything = str([r["message"] for r in log_records]) + str([r["extra"] for r in log_records])
+    assert CITIZEN_ID not in everything and PHONE not in everything and "Riêng" not in everything
+
+
+async def test_an_officer_from_another_branch_leaves_a_denied_event_and_no_reveal(api_client, act_as, case, log_records):
+    act_as("off-2", "staff", {"loan_officer"}, "HN02")
+    resp = await api_client.post(f"/api/v1/applications/{case}/identity:reveal", json={"reason": "Wanted to look at a colleague case, no work reason"})
+    assert resp.status_code in (403, 404)
+    assert _events(log_records, "identity.pii.accessed") == []
+    if resp.status_code == 403:
+        (denied,) = _events(log_records, "authz.access.denied")
+        assert denied["status"] == "DENIED" and denied["actor"]["id"] == "off-2"

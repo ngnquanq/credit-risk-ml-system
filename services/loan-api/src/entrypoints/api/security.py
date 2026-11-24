@@ -9,8 +9,10 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Callable, Iterable, Optional
 
+import re
 import jwt
 from fastapi import Header, HTTPException, status
+from loguru import logger
 
 from authz import Principal
 from authz.policy import CUSTOMER_ROLES, STAFF_REALM, STAFF_ROLES
@@ -113,13 +115,22 @@ def _unauthorized(detail: str) -> HTTPException:
     )
 
 
+def _refused(reason: str) -> None:
+    """One log line for a refused request. The token is never logged, only why it was refused."""
+    code = re.sub(r"[^a-z0-9]+", "_", reason.lower()).strip("_")[:60] or "unknown"
+    logger.warning("Request refused: no valid token", event="authn.token.invalid", status="FAILURE", reason_code=code)
+
+
 async def get_principal(authorization: Optional[str] = Header(default=None)) -> Principal:
     """FastAPI dependency for every /api/v1 route."""
     if not authorization or not authorization.lower().startswith("bearer "):
+        _refused("missing bearer token")
         raise _unauthorized("missing bearer token")
     try:
         return _verifier().verify(authorization.split(" ", 1)[1].strip())
     except InvalidToken as exc:
+        _refused(str(exc))
         raise _unauthorized(f"invalid token: {exc}") from None
     except ValueError as exc:  # no issuers configured
+        _refused(str(exc))
         raise _unauthorized(str(exc)) from None

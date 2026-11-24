@@ -5,7 +5,15 @@
   "description": "One JSON object per line on stdout. Every service writes this shape; the platform reads it. See README.md in this folder.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["timestamp", "level", "service", "component", "event", "message"],
+  "required": [
+    "timestamp",
+    "level",
+    "service",
+    "component",
+    "module",
+    "event",
+    "message"
+  ],
   "properties": {
     "timestamp": {
       "type": "string",
@@ -14,7 +22,13 @@
     },
     "level": {
       "type": "string",
-      "enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+      "enum": [
+        "DEBUG",
+        "INFO",
+        "WARNING",
+        "ERROR",
+        "CRITICAL"
+      ]
     },
     "service": {
       "type": "string",
@@ -25,6 +39,11 @@
       "type": "string",
       "description": "Process or module inside the service, for example api, bureau-consumer.",
       "minLength": 1
+    },
+    "module": {
+      "type": "string",
+      "description": "Python module that wrote the line, filled in by the library (for example authz.policy, entrypoints.api.access). Lets a reader filter by part of a service.",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$"
     },
     "event": {
       "type": "string",
@@ -44,17 +63,89 @@
       "type": "string",
       "pattern": "^[0-9a-f]{16}$"
     },
-    "application_id": { "type": "string" },
-    "sk_id_curr": { "type": "string" },
-    "model_version": { "type": "string" },
+    "application_id": {
+      "type": "string"
+    },
+    "sk_id_curr": {
+      "type": "string"
+    },
+    "model_version": {
+      "type": "string"
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "description": "Who did it: a pseudonymous subject or a service account. Never a name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "description": "staff, customer or service"
+        },
+        "role": {
+          "type": "string"
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "id"
+      ],
+      "description": "What it was done to, by id.",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      }
+    },
+    "action": {
+      "type": "string",
+      "description": "The verb that was attempted, for example reveal_identity."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "SUCCESS",
+        "DENIED",
+        "FAILURE"
+      ],
+      "description": "Outcome of the action."
+    },
+    "reason_code": {
+      "type": "string",
+      "description": "Short stable code for why: the rule that decided, or the failure kind."
+    },
+    "client_ip": {
+      "type": "string"
+    },
     "error": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type"],
+      "required": [
+        "type"
+      ],
       "properties": {
-        "type": { "type": "string" },
-        "message": { "type": "string" },
-        "stack": { "type": "string", "description": "Whole stack trace as one string, so the line stays one line." }
+        "type": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "stack": {
+          "type": "string",
+          "description": "Whole stack trace as one string, so the line stays one line."
+        }
       }
     },
     "fields": {
@@ -62,5 +153,25 @@
       "description": "Anything else worth keeping. Values of keys listed in sensitive_fields.json are replaced by [REDACTED].",
       "additionalProperties": true
     }
-  }
+  },
+  "allOf": [
+    {
+      "description": "Events a reviewer or an alert depends on must say how they ended. See events.json.",
+      "if": {
+        "properties": {
+          "event": {
+            "pattern": "^(authn|authz|identity|decisions|audit)\\."
+          }
+        },
+        "required": [
+          "event"
+        ]
+      },
+      "then": {
+        "required": [
+          "status"
+        ]
+      }
+    }
+  ]
 }
