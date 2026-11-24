@@ -146,19 +146,44 @@ Dependencies decide the order. A feature that needs another is built after it.
 
 ## E11. Identity and access
 
+| | |
+|---|---|
+| **Serves** | [O7 Data protection](../01-business/business-outcomes.md#o7-applicant-data-is-protected), [O8 Accountable](../01-business/business-outcomes.md#o8-decisions-are-explainable-and-accountable) |
+| **Type** | Foundation. [E12 Portals](#e12-staff-and-applicant-portals) and [E13 Audit trail](#e13-audit-trail) cannot work until a verified person is behind every request |
+| **Decisions** | [ADR-0012](../adr/0012-keycloak-realms-and-bff-portals.md) Keycloak, two realms, portals as backends-for-frontend · [ADR-0013](../adr/0013-role-based-data-and-explanation-visibility.md) who sees which data · [ADR-0014](../adr/0014-applicant-personal-data-and-opaque-ids.md) personal data and opaque ids (also serves [E1 Intake](#e1-application-intake-and-document-capture) and [E12](#e12-staff-and-applicant-portals)) |
+| **Design** | [Handoff package](../03-handoff/E11-identity-access.md) · [How sign-in and permissions work](../architecture/authn-authz.md) |
+
 **Goal.** Every caller is identified, and the API alone decides what they may do.
 
 **How.** Keycloak in the cluster with realms `staff` (MFA, no self-registration, `branch_id` attribute) and `customers` (self-registration, verified email). The API verifies JWTs and asks one policy module, deny by default.
 
-| Feature | Acceptance criteria |
-|---|---|
-| **E11.1** As a loan officer I sign in with MFA | **Given** a staff account without a configured second factor **when** I sign in **then** Keycloak requires TOTP setup before issuing a token |
-| **E11.2** As an applicant I create my own account | **Given** a new email **when** I register **then** I can apply only after verifying the email |
-| **E11.3** As the platform I reject tokens I did not issue | **Given** a token with an unknown issuer, wrong audience, expired, or `alg=none` **then** `401` |
-| **E11.4** As an applicant I see only my own applications | **Given** applicant A's token **when** reading applicant B's application **then** `403`, and the denial is audited |
-| **E11.5** As a loan officer I see only my branch | **Given** `branch_id=HN01` **when** reading an application from `HCM02` **then** `403` |
-| **E11.6** As an underwriter I cannot review my own work | **Given** I submitted the application (for example while covering a branch) **when** I record a review decision **then** `403 separation_of_duties` |
-| **E11.7** As a risk manager my threshold change needs a second approver | **Given** I propose a new review band **then** it takes effect only after a different risk manager approves it |
+### E11-F1. Sign-in for two kinds of people
+
+Staff sign in with a second factor and cannot register themselves. Applicants register and verify their email. Decision: [ADR-0012](../adr/0012-keycloak-realms-and-bff-portals.md).
+
+| Story | Acceptance criteria | Verified by |
+|---|---|---|
+| **E11.1** As a loan officer I sign in with MFA | **Given** a staff account without a configured second factor **when** I sign in **then** Keycloak requires TOTP setup before issuing a token | Manual, in UAT ([AC9](../03-handoff/E11-identity-access.md#7-acceptance-criteria--tests)). The API side is automated: [`test_rejected_tokens`](../../tests/unit/api/test_token_verifier.py) has a "staff without mfa" case |
+| **E11.2** As an applicant I create my own account | **Given** a new email **when** I register **then** I can apply only after verifying the email | Manual, in UAT. The realm sets `verifyEmail`; no automated test |
+
+### E11-F2. The API trusts only tokens it can verify
+
+Decision: [ADR-0012](../adr/0012-keycloak-realms-and-bff-portals.md).
+
+| Story | Acceptance criteria | Verified by |
+|---|---|---|
+| **E11.3** As the platform I reject tokens I did not issue | **Given** a token with an unknown issuer, wrong audience, expired, or `alg=none` **then** `401` | [`test_rejected_tokens`](../../tests/unit/api/test_token_verifier.py) (ten cases: wrong key, expired, wrong audience, foreign issuer, no MFA, no role, staff role in the customer realm, `alg=none`, HS256, garbage) and [`test_missing_token_is_401`](../../tests/integration/api/test_access_control.py) |
+
+### E11-F3. Each person can do only what their role allows
+
+One pure function decides, with a rule that names why. Decision: [ADR-0013](../adr/0013-role-based-data-and-explanation-visibility.md).
+
+| Story | Acceptance criteria | Verified by |
+|---|---|---|
+| **E11.4** As an applicant I see only my own applications | **Given** applicant A's token **when** reading applicant B's application **then** `403`, and the denial is audited | [`test_applicant_reads_own_but_not_others`](../../tests/integration/api/test_access_control.py) and every cell of [`test_matrix`](../../tests/unit/authz/test_permission_matrix.py) |
+| **E11.5** As a loan officer I see only my branch | **Given** `branch_id=HN01` **when** reading an application from `HCM02` **then** `403` | [`test_loan_officer_is_limited_to_their_branch`](../../tests/integration/api/test_access_control.py) |
+| **E11.6** As an underwriter I cannot review my own work | **Given** I submitted the application (for example while covering a branch) **when** I record a review decision **then** `403 separation_of_duties` | [`test_underwriter_cannot_review_own_submission`](../../tests/integration/api/test_access_control.py) |
+| **E11.7** As a risk manager my threshold change needs a second approver | **Given** I propose a new review band **then** it takes effect only after a different risk manager approves it | [`test_policy_change_needs_a_second_risk_manager`](../../tests/integration/api/test_access_control.py) |
 
 ## E12. Staff and applicant portals
 

@@ -8,6 +8,16 @@ Accepted
 
 2026-11-22
 
+## Deciders
+
+Solution architect and security architect (the roles that own this area). Individual names were not recorded.
+
+## Serves
+
+- **Outcomes:** [O7 Data protection](../01-business/business-outcomes.md#o7-applicant-data-is-protected), [O8 Accountable](../01-business/business-outcomes.md#o8-decisions-are-explainable-and-accountable)
+- **Epics:** [E11 Identity and access](../02-product/epics.md#e11-identity-and-access) (feature F3), [E14 Explainability](../02-product/epics.md#e14-explainability)
+- **Quality attributes:** Security (authorization, least privilege), accountability
+
 ## Context
 
 Staff need internal information about a customer to serve them: previous contracts with the lender, current exposure, repayment behaviour and a bureau summary. Unrestricted access to that information invites misuse, for example looking up neighbours or relatives. Separately, the platform now produces explanations ([E14 Explainability](../02-product/epics.md#e14-explainability)): plain-language reasons for applicants, and per-feature SHAP contributions with the score for experts. Three questions came up:
@@ -68,3 +78,14 @@ Staff need internal information about a customer to serve them: previous contrac
 ### Risks
 
 - A purpose list can be abused by always choosing "customer present". The monthly review of lookups per officer is the control; repeated lookups without a resulting application are flagged.
+
+## Compliance
+
+- [`test_matrix`](../../tests/unit/authz/test_permission_matrix.py) checks every cell of the permission matrix, and `test_roles_cannot_cross_realms` and `test_every_action_has_at_least_one_rule` guard its shape.
+- [`test_access_control.py`](../../tests/integration/api/test_access_control.py) checks the visible results: an officer cannot see an explanation, an applicant sees reasons but not the score, an underwriter cannot review their own submission.
+
+## Notes
+
+- Design: [E11 handoff package](../03-handoff/E11-identity-access.md) and [how sign-in and permissions work](../architecture/authn-authz.md).
+- The sections Deciders, Serves, Compliance and Notes were added on 2026-11-24 to trace this decision to its outcomes and epics. The decision itself is unchanged.
+- Code paths named above predate [ADR-0015](0015-services-layout-high-cohesion-low-coupling.md): `application/authz/policy.py` is now `services/loan-api/src/authz/policy.py`.

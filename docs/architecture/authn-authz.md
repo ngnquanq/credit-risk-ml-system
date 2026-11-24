@@ -2,7 +2,17 @@
 
 How a person proves who they are, and how the platform decides what they may do. Everything on this page comes from the code and the Keycloak realm files; the last section lists what is not checked or not covered.
 
-Decisions behind it: [ADR-0012](../adr/0012-keycloak-realms-and-bff-portals.md) (Keycloak and the portals), [ADR-0013](../adr/0013-role-based-data-and-explanation-visibility.md) (who sees which data), [ADR-0014](../adr/0014-applicant-personal-data-and-opaque-ids.md) (personal data). Requirements: [E11](../03-handoff/E11-identity-access.md).
+## Where this fits
+
+| Layer | What | Where |
+|---|---|---|
+| Outcome (why) | [O7 Data protection](../01-business/business-outcomes.md#o7-applicant-data-is-protected): only signed-in, authorised people reach applicant data. [O8 Accountable](../01-business/business-outcomes.md#o8-decisions-are-explainable-and-accountable): every access is recorded | [Business outcomes](../01-business/business-outcomes.md) |
+| Epic (what) | [E11 Identity and access](../02-product/epics.md#e11-identity-and-access), which [E12 Portals](../02-product/epics.md#e12-staff-and-applicant-portals) and [E13 Audit trail](../02-product/epics.md#e13-audit-trail) build on | [Epics](../02-product/epics.md#e11-identity-and-access) |
+| Features | **F1** sign-in for two kinds of people (sections 1 and 2 below), **F2** the API trusts only tokens it can verify (section 3), **F3** each person can do only what their role allows (sections 4 and 5) | [E11 features and stories](../02-product/epics.md#e11-identity-and-access) |
+| Decisions (why this way) | [ADR-0012](../adr/0012-keycloak-realms-and-bff-portals.md) Keycloak, two realms, portals as backends-for-frontend. [ADR-0013](../adr/0013-role-based-data-and-explanation-visibility.md) who sees which data. [ADR-0014](../adr/0014-applicant-personal-data-and-opaque-ids.md) personal data and opaque ids | [Decisions](../adr/README.md) |
+| Design and tests | The package that says how it is built and how each acceptance criterion is tested | [E11 handoff](../03-handoff/E11-identity-access.md) |
+
+This page explains how the pieces work together. The documents above say why they exist and how each is checked.
 
 ## In one picture
 

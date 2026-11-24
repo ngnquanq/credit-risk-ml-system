@@ -8,6 +8,16 @@ Accepted
 
 2026-11-22
 
+## Deciders
+
+Solution architect and security architect (the roles that own this area). Individual names were not recorded.
+
+## Serves
+
+- **Outcomes:** [O7 Data protection](../01-business/business-outcomes.md#o7-applicant-data-is-protected)
+- **Epics:** [E1 Intake](../02-product/epics.md#e1-application-intake-and-document-capture), [E11 Identity and access](../02-product/epics.md#e11-identity-and-access) (feature F3), [E12 Portals](../02-product/epics.md#e12-staff-and-applicant-portals)
+- **Quality attributes:** Security (confidentiality of personal data), privacy
+
 ## Context
 
 Applying for a loan means proving who you are, so the portals now collect each applicant's full name, citizen ID number (CCCD) and mobile phone, plus photos of both sides of the ID card. Until now the platform stored none of these. It addressed applications by `sk_id_curr`, a sequential key from the Kaggle dataset that applicants even had to type in.
@@ -120,3 +130,14 @@ The sources say nothing about Vietnamese law. That includes Decree 13/2023/NĐ-C
   - the 409 response is generic;
   - rate limiting the public ingress (T01) is the remaining control.
 - A lost KEK makes identities unreadable. KEKs need the same backup and rotation discipline as database credentials (OWASP Key Management).
+
+## Compliance
+
+- [`test_personal_data.py`](../../tests/integration/api/test_personal_data.py) fails if identity is stored in clear (`test_identity_is_encrypted_at_rest`), if an unknown or guessed id answers differently from another (`test_unknown_or_malformed_ids_all_look_the_same`), if a reveal needs no reason or is allowed to the wrong role, or if a submission logs or audits personal values.
+- The applicant end-to-end spec ([`applicant.spec.ts`](../../portals/e2e-local/applicant.spec.ts)) records every request URL and fails if an amount, citizen ID or phone number appears in one. It runs on the local stack with `pnpm e2e:local`, not in CI.
+
+## Notes
+
+- Design: [E11 handoff package](../03-handoff/E11-identity-access.md) and [how sign-in and permissions work](../architecture/authn-authz.md).
+- The sections Deciders, Serves, Compliance and Notes were added on 2026-11-24 to trace this decision to its outcomes and epics. The decision itself is unchanged.
+- Code paths named above predate [ADR-0015](0015-services-layout-high-cohesion-low-coupling.md): `application/authz/policy.py` is now `services/loan-api/src/authz/policy.py`.

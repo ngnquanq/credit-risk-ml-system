@@ -8,6 +8,16 @@ Accepted
 
 2026-11-22
 
+## Deciders
+
+Solution architect and security architect (the roles that own this area). Individual names were not recorded.
+
+## Serves
+
+- **Outcomes:** [O7 Data protection](../01-business/business-outcomes.md#o7-applicant-data-is-protected), [O8 Accountable](../01-business/business-outcomes.md#o8-decisions-are-explainable-and-accountable)
+- **Epics:** [E11 Identity and access](../02-product/epics.md#e11-identity-and-access) (features F1 and F2), [E12 Portals](../02-product/epics.md#e12-staff-and-applicant-portals)
+- **Quality attributes:** Security (authentication, session handling)
+
 ## Context
 
 Applications arrive from two populations: lender staff entering applications for walk-in customers, and applicants applying online ([E1 Intake](../02-product/epics.md#e1-application-intake-and-document-capture), [E11](../02-product/epics.md#e11-identity-and-access)). Today nobody signs in (F-17). Staff need MFA and no self-registration; applicants need self-registration with a verified email. The web UI moves from Streamlit to TypeScript ([E12](../02-product/epics.md#e12-staff-and-applicant-portals)) and handles personal data, so tokens must not be exposed to browser JavaScript.
@@ -51,3 +61,16 @@ Applications arrive from two populations: lender staff entering applications for
 ### Risks
 
 - Keycloak outage blocks new sign-ins; existing sessions survive until the 5-minute access token cannot be refreshed. Documented in [E15 Resilience and failover](../02-product/epics.md#e15-resilience-and-failover).
+
+## Compliance
+
+- [`test_rejected_tokens`](../../tests/unit/api/test_token_verifier.py) fails if the API accepts a foreign issuer, a wrong audience, a token without MFA, a staff role from the customer realm, `alg=none` or HS256.
+- `test_missing_token_is_401` in [`test_access_control.py`](../../tests/integration/api/test_access_control.py) fails if a route answers without a token.
+- `expectNoTokenInBrowser` in the end-to-end specs ([applicant](../../portals/e2e-local/applicant.spec.ts), [staff](../../portals/e2e-local/staff.spec.ts)) fails if a token reaches the browser. They run on the local stack with `pnpm e2e:local`, not in CI.
+- Checked by hand in UAT: that Keycloak asks a new staff member to set up TOTP.
+
+## Notes
+
+- Design: [E11 handoff package](../03-handoff/E11-identity-access.md) and [how sign-in and permissions work](../architecture/authn-authz.md).
+- The sections Deciders, Serves, Compliance and Notes were added on 2026-11-24 to trace this decision to its outcomes and epics. The decision itself is unchanged.
+- Code paths named above predate [ADR-0015](0015-services-layout-high-cohesion-low-coupling.md): `application/authz/policy.py` is now `services/loan-api/src/authz/policy.py`.

@@ -241,22 +241,22 @@ Existing rows keep `channel='staff'` and null owners. They are readable only by 
 
 | # | Given / When / Then | Test |
 |---|---|---|
-| AC1 | Given a token signed by an unknown key, expired, with `alg=none`, a foreign issuer or a wrong audience, when calling any `/api/v1` route, then `401` | `tests/unit/api/test_token_verifier.py` (keys generated in the test) |
-| AC2 | For every cell of the permission matrix, an allowed principal gets `2xx` and every other role gets `403` | `tests/unit/authz/test_policy_matrix.py` (table-driven from §5) |
-| AC3 | Given applicant A's token, when reading applicant B's application, then `403` with rule `own` and one denied audit record | `tests/integration/api/test_idor.py` |
-| AC4 | Given a loan officer in `HN01`, when reading an `HCM02` application, then `403` | same |
-| AC5 | Given an underwriter who created the application, when claiming it, then `403` with rule `separation_of_duties` | `tests/integration/api/test_reviews.py` |
-| AC6 | Given a proposed policy change, when the proposer approves it, then `403`; when a second risk manager approves it, then it becomes `active` | `tests/integration/api/test_policy_change.py` |
-| AC7 | Given a staff token without `acr=mfa`, then `401` | `test_token_verifier.py` |
-| AC8 | Given a submit body containing `branch_id` or `created_by_sub`, then the values from the token win | `tests/integration/api/test_submit_ownership.py` |
+| AC1 | Given a token signed by an unknown key, expired, with `alg=none`, a foreign issuer or a wrong audience, when calling any `/api/v1` route, then `401` | [`test_rejected_tokens`](../../tests/unit/api/test_token_verifier.py) (10 cases) and `test_missing_token_is_401` in [`test_access_control.py`](../../tests/integration/api/test_access_control.py) |
+| AC2 | For every cell of the permission matrix, an allowed principal gets `2xx` and every other role gets `403` | [`test_matrix`](../../tests/unit/authz/test_permission_matrix.py) (table-driven from §5) and `test_every_action_has_at_least_one_rule` |
+| AC3 | Given applicant A's token, when reading applicant B's application, then `403` with rule `own` and one denied audit record | `test_applicant_reads_own_but_not_others` in [`test_access_control.py`](../../tests/integration/api/test_access_control.py) |
+| AC4 | Given a loan officer in `HN01`, when reading an `HCM02` application, then `403` | `test_loan_officer_is_limited_to_their_branch` in [`test_access_control.py`](../../tests/integration/api/test_access_control.py) |
+| AC5 | Given an underwriter who created the application, when claiming it, then `403` with rule `separation_of_duties` | `test_underwriter_cannot_review_own_submission` in [`test_access_control.py`](../../tests/integration/api/test_access_control.py) |
+| AC6 | Given a proposed policy change, when the proposer approves it, then `403`; when a second risk manager approves it, then it becomes `active` | `test_policy_change_needs_a_second_risk_manager` in [`test_access_control.py`](../../tests/integration/api/test_access_control.py) |
+| AC7 | Given a staff token without `acr=mfa`, then `401` | [`test_rejected_tokens`](../../tests/unit/api/test_token_verifier.py), case "staff without mfa" |
+| AC8 | Given a submit body containing `branch_id` or `created_by_sub`, then the values from the token win | `test_submit_takes_ownership_from_the_token` in [`test_access_control.py`](../../tests/integration/api/test_access_control.py) |
 | AC9 | Given the running cluster, when signing in as a new staff user, then Keycloak forces TOTP enrolment | manual, recorded in UAT ([E16 UAT and release](../02-product/epics.md#e16-uat-and-release-readiness)) |
-| AC10 | Given a loan officer and an application they did not enter, when reading the customer profile, then `403` with rule `handling_application` | `tests/integration/api/test_customer_profile.py` |
-| AC11 | Given a lookup without a purpose, or by name instead of ID, then `422`; given a valid lookup in another branch, then only contract count and status are returned, and the lookup is audited with its purpose | `tests/integration/api/test_customer_lookup.py` |
-| AC12 | Given a loan officer token, when calling the explanation route, then `403`; the decision route returns reasons without score or contributions | `tests/integration/api/test_explanation_visibility.py` |
-| AC13 | Given a stored identity, then the database holds no citizen ID, phone or name in clear, and a response shows the name with masked numbers | `tests/integration/api/test_personal_data.py` |
-| AC14 | Given a reveal with a reason by the handling officer, then the numbers are returned with `no-store` and the audit holds the reason but neither number; auditors, other officers and risk managers get `403` | same, and `staff.spec.ts` (E2E) |
-| AC15 | Given a malformed, unknown, numeric or other person's id, then the same `404`/`403`; no route accepts `sk_id_curr` | same; `applicant.spec.ts` (E2E) |
-| AC16 | Given a submission or reveal, then no citizen ID, phone or name appears in the API log or audit details | same (captured logs); checked again on the local stack |
+| AC10 | Given a loan officer and an application they did not enter, when reading the customer profile, then `403` with rule `handling_application` | `test_officer_sees_profile_only_for_own_case_with_consent` in [`test_access_control.py`](../../tests/integration/api/test_access_control.py) |
+| AC11 | Given a lookup without a purpose, or by name instead of ID, then `422`; given a valid lookup in another branch, then only contract count and status are returned, and the lookup is audited with its purpose | `test_lookup_takes_the_citizen_id_in_the_body_with_a_purpose` in [`test_access_control.py`](../../tests/integration/api/test_access_control.py) |
+| AC12 | Given a loan officer token, when calling the explanation route, then `403`; the decision route returns reasons without score or contributions | `test_applicant_sees_reasons_but_not_score` and `test_loan_officer_cannot_see_the_explanation` in [`test_access_control.py`](../../tests/integration/api/test_access_control.py) |
+| AC13 | Given a stored identity, then the database holds no citizen ID, phone or name in clear, and a response shows the name with masked numbers | `test_identity_is_encrypted_at_rest` and `test_application_shows_name_and_masked_numbers` in [`test_personal_data.py`](../../tests/integration/api/test_personal_data.py) |
+| AC14 | Given a reveal with a reason by the handling officer, then the numbers are returned with `no-store` and the audit holds the reason but neither number; auditors, other officers and risk managers get `403` | `test_officer_handling_the_case_reveals_with_an_audited_reason` and `test_reveal_is_refused_to_everyone_else` in [`test_personal_data.py`](../../tests/integration/api/test_personal_data.py) |
+| AC15 | Given a malformed, unknown, numeric or other person's id, then the same `404`/`403`; no route accepts `sk_id_curr` | `test_unknown_or_malformed_ids_all_look_the_same` in [`test_personal_data.py`](../../tests/integration/api/test_personal_data.py); [`portals/e2e-local/applicant.spec.ts`](../../portals/e2e-local/applicant.spec.ts) (end to end, `pnpm e2e:local`) |
+| AC16 | Given a submission or reveal, then no citizen ID, phone or name appears in the API log or audit details | `test_submission_stores_identity_and_never_logs_or_audits_it` in [`test_personal_data.py`](../../tests/integration/api/test_personal_data.py); checked again on the local stack |
 
 ## 8. Test plan by layer
 
