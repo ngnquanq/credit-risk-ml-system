@@ -18,6 +18,7 @@ import signal
 
 from confluent_kafka import Consumer, Producer
 from loguru import logger
+from core.log_setup import setup_logging
 
 from decisions.recorder import DecisionRecorder
 from decisions.status_log import PostgresStatusLogWriter
@@ -66,6 +67,7 @@ def dispatch(recorder: DecisionRecorder, msg) -> str:
 
 
 def main() -> None:
+    setup_logging("decision-recorder")
     bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
     consumer = Consumer({
         "bootstrap.servers": bootstrap,

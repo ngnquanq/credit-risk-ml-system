@@ -28,6 +28,7 @@ COPY --from=builder /opt/venv /opt/venv
 COPY services/loan-api/src/entrypoints/bureau_consumer.py services/loan-api/src/entrypoints/feature_consumer.py services/loan-api/src/entrypoints/decision_recorder.py /app/entrypoints/
 COPY services/loan-api/src/audit /app/audit
 COPY services/loan-api/src/core /app/core
+COPY libs/observability /app/observability
 COPY services/loan-api/src/decisions /app/decisions
 COPY services/loan-api/src/infrastructure /app/infrastructure
 ENV PYTHONPATH=/app

@@ -30,6 +30,11 @@ from opentelemetry.propagate import inject
 from infrastructure.external.bureau_client import fetch_bureau_by_loan_id, fetch_external_scores
 from core.tracing import setup_tracing, extract_or_create_trace_context
 
+from core.log_setup import setup_logging
+
+if __name__ == "__main__":  # run as a script: log in the contract's shape from the first line. Importing the module (tests) changes nothing
+    setup_logging("bureau-consumer")
+
 # Initialize tracer
 tracer = setup_tracing("external-bureau-service", sampling_rate=0.1)
 

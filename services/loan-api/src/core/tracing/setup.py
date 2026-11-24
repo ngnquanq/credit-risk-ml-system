@@ -3,6 +3,7 @@ Simple OpenTelemetry setup
 """
 
 import os
+from loguru import logger
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -43,6 +44,7 @@ def setup_tracing(service_name: str, sampling_rate: float = 0.1):
     # Set as global
     trace.set_tracer_provider(provider)
 
-    print(f"✅ Tracing: {service_name} → {endpoint} (sampling={sampling_rate*100}%)")
+    logger.info("Tracing enabled", event="tracing.enabled", traced_service=service_name,
+                endpoint=endpoint, sampling_percent=sampling_rate * 100)
 
     return trace.get_tracer(service_name)

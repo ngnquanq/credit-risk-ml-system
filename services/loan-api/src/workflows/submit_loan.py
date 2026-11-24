@@ -2,7 +2,7 @@ from domain.entities.loan_application import LoanApplication, ApplicationStatus
 from domain.interfaces.loan_repository import LoanRepository
 from domain.interfaces.scoring_gateway import ScoringGateway
 from workflows.dtos import SubmitLoanInput, SubmitLoanOutput
-import logging
+from loguru import logger
 
 class SubmitLoanWorkflow:
     def __init__(
@@ -12,7 +12,6 @@ class SubmitLoanWorkflow:
     ):
         self.loan_repo = loan_repo
         self.scoring_gateway = scoring_gateway
-        self.logger = logging.getLogger(__name__)
 
     async def execute(self, input_data: SubmitLoanInput, ownership: dict | None = None) -> SubmitLoanOutput:
         """``ownership`` (channel, created_by_sub, applicant_sub, branch_id) comes from the verified caller, never the body."""
@@ -26,7 +25,7 @@ class SubmitLoanWorkflow:
             details={**input_data.model_dump(), **(ownership or {})}
         )
         
-        self.logger.info(f"Received application for {application.sk_id_curr}")
+        logger.info("Application received", event="application.received", sk_id_curr=application.sk_id_curr)
 
         # 2. Persist Initial State
         application.status = ApplicationStatus.SUBMITTED

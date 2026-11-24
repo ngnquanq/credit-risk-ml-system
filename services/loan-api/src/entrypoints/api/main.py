@@ -18,6 +18,7 @@ from audit.writer import AuditReader, AuditWriter
 from authz import Action, Principal, Resource, authorize
 from authz.policy import CUSTOMER_REALM
 from core import close_db, get_db, init_db, settings
+from core.log_setup import setup_logging
 from core.tracing import setup_tracing
 from decisions.reasons import reason_texts
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
@@ -68,7 +69,8 @@ tracer = setup_tracing("api-service", sampling_rate=0.1)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
-    logger.info("Starting Home Credit Loan API...")
+    setup_logging("api")  # again, so a bare `uvicorn entrypoints.api.main:app` logs in the contract's shape too
+    logger.info("Starting Home Credit Loan API...", event="api.starting")
     if not settings.debug:
         # E11: never serve /api/v1 without a trusted identity provider outside debug mode.
         if not settings.oidc_issuer_list:

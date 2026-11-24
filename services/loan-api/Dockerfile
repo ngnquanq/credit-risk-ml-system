@@ -39,6 +39,7 @@ COPY services/loan-api/src/entrypoints/api /app/entrypoints/api
 COPY services/loan-api/src/audit /app/audit
 COPY services/loan-api/src/authz /app/authz
 COPY services/loan-api/src/core /app/core
+COPY libs/observability /app/observability
 COPY services/loan-api/src/decisions /app/decisions
 COPY services/loan-api/src/domain /app/domain
 COPY services/loan-api/src/identity /app/identity
