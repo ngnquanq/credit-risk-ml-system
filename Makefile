@@ -251,7 +251,7 @@ k8s-streaming: build-flink k8s-kafka-topics ## Deploy Streaming Infrastructure (
 	kubectl apply -k services/stream-features/deploy/
 	kubectl apply -k platform/data/k8s/query-services/
 	@echo "Streaming Infrastructure deployed."
-	@echo "  API: http://$$(minikube -p $(MINIKUBE_PROFILE) ip)/api/docs"
+	@echo "  API: http://$$(minikube -p $(MINIKUBE_PROFILE) ip)/api/v1"
 	@echo "  DB: ops-postgres.data-services.svc.cluster.local:5432"
 
 k8s-load-dwh: ## Load CSV data into ClickHouse DWH (requires data/ folder with CSVs)

@@ -16,14 +16,19 @@ KCADM='K=/opt/keycloak/bin/kcadm.sh; $K config credentials --server http://local
 client_id='CID=$($K get clients -r customers -q clientId=applicant-portal --fields id --format csv --noquotes);'
 
 up() {
+  local jwks_url pod attempt
   umask 077
   [ -f "$USER_ENV" ] || python3 -c "import secrets; print('export LAB_APPLICANT_PASSWORD=' + secrets.token_urlsafe(18))" > "$USER_ENV"
   set -a; . "$USER_ENV"; set +a
 
   # 1. TLS for the auth host: the API fetches signing keys from https://$AUTH_HOST/...
   dir="$(mktemp -d)"; trap 'rm -rf "$dir"' RETURN
-  openssl req -x509 -newkey rsa:2048 -nodes -days 30 -keyout "$dir/key" -out "$dir/crt" -subj "/CN=$AUTH_HOST" -addext "subjectAltName=DNS:$AUTH_HOST" 2>/dev/null
-  kubectl create secret tls auth-tls -n identity --cert="$dir/crt" --key="$dir/key" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  if ! kubectl get secret auth-tls -n identity -o jsonpath='{.data.tls\.crt}' | openssl base64 -d -A > "$dir/crt" ||
+     ! openssl x509 -in "$dir/crt" -noout -checkend 86400 >/dev/null 2>&1 ||
+     ! openssl verify -CAfile "$dir/crt" -verify_hostname "$AUTH_HOST" "$dir/crt" >/dev/null 2>&1; then
+    openssl req -x509 -newkey rsa:2048 -nodes -days 30 -keyout "$dir/key" -out "$dir/crt" -subj "/CN=$AUTH_HOST" -addext "subjectAltName=DNS:$AUTH_HOST" 2>/dev/null
+    kubectl create secret tls auth-tls -n identity --cert="$dir/crt" --key="$dir/key" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  fi
   kubectl create secret generic auth-ca -n api-gateway --from-file=ca.crt="$dir/crt" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
   kubectl patch ingress keycloak -n identity --type=json -p "[{\"op\":\"add\",\"path\":\"/spec/tls\",\"value\":[{\"hosts\":[\"$AUTH_HOST\"],\"secretName\":\"auth-tls\"}]}]" >/dev/null
   ip="$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.spec.clusterIP}')"
@@ -40,6 +45,21 @@ spec:
 YAML
 )" >/dev/null
   kubectl rollout status deployment/api-service -n api-gateway --timeout=240s >/dev/null
+  # Pod readiness checks /health. Wait for the ingress and each API pod to agree on the new TLS cert too.
+  jwks_url="https://$AUTH_HOST/realms/customers/protocol/openid-connect/certs"
+  for pod in $(kubectl get pods -n api-gateway -l app=api-service --field-selector=status.phase=Running -o name); do
+    for attempt in {1..45}; do
+      if kubectl exec -n api-gateway "$pod" -- python -c \
+        'import sys, urllib.request; urllib.request.urlopen(sys.argv[1], timeout=4).close()' "$jwks_url" >/dev/null 2>&1; then
+        break
+      fi
+      if [ "$attempt" -eq 45 ]; then
+        echo "$pod could not fetch the Keycloak signing keys over TLS" >&2
+        return 1
+      fi
+      sleep 2
+    done
+  done
 
   # 2. A test applicant (the realm uses the email as the username) and the password grant on the portal client
   kc "$KCADM"'
