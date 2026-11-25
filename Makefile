@@ -175,16 +175,16 @@ k8s-identity-secrets: ## Create Keycloak secrets from environment variables (nev
 	@test -n "$(STAFF_PORTAL_CLIENT_SECRET)" || (echo "STAFF_PORTAL_CLIENT_SECRET is required (see .env.example)" && exit 2)
 	@test -n "$(APPLICANT_PORTAL_CLIENT_SECRET)" || (echo "APPLICANT_PORTAL_CLIENT_SECRET is required (see .env.example)" && exit 2)
 	@test -n "$(DECISION_RECORDER_CLIENT_SECRET)" || (echo "DECISION_RECORDER_CLIENT_SECRET is required (see .env.example)" && exit 2)
-	kubectl apply -f platform/core/k8s/identity/00-namespace.yaml
+	kubectl apply -f platform/foundation/identity/00-namespace.yaml
 	@kubectl create secret generic keycloak-admin -n identity --from-literal=username=admin --from-literal=password="$(KEYCLOAK_ADMIN_PASSWORD)" --dry-run=client -o yaml | kubectl apply -f -
 	@kubectl create secret generic keycloak-db-credentials -n identity --type=kubernetes.io/basic-auth --from-literal=username=keycloak --from-literal=password="$(KEYCLOAK_DB_PASSWORD)" --dry-run=client -o yaml | kubectl apply -f -
 	@kubectl create secret generic keycloak-clients -n identity --from-literal=staff-portal="$(STAFF_PORTAL_CLIENT_SECRET)" --from-literal=applicant-portal="$(APPLICANT_PORTAL_CLIENT_SECRET)" --from-literal=decision-recorder="$(DECISION_RECORDER_CLIENT_SECRET)" --dry-run=client -o yaml | kubectl apply -f -
 
 k8s-identity: k8s-identity-secrets ## Deploy Keycloak with the staff and customers realms (E11)
-	kubectl apply -f platform/core/k8s/identity/01-keycloak-db.yaml
-	kubectl create configmap keycloak-realms -n identity --from-file=platform/core/k8s/identity/realms/ --dry-run=client -o yaml | kubectl apply -f -
-	kubectl create configmap keycloak-login-theme -n identity --from-file=platform/core/k8s/identity/themes/crs-lending/login/theme.properties --from-file=platform/core/k8s/identity/themes/crs-lending/login/resources/ --dry-run=client -o yaml | kubectl apply -f -
-	kubectl apply -f platform/core/k8s/identity/02-keycloak.yaml
+	kubectl apply -f platform/foundation/identity/01-keycloak-db.yaml
+	kubectl create configmap keycloak-realms -n identity --from-file=platform/foundation/identity/realms/ --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create configmap keycloak-login-theme -n identity --from-file=platform/foundation/identity/themes/crs-lending/login/theme.properties --from-file=platform/foundation/identity/themes/crs-lending/login/resources/ --dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -f platform/foundation/identity/02-keycloak.yaml
 	kubectl rollout status statefulset/keycloak -n identity --timeout=300s
 
 .PHONY: k8s-cdc
@@ -235,7 +235,6 @@ k8s-core: k8s-preflight build-dbt ## Deploy Core Infrastructure (Postgres + API 
 	kubectl rollout status statefulset/clickhouse-server -n data-services --timeout=$(ROLLOUT_SLOW)
 	@$(MAKE) k8s-shared-config
 	@echo "Deploying API Gateway (Namespace: api-gateway)..."
-	kubectl apply -f platform/core/k8s/
 	kubectl apply -k services/loan-api/deploy/api/
 	kubectl apply -k services/loan-api/deploy/decision-recorder/
 	@echo "Core Platform deployed."
@@ -511,7 +510,7 @@ k8s-feature-registry: build-feast-repo ## Deploy Feast feature registry + Redis 
 k8s-monitoring: ## Deploy Prometheus + Grafana monitoring stack
 	@echo "Deploying monitoring stack (Prometheus + Grafana)..."
 	kubectl create namespace monitoring || true
-	cd platform/ops/k8s/monitoring && \
+	cd platform/foundation/observability/monitoring && \
 		helm upgrade --install kube-prometheus-stack ./kube-prometheus-stack \
 		-n monitoring \
 		-f kube-prometheus-stack/values.custom.yaml
@@ -533,15 +532,15 @@ k8s-logging: ## Deploy ECK logging stack (Elasticsearch + Kibana + Filebeat)
 	@echo "Deploying ECK logging stack..."
 	kubectl create ns logging || true
 	@echo "Installing ECK Operator..."
-	cd platform/ops/k8s/logging/eck-stack && \
+	cd platform/foundation/observability/logging/eck-stack && \
 		helm upgrade --install elastic-operator ./eck-operator -n logging --create-namespace
 	@echo "Waiting for ECK Operator to be ready..."
 	@sleep 20
 	@echo "Installing Elasticsearch and Kibana..."
-	cd platform/ops/k8s/logging/eck-stack && \
+	cd platform/foundation/observability/logging/eck-stack && \
 		helm upgrade --install elastic-stack ./eck-stack -n logging -f eck-values.custom.yaml || true
 	@echo "Deploying Filebeat..."
-	kubectl apply -f platform/ops/k8s/logging/eck-stack/filebeat-manifest.yaml
+	kubectl apply -f platform/foundation/observability/logging/eck-stack/filebeat-manifest.yaml
 	@echo "ECK logging stack deployed (namespace: logging)"
 	@echo "Port-forward Kibana: kubectl port-forward -n logging svc/elastic-stack-eck-kibana-kb-http 5601:5601"
 	@echo "Default password: kubectl get secret elasticsearch-es-elastic-user -n logging -o=jsonpath='{.data.elastic}' | base64 -d"

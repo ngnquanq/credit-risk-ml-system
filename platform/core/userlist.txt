@@ -1,1 +1,0 @@
-"ops_admin" "<generated-from-OPS_DB_PASSWORD>"

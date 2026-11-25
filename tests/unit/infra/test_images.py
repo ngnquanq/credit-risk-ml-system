@@ -8,7 +8,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[3]
 COMPONENT = yaml.safe_load((ROOT / "platform/config/images/kustomization.yaml").read_text())
 TAGS = {i["name"]: i["newTag"] for i in COMPONENT["images"]}
-SCANNED = ["services", "platform/core", "platform/data", "portals/deploy"]
+SCANNED = ["services", "platform/foundation/identity", "platform/data", "portals/deploy"]
 
 
 def _image_lines():

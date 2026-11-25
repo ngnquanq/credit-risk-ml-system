@@ -183,7 +183,7 @@ GRANT SELECT ON audit_trace TO audit_reader;
 | `services/loan-api/src/entrypoints/api/*.py` | call `record` on every allowed or denied action ([E11 Identity and access](../02-product/epics.md#e11-identity-and-access)) |
 | decision recorder ([E5 Decision delivery](../02-product/epics.md#e5-decision-delivery-and-status-tracking)) | `decision` and `decision_fallback` events |
 | `services/model-lifecycle/mlflow-watcher/poller-configmap.yaml` (watcher script) | `model_promoted` event |
-| `platform/ops/k8s/logging/` | Logstash JDBC pipeline `audit_event` → index `audit-*`; Keycloak event log shipping |
+| `platform/foundation/observability/logging/` | Logstash JDBC pipeline `audit_event` → index `audit-*`; Keycloak event log shipping |
 
 ## 7. Acceptance criteria → tests
 

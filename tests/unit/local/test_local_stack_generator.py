@@ -13,7 +13,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 SEED = ROOT / "scripts" / "local" / "initdb" / "03-demo-data.sql"
-COMMITTED_REALMS = ROOT / "platform" / "core" / "k8s" / "identity" / "realms"
+COMMITTED_REALMS = ROOT / "platform" / "foundation" / "identity" / "realms"
 
 
 @pytest.fixture(scope="module")

@@ -161,7 +161,7 @@ backup:
 | `platform/data/k8s/message-broker/` | 3-broker StatefulSet, topic init with RF 3 and min ISR 2 |
 | `platform/ml/k8s/knative/` | KafkaChannel and sinks `replicationFactor: 3` |
 | `platform/data/k8s/operational-db/` | CloudNativePG operator + `Cluster` + `ScheduledBackup`; Debezium points at the `-rw` Service |
-| `platform/core/k8s/` | replicas 2 and PodDisruptionBudgets for API, recorder, portals; readiness probes |
+| `services/loan-api/deploy/` and `platform/foundation/identity/` | replicas 2 and PodDisruptionBudgets for API, recorder, portals; readiness probes |
 | `services/loan-api/src/decisions/fallback.py` | **new**: `FallbackPolicy` |
 | decision recorder ([E5 Decision delivery](../02-product/epics.md#e5-decision-delivery-and-status-tracking)) | consume `hc.scoring.dlq` |
 | `scripts/chaos/{drill,restore}.sh` | **new** |

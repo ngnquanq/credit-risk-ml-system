@@ -12,7 +12,7 @@ REGISTRY_FILE = ROOT / "contracts/topics/topics.env"
 TOPICS = {k: v for k, _, v in (l.partition("=") for l in REGISTRY_FILE.read_text().splitlines() if l.startswith("TOPIC_"))}
 VALUES = set(TOPICS.values())
 LITERAL = re.compile(r"\bhc\.[a-z_]+(?:\.[a-z_]+)*")
-SCANNED = ["services", "platform/core", "platform/data", "platform/ml/k8s/knative", "scripts", "tests", "contracts"]
+SCANNED = ["services", "platform/foundation", "platform/data", "platform/ml/k8s/knative", "scripts", "tests", "contracts"]
 SKIP_PARTS = {"charts", "kubeflow", "node_modules", "reports"}
 # Not written out as topic names: the generated Kubeflow file, and the Debezium topic prefix (hc.applications + schema.table).
 GENERATED = {"services/model-lifecycle/pipeline/training_pipeline.yaml"}

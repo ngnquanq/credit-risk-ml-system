@@ -13,7 +13,7 @@
 ## 2. Scope
 
 **In**
-- **Keycloak** in namespace `identity`, 2 replicas, own PostgreSQL. Realm exports committed under `platform/core/k8s/identity/realms/` with no secrets.
+- **Keycloak** in namespace `identity`, 2 replicas, own PostgreSQL. Realm exports committed under `platform/foundation/identity/realms/` with no secrets.
 - **Realm `staff`.**
   - No self-registration; TOTP required.
   - Roles `loan_officer`, `underwriter`, `risk_manager`, `auditor`, `admin`; user attribute `branch_id`.
@@ -115,7 +115,7 @@ The policy is pure: no I/O, no framework imports. Routes load the resource (only
 
 ### 4.3 Behaviour
 
-See the [portal authentication and API authorization sequence](../../platform/core/k8s/identity/README.md#portal-authentication-and-api-authorization) for browser sign-in, callback, and session handling.
+See the [portal authentication and API authorization sequence](../../platform/foundation/identity/README.md#portal-authentication-and-api-authorization) for browser sign-in, callback, and session handling.
 
 Every protected request goes through the same steps:
 
@@ -227,7 +227,7 @@ Existing rows keep `channel='staff'` and null owners. They are readable only by 
 
 | File | Change |
 |---|---|
-| `platform/core/k8s/identity/` | **new**: Keycloak StatefulSet (2 replicas), CloudNativePG cluster, Service, Ingress host `auth.credit.local`, realm exports `staff.json`, `customers.json` |
+| `platform/foundation/identity/` | **new**: Keycloak StatefulSet (2 replicas), CloudNativePG cluster, Service, Ingress host `auth.credit.local`, realm exports `staff.json`, `customers.json` |
 | `Makefile` | `k8s-identity` target; `k8s-secrets` creates client secrets from env, never from files in git |
 | `services/loan-api/src/entrypoints/api/security.py` | **new**: `TokenVerifier`, `JwksCache`, `Principal` |
 | `services/loan-api/src/authz/{__init__,policy,rules}.py` | **new**: `authorize`, rule table from §5 |

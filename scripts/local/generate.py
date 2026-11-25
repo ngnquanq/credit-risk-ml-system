@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the git-ignored config for the local UI stack (scripts/local/.generated).
 
-- Local realm files derived from platform/core/k8s/identity/realms/*.json:
+- Local realm files derived from platform/foundation/identity/realms/*.json:
   localhost redirect URIs, real generated client secrets, demo users with fixed ids
   (matching initdb/03-demo-data.sql) and generated passwords.
   LOCAL ONLY relaxation: staff TOTP is not forced, so the API does not require acr=mfa locally.
@@ -27,7 +27,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 OUT = HERE / ".generated"
-REALMS = ROOT / "platform" / "core" / "k8s" / "identity" / "realms"
+REALMS = ROOT / "platform" / "foundation" / "identity" / "realms"
 
 STAFF_PORTAL = "http://localhost:3002"
 APPLICANT_PORTAL = "http://localhost:3001"

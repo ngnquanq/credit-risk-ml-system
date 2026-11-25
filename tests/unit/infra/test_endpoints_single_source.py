@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 ENV_FILE = ROOT / "platform/config/endpoints/endpoints.env"
-SCANNED = ["services", "platform/core", "platform/data", "platform/environments", "portals/deploy", "scripts/local"]
+SCANNED = ["services", "platform/foundation", "platform/data", "platform/environments", "portals/deploy", "scripts/local"]
 # platform/ml mixes our files with vendored charts, so only our own files are listed.
 EXTRA_FILES = ["platform/ml/k8s/model-serving/watcher-deployment.yaml", "platform/ml/k8s/knative/serving-config.yaml"]
 SUFFIXES = {".yaml", ".yml", ".template", ".sh"}

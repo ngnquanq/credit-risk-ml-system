@@ -11,7 +11,7 @@ HOSTS = {
     k: v for k, _, v in (l.partition("=") for l in (ROOT / "platform/config/public-hosts/hosts.env").read_text().splitlines()
                          if l.strip() and not l.startswith("#"))
 }
-PODS = ["portals/deploy/portals.yaml", "platform/core/k8s/identity/02-keycloak.yaml", "services/loan-api/deploy/api/05-api.yaml"]
+PODS = ["portals/deploy/portals.yaml", "platform/foundation/identity/02-keycloak.yaml", "services/loan-api/deploy/api/05-api.yaml"]
 
 
 def _ingress_hosts(path: str) -> dict[str, str]:
@@ -23,7 +23,7 @@ def _ingress_hosts(path: str) -> dict[str, str]:
 
 
 def test_base_ingress_hosts_match_the_defaults():
-    hosts = {**_ingress_hosts("portals/deploy/portals.yaml"), **_ingress_hosts("platform/core/k8s/identity/02-keycloak.yaml")}
+    hosts = {**_ingress_hosts("portals/deploy/portals.yaml"), **_ingress_hosts("platform/foundation/identity/02-keycloak.yaml")}
     assert hosts == {"applicant-portal": HOSTS["APPLY_HOST"], "staff-portal": HOSTS["STAFF_HOST"], "keycloak": HOSTS["AUTH_HOST"]}
 
 
@@ -36,7 +36,7 @@ def test_pod_specs_do_not_write_a_public_host_out():
 
 def test_realm_files_use_placeholders_for_the_portal_hosts():
     for realm, key in (("customers", "APPLY_HOST"), ("staff", "STAFF_HOST")):
-        text = (ROOT / f"platform/core/k8s/identity/realms/{realm}.json").read_text()
+        text = (ROOT / f"platform/foundation/identity/realms/{realm}.json").read_text()
         json.loads(text)
         assert HOSTS[key] not in text and "${" + key + "}" in text
 

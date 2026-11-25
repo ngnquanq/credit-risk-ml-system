@@ -2,7 +2,9 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: api-gateway
 resources:
+  - 01-api-config.yaml
   - 05-api.yaml
+  - 06-ingress.yaml
 components:
   - ../../../../platform/config/endpoints
   - ../../../../platform/config/public-hosts

@@ -3,9 +3,9 @@ kind: Kustomization
 # UAT (E16): same manifests as dev, full replicas, images pinned by digest.
 # A release candidate changes only the digests below (scripts in E16 check that every image has one).
 resources:
-  - ../../core/k8s/identity/00-namespace.yaml
-  - ../../core/k8s/identity/01-keycloak-db.yaml
-  - ../../core/k8s/identity/02-keycloak.yaml
+  - ../../foundation/identity/00-namespace.yaml
+  - ../../foundation/identity/01-keycloak-db.yaml
+  - ../../foundation/identity/02-keycloak.yaml
   - ../../../portals/deploy
   - ../../config/namespaces/identity
   - ../../../services/loan-api/deploy/decision-recorder

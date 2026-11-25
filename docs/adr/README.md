@@ -43,6 +43,7 @@ Sections follow Richards and Ford (*Fundamentals of Software Architecture*, the 
 | [0014](0014-applicant-personal-data-and-opaque-ids.md) | Applicant personal data is kept apart and encrypted; URLs carry opaque ids only | Accepted |
 | [0015](0015-services-layout-high-cohesion-low-coupling.md) | One folder per deployable service; services share only contracts | Accepted |
 | [0016](0016-training-data-lineage-and-reproducible-models.md) | Every model run records where its data came from; the data is kept only for models that serve | Proposed |
+| [0017](0017-platform-foundation-layout.md) | `platform/foundation` holds what everything else runs on; service deployment config sits with the service | Accepted |
 
 ## By epic (pilot)
 

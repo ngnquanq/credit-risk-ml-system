@@ -1,9 +1,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ../../core/k8s/identity/00-namespace.yaml
-  - ../../core/k8s/identity/01-keycloak-db.yaml
-  - ../../core/k8s/identity/02-keycloak.yaml
+  - ../../foundation/identity/00-namespace.yaml
+  - ../../foundation/identity/01-keycloak-db.yaml
+  - ../../foundation/identity/02-keycloak.yaml
   - ../../../portals/deploy
   - ../../config/namespaces/identity
   - ../../../services/loan-api/deploy/decision-recorder

@@ -28,7 +28,7 @@
 /ml_data_mart/                                   @credit-risk/data-engineering
 /platform/                                       @credit-risk/platform
 /platform/data/                                  @credit-risk/data-engineering
-/platform/core/k8s/identity/                     @credit-risk/platform @credit-risk/security
+/platform/foundation/identity/                     @credit-risk/platform @credit-risk/security
 
 # Experiments and clients
 /notebook/                                       @credit-risk/data-science

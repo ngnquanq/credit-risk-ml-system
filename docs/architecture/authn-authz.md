@@ -162,7 +162,7 @@ Every `authorize` call is written to the audit log, allowed or denied, with the 
 
 | Concern | Code |
 |---|---|
-| Realms, clients, roles, MFA, lifetimes | `platform/core/k8s/identity/` (`realms/staff.json`, `realms/customers.json`, `02-keycloak.yaml`) |
+| Realms, clients, roles, MFA, lifetimes | `platform/foundation/identity/` (`realms/staff.json`, `realms/customers.json`, `02-keycloak.yaml`) |
 | Login, callback, logout routes | `portals/packages/auth/src/routes.ts`, `oidc.ts` |
 | Sessions, CSRF, cookies, token relay | `session.ts`, `csrf.ts`, `cookies.ts`, `server.ts` in the same package |
 | CSP and security headers | `portals/packages/auth/src/security-headers.ts` |
