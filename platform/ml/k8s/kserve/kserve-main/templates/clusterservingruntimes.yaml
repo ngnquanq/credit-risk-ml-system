@@ -1,3 +1,4 @@
+{{- if .Values.kserve.servingruntime.install }}
 apiVersion: serving.kserve.io/v1alpha1
 kind: ClusterServingRuntime
 metadata:
@@ -694,3 +695,5 @@ spec:
     imagePullSecrets:
       {{- toYaml . | nindent 4 }}
     {{- end }}          
+
+{{- end }}

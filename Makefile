@@ -431,17 +431,24 @@ k8s-kserve: k8s-cert-manager ## Deploy KServe for model serving infrastructure
 	kubectl apply -f platform/ml/k8s/kserve/standard-install.yaml
 	@echo ""
 	@echo "Installing KServe CRDs..."
-	cd platform/ml/k8s/kserve/kserve-crd && (helm install kserve-crd . -n kserve 2>/dev/null || echo "kserve-crd already installed")
+	helm upgrade --install kserve-crd platform/ml/k8s/kserve/kserve-crd -n kserve
 	@echo "Waiting for CRDs to be established..."
-	@sleep 10
+	kubectl wait --for=condition=established --timeout=120s crd/inferenceservices.serving.kserve.io crd/clusterservingruntimes.serving.kserve.io
 	@echo ""
 	@echo "Installing KServe main components (creates Certificate and Issuer)..."
-	cd platform/ml/k8s/kserve/kserve-main && (helm install kserve . -n kserve --set kserve.controller.knativeAddressableResolver.enabled=true 2>/dev/null || echo "kserve already installed")
-	@echo "Waiting for KServe controller-manager to be ready before upgrade..."
-	kubectl wait --for=condition=ready pod -l control-plane=kserve-controller-manager -n kserve --timeout=300s
-	@echo "Enabling Knative addressable resolver..."
-	cd platform/ml/k8s/kserve/kserve-main && helm upgrade kserve . -n kserve --reuse-values --set kserve.controller.knativeAddressableResolver.enabled=true
-	@kubectl wait --for=condition=available --timeout=120s deployment/kserve-controller-manager -n kserve || true
+	@if ! kubectl get deployment/kserve-controller-manager -n kserve >/dev/null 2>&1; then \
+		helm upgrade --install kserve platform/ml/k8s/kserve/kserve-main -n kserve \
+			--set kserve.controller.knativeAddressableResolver.enabled=true \
+			--set kserve.servingruntime.install=false; \
+	fi
+	kubectl wait --for=condition=ready --timeout=120s certificate/serving-cert -n kserve
+	kubectl rollout status deployment/kserve-controller-manager -n kserve --timeout=300s
+	kubectl wait --for=jsonpath='{.webhooks[0].clientConfig.caBundle}' --timeout=120s \
+		validatingwebhookconfiguration/clusterservingruntime.serving.kserve.io
+	@echo "Installing serving runtimes after the KServe webhook is ready..."
+	helm upgrade kserve platform/ml/k8s/kserve/kserve-main -n kserve --reuse-values \
+		--set kserve.controller.knativeAddressableResolver.enabled=true --set kserve.servingruntime.install=true
+	kubectl rollout status deployment/kserve-controller-manager -n kserve --timeout=120s
 	@echo ""
 	@echo "Deploying bento-builder ConfigMap..."
 	kubectl apply -f services/model-lifecycle/bento-builder/configmap.yaml

@@ -271,6 +271,7 @@ kserve:
     knativeAddressableResolver:
       enabled: true  # Changed from false for Knative Eventing integration
   servingruntime:
+    install: true
     modelNamePlaceholder: "{{.Name}}"
     tensorflow:
       image: tensorflow/serving
