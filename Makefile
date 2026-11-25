@@ -418,16 +418,15 @@ k8s-knative-complete: k8s-knative-stack k8s-kserve k8s-scoring-pipeline ## Compl
 	@echo "  2. Upload to MLflow (serving watcher will auto-deploy)"
 	@echo "  3. Monitor: kubectl logs -n model-serving deployment/serving-watcher -f"
 
-k8s-kserve: ## Deploy KServe for model serving infrastructure
-	@echo "Deploying KServe (cert-manager + CRDs + main components)..."
+.PHONY: k8s-cert-manager
+k8s-cert-manager: ## Install the shared cert-manager controller and CRDs
+	kubectl apply -f platform/foundation/certificates/cert-manager.yaml
+	kubectl wait --for=condition=established --timeout=120s crd/certificates.cert-manager.io crd/issuers.cert-manager.io crd/clusterissuers.cert-manager.io
+	kubectl rollout status --timeout=600s deployment/cert-manager-webhook -n cert-manager
+
+k8s-kserve: k8s-cert-manager ## Deploy KServe for model serving infrastructure
+	@echo "Deploying KServe (CRDs + main components)..."
 	kubectl create ns kserve || true
-	@echo "Installing cert-manager..."
-	kubectl apply -f platform/ml/k8s/kserve/cert-manager.yaml
-	@echo "Waiting for cert-manager webhook to be ready (image pull can take several minutes)..."
-	kubectl wait --for=condition=available --timeout=600s deployment/cert-manager-webhook -n cert-manager || true
-	kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=webhook -n cert-manager --timeout=600s
-	@echo "cert-manager ready"
-	@echo ""
 	@echo "Installing KServe standard components..."
 	kubectl apply -f platform/ml/k8s/kserve/standard-install.yaml
 	@echo ""

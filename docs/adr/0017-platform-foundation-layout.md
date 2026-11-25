@@ -49,3 +49,7 @@ The infrastructure tests (`tests/unit/infra`) scan `platform/foundation` and fai
 ## Notes
 
 **What the sources support.** The notebook (Richards and Ford, ch. 16 p. 237) separates infrastructure services such as logging, monitoring and authentication from business services; it warns that a common folder with only coincidental cohesion becomes a catch-all (ch. 3 pp. 40 to 41); Twelve-Factor and *Software Engineering at Google* (ch. 23) place a service's configuration with its release. **Not in any source:** the folder names, and treating observability as a soft dependency that deserves its own folder. Those are conventions chosen here.
+
+## Certificate management
+
+`platform/foundation/certificates/` owns the shared cert-manager installation. Run `make k8s-cert-manager` to install its controller and CRDs independently. `make k8s-kserve` runs this prerequisite before installing KServe. The KServe chart owns the namespaced Issuer and Certificate for its webhook. A shared workload issuer can be added when a trust policy and its first consumer are defined.
